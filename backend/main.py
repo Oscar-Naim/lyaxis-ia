@@ -21,72 +21,124 @@ app = FastAPI(title="LYAXIS IA API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "*"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+DATABASE_URL = os.getenv("DATABASE_URL")
 DB_PATH = os.path.join(os.path.dirname(__file__), "lyaxis.db")
 
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+# Conector inteligente: PostgreSQL en la nube (Supabase) o SQLite local
+class Database:
+    def __init__(self):
+        self.is_postgres = bool(DATABASE_URL)
+
+    def get_connection(self):
+        if self.is_postgres:
+            import psycopg2
+            from psycopg2.extras import RealDictCursor
+            db_url = DATABASE_URL
+            if "sslmode=" not in db_url:
+                db_url += ("?" if "?" not in db_url else "&") + "sslmode=require"
+            return psycopg2.connect(db_url, cursor_factory=RealDictCursor)
+        else:
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            return conn
+
+    def execute(self, query: str, params: tuple = ()):
+        conn = self.get_connection()
+        try:
+            cursor = conn.cursor()
+            if self.is_postgres:
+                pg_query = query.replace("?", "%s")
+                cursor.execute(pg_query, params)
+            else:
+                cursor.execute(query, params)
+            conn.commit()
+            return cursor
+        finally:
+            conn.close()
+
+    def fetchall(self, query: str, params: tuple = ()):
+        conn = self.get_connection()
+        try:
+            cursor = conn.cursor()
+            if self.is_postgres:
+                pg_query = query.replace("?", "%s")
+                cursor.execute(pg_query, params)
+            else:
+                cursor.execute(query, params)
+            rows = cursor.fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def fetchone(self, query: str, params: tuple = ()):
+        conn = self.get_connection()
+        try:
+            cursor = conn.cursor()
+            if self.is_postgres:
+                pg_query = query.replace("?", "%s")
+                cursor.execute(pg_query, params)
+            else:
+                cursor.execute(query, params)
+            row = cursor.fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+db = Database()
 
 def init_db():
-    with get_db() as conn:
-        cursor = conn.cursor()
-        # 1. Tabla de Usuarios
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            google_id TEXT UNIQUE,
-            email TEXT UNIQUE,
-            phone TEXT UNIQUE,
-            name TEXT,
-            picture TEXT,
-            created_at TEXT NOT NULL
-        )
-        """)
-        
-        # 2. Tabla de Conversaciones
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS conversations (
-            id TEXT PRIMARY KEY,
-            user_id TEXT,
-            title TEXT NOT NULL,
-            model TEXT NOT NULL DEFAULT 'speed',
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-        )
-        """)
-
-        # Migración automática si la tabla ya existía sin la columna user_id
+    db.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        google_id TEXT UNIQUE,
+        email TEXT UNIQUE,
+        phone TEXT UNIQUE,
+        name TEXT,
+        picture TEXT,
+        created_at TEXT NOT NULL
+    )
+    """)
+    db.execute("""
+    CREATE TABLE IF NOT EXISTS conversations (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        title TEXT NOT NULL,
+        model TEXT NOT NULL DEFAULT 'speed',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    )
+    """)
+    if not db.is_postgres:
         try:
-            cursor.execute("ALTER TABLE conversations ADD COLUMN user_id TEXT")
+            db.execute("ALTER TABLE conversations ADD COLUMN user_id TEXT")
         except Exception:
             pass
 
-        # 3. Tabla de Mensajes
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS messages (
-            id TEXT PRIMARY KEY,
-            conversation_id TEXT NOT NULL,
-            role TEXT NOT NULL,
-            content TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE
-        )
-        """)
-        conn.commit()
+    db.execute("""
+    CREATE TABLE IF NOT EXISTS messages (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE
+    )
+    """)
 
-init_db()
+try:
+    init_db()
+except Exception as e:
+    print(f"Base de datos: {e}")
 
 otp_storage = {}
 
-# System Prompts Oficiales
 SYSTEM_PROMPT = """
 <identity>
 Eres LYAXIS IA — el asistente conversacional, técnico y copiloto creativo de LYAXIS labs™.
@@ -199,39 +251,34 @@ def verify_otp_code(req: VerifyOtpPayload):
             raise HTTPException(status_code=400, detail="El código de 6 dígitos es incorrecto o ha expirado.")
 
     now = datetime.utcnow().isoformat()
-    with get_db() as conn:
-        cursor = conn.cursor()
-        if req.auth_type == "email":
-            cursor.execute("SELECT * FROM users WHERE email = ?", (target,))
-            user = cursor.fetchone()
-            if not user:
-                user_id = str(uuid.uuid4())
-                name = target.split("@")[0].capitalize()
-                picture = f"https://api.dicebear.com/7.x/bottts/svg?seed={target}"
-                cursor.execute(
-                    "INSERT INTO users (id, email, name, picture, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (user_id, target, name, picture, now)
-                )
-            else:
-                user_id = user["id"]
-                name = user["name"]
-                picture = user["picture"]
+    if req.auth_type == "email":
+        user = db.fetchone("SELECT * FROM users WHERE email = ?", (target,))
+        if not user:
+            user_id = str(uuid.uuid4())
+            name = target.split("@")[0].capitalize()
+            picture = f"https://api.dicebear.com/7.x/bottts/svg?seed={target}"
+            db.execute(
+                "INSERT INTO users (id, email, name, picture, created_at) VALUES (?, ?, ?, ?, ?)",
+                (user_id, target, name, picture, now)
+            )
         else:
-            cursor.execute("SELECT * FROM users WHERE phone = ?", (target,))
-            user = cursor.fetchone()
-            if not user:
-                user_id = str(uuid.uuid4())
-                name = f"Usuario {target[-4:]}"
-                picture = f"https://api.dicebear.com/7.x/bottts/svg?seed={target}"
-                cursor.execute(
-                    "INSERT INTO users (id, phone, name, picture, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (user_id, target, name, picture, now)
-                )
-            else:
-                user_id = user["id"]
-                name = user["name"]
-                picture = user["picture"]
-        conn.commit()
+            user_id = user["id"]
+            name = user["name"]
+            picture = user["picture"]
+    else:
+        user = db.fetchone("SELECT * FROM users WHERE phone = ?", (target,))
+        if not user:
+            user_id = str(uuid.uuid4())
+            name = f"Usuario {target[-4:]}"
+            picture = f"https://api.dicebear.com/7.x/bottts/svg?seed={target}"
+            db.execute(
+                "INSERT INTO users (id, phone, name, picture, created_at) VALUES (?, ?, ?, ?, ?)",
+                (user_id, target, name, picture, now)
+            )
+        else:
+            user_id = user["id"]
+            name = user["name"]
+            picture = user["picture"]
 
     if target in otp_storage:
         del otp_storage[target]
@@ -261,22 +308,17 @@ def google_auth(req: GoogleAuthRequest):
         name = id_info.get("name")
         picture = id_info.get("picture")
 
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM users WHERE google_id = ?", (google_id,))
-            user = cursor.fetchone()
-
-            now = datetime.utcnow().isoformat()
-            if not user:
-                user_id = str(uuid.uuid4())
-                cursor.execute(
-                    "INSERT INTO users (id, google_id, email, name, picture, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (user_id, google_id, email, name, picture, now)
-                )
-            else:
-                user_id = user["id"]
-                cursor.execute("UPDATE users SET name = ?, picture = ? WHERE id = ?", (name, picture, user_id))
-            conn.commit()
+        user = db.fetchone("SELECT * FROM users WHERE google_id = ?", (google_id,))
+        now = datetime.utcnow().isoformat()
+        if not user:
+            user_id = str(uuid.uuid4())
+            db.execute(
+                "INSERT INTO users (id, google_id, email, name, picture, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (user_id, google_id, email, name, picture, now)
+            )
+        else:
+            user_id = user["id"]
+            db.execute("UPDATE users SET name = ?, picture = ? WHERE id = ?", (name, picture, user_id))
 
         return {
             "status": "ok",
@@ -293,49 +335,34 @@ def google_auth(req: GoogleAuthRequest):
 # Endpoints de Conversaciones
 @app.get("/api/v1/conversations")
 def list_conversations(user_id: Optional[str] = None):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        if user_id:
-            cursor.execute("SELECT id, user_id, title, model, created_at, updated_at FROM conversations WHERE user_id = ? ORDER BY updated_at DESC", (user_id,))
-        else:
-            cursor.execute("SELECT id, user_id, title, model, created_at, updated_at FROM conversations ORDER BY updated_at DESC")
-        rows = cursor.fetchall()
-        return [dict(r) for r in rows]
+    if user_id:
+        return db.fetchall("SELECT id, user_id, title, model, created_at, updated_at FROM conversations WHERE user_id = ? ORDER BY updated_at DESC", (user_id,))
+    return db.fetchall("SELECT id, user_id, title, model, created_at, updated_at FROM conversations ORDER BY updated_at DESC")
 
 @app.post("/api/v1/conversations")
 def create_conversation(req: CreateConversationRequest):
     cid = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (cid, req.user_id, req.title, req.model, now, now)
-        )
-        conn.commit()
+    db.execute(
+        "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (cid, req.user_id, req.title, req.model, now, now)
+    )
     return {"id": cid, "user_id": req.user_id, "title": req.title, "model": req.model, "created_at": now, "updated_at": now}
 
 @app.get("/api/v1/conversations/{cid}/messages")
 def get_conversation_messages(cid: str):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, role, content, created_at as timestamp FROM messages WHERE conversation_id = ? ORDER BY created_at ASC", (cid,))
-        rows = cursor.fetchall()
-        return [dict(r) for r in rows]
+    return db.fetchall("SELECT id, role, content, created_at as timestamp FROM messages WHERE conversation_id = ? ORDER BY created_at ASC", (cid,))
 
 @app.delete("/api/v1/conversations/{cid}")
 def delete_conversation(cid: str):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM messages WHERE conversation_id = ?", (cid,))
-        cursor.execute("DELETE FROM conversations WHERE id = ?", (cid,))
-        conn.commit()
+    db.execute("DELETE FROM messages WHERE conversation_id = ?", (cid,))
+    db.execute("DELETE FROM conversations WHERE id = ?", (cid,))
     return {"status": "deleted", "id": cid}
 
 async def generate_gemini_stream(conversation_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "speed"):
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key or "TuClaveAqui" in api_key:
-        yield f"data: {json.dumps({'token': '⚠️ Por favor configura tu GEMINI_API_KEY en el archivo backend/.env.'})}\n\n"
+        yield f"data: {json.dumps({'token': '⚠️ Por favor configura tu GEMINI_API_KEY en el backend.'})}\n\n"
         return
 
     if model_type == "architect":
@@ -347,22 +374,19 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
 
     user_msg = messages[-1] if messages and messages[-1].role == "user" else None
     if conversation_id and user_msg:
-        with get_db() as conn:
-            cursor = conn.cursor()
-            mid = user_msg.id or str(uuid.uuid4())
-            now = datetime.utcnow().isoformat()
-            cursor.execute(
-                "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                (mid, conversation_id, "user", user_msg.content, now)
-            )
-            cursor.execute("SELECT COUNT(*) as count FROM messages WHERE conversation_id = ?", (conversation_id,))
-            count = cursor.fetchone()["count"]
-            if count == 1:
-                auto_title = user_msg.content[:30] + ("..." if len(user_msg.content) > 30 else "")
-                cursor.execute("UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?", (auto_title, now, conversation_id))
-            else:
-                cursor.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
-            conn.commit()
+        mid = user_msg.id or str(uuid.uuid4())
+        now = datetime.utcnow().isoformat()
+        db.execute(
+            "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+            (mid, conversation_id, "user", user_msg.content, now)
+        )
+        count_data = db.fetchone("SELECT COUNT(*) as count FROM messages WHERE conversation_id = ?", (conversation_id,))
+        count = count_data.get("count", 1) if count_data else 1
+        if count == 1:
+            auto_title = user_msg.content[:30] + ("..." if len(user_msg.content) > 30 else "")
+            db.execute("UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?", (auto_title, now, conversation_id))
+        else:
+            db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
 
     full_response_text = ""
     try:
@@ -412,16 +436,13 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
                 raise e_inner
 
         if conversation_id and full_response_text:
-            with get_db() as conn:
-                cursor = conn.cursor()
-                mid = str(uuid.uuid4())
-                now = datetime.utcnow().isoformat()
-                cursor.execute(
-                    "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (mid, conversation_id, "model", full_response_text, now)
-                )
-                cursor.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
-                conn.commit()
+            mid = str(uuid.uuid4())
+            now = datetime.utcnow().isoformat()
+            db.execute(
+                "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                (mid, conversation_id, "model", full_response_text, now)
+            )
+            db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
 
     except Exception as e:
         yield f"data: {json.dumps({'token': f'❌ Error: {str(e)}'})}\n\n"
@@ -451,4 +472,4 @@ async def chat_stream_endpoint(request: ChatRequest):
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "service": "LYAXIS IA Backend con Auth & OTP"}
+    return {"status": "ok", "service": "LYAXIS IA Production API"}
