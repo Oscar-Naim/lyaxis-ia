@@ -22,7 +22,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
 
   if (!isOpen) return null;
 
-  // 1. Enviar Código de Verificación
+  // 1. Enviar Código de Verificación OTP
   const handleRequestCode = async (customTarget?: string, type?: 'email' | 'phone') => {
     const inputTarget = (customTarget || target).trim();
     const finalType = type || authType;
@@ -52,7 +52,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
         setError(data.detail || 'Error al enviar código');
       }
     } catch {
-      setError('No se pudo conectar con el servidor.');
+      setError('No se pudo conectar con el servidor backend.');
     } finally {
       setLoading(false);
     }
@@ -114,7 +114,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
     next[index] = val.slice(-1);
     setOtpCode(next);
 
-    // Auto-focus al siguiente input
     if (val && index < 5) {
       const nextInput = document.getElementById(`otp-${index + 1}`);
       nextInput?.focus();
@@ -122,8 +121,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(10px)', padding: '16px' }}>
-      <div style={{ width: '100%', maxWidth: '380px', backgroundColor: '#09090d', border: '1px solid #1c1c28', borderRadius: '18px', padding: '32px 28px', color: '#ffffff', position: 'relative', boxShadow: '0 20px 60px rgba(0,0,0,0.95)' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.82)', backdropFilter: 'blur(14px)', padding: '16px' }}>
+      <div style={{ width: '100%', maxWidth: '380px', backgroundColor: '#07070a', border: '1px solid #1c1c28', borderRadius: '20px', padding: '32px 28px', color: '#ffffff', position: 'relative', boxShadow: '0 25px 70px rgba(0,0,0,0.95)' }}>
         
         {/* Botón Cerrar */}
         <button
@@ -133,9 +132,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
           <X size={20} />
         </button>
 
-        {/* LOGO y HEADER */}
+        {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'linear-gradient(135deg, #2563FF, #00D9FF)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '14px', boxShadow: '0 0 20px rgba(37, 99, 255, 0.4)' }}>
+          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #2563FF, #00D9FF)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '14px', boxShadow: '0 0 20px rgba(0, 217, 255, 0.35)' }}>
             <Terminal size={22} color="#ffffff" />
           </div>
           <h2 style={{ fontSize: '24px', fontWeight: 800, margin: '0 0 8px', letterSpacing: '-0.3px' }}>
@@ -154,11 +153,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
           </div>
         )}
 
-        {/* PANTALLA 1: PRINCIPAL (Google, Teléfono, Correo) */}
+        {/* PANTALLA 1: PRINCIPAL */}
         {step === 'main' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {/* 1. Botón Google Oficial */}
-            <div style={{ display: 'flex', justifyContent: 'center', width: '100%', marginBottom: '2px' }}>
+            {/* 1. Botón Google */}
+            <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
               <GoogleLogin
                 onSuccess={handleGoogleSuccess}
                 onError={() => setError('Error al conectar con Google')}
@@ -170,7 +169,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
               />
             </div>
 
-            {/* 2. Botón Continuar con Teléfono */}
+            {/* 2. Botón Teléfono */}
             <button
               onClick={() => {
                 setAuthType('phone');
@@ -185,7 +184,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
                 gap: '10px',
                 padding: '12px',
                 borderRadius: '24px',
-                backgroundColor: '#121218',
+                backgroundColor: '#111116',
                 border: '1px solid #22222e',
                 color: '#ffffff',
                 fontSize: '14px',
@@ -197,7 +196,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
               <span>Continuar con el teléfono</span>
             </button>
 
-            {/* Separador "O" */}
+            {/* Separador */}
             <div style={{ display: 'flex', alignItems: 'center', margin: '8px 0', gap: '12px' }}>
               <div style={{ flex: 1, height: '1px', backgroundColor: '#1c1c26' }} />
               <span style={{ fontSize: '11px', color: '#71717a', textTransform: 'uppercase' }}>o</span>
@@ -261,25 +260,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
               <ArrowLeft size={14} /> Volver a opciones
             </button>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="tel"
-                placeholder="+52 55 1234 5678"
-                value={target}
-                onChange={(e) => setTarget(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleRequestCode(target, 'phone')}
-                style={{
-                  flex: 1,
-                  padding: '14px 18px',
-                  borderRadius: '24px',
-                  backgroundColor: '#000000',
-                  border: '1px solid #22222e',
-                  color: '#ffffff',
-                  fontSize: '14px',
-                  outline: 'none',
-                }}
-              />
-            </div>
+            <input
+              type="tel"
+              placeholder="+52 55 1234 5678"
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleRequestCode(target, 'phone')}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '14px 18px',
+                borderRadius: '24px',
+                backgroundColor: '#000000',
+                border: '1px solid #22222e',
+                color: '#ffffff',
+                fontSize: '14px',
+                outline: 'none',
+              }}
+            />
 
             <button
               onClick={() => handleRequestCode(target, 'phone')}
@@ -301,17 +299,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
           </div>
         )}
 
-        {/* PANTALLA 3: VERIFICACIÓN DE CÓDIGO (6 DÍGITOS OTP) */}
+        {/* PANTALLA 3: VERIFICACIÓN OTP */}
         {step === 'verify_code' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-            {/* Aviso con el código generado para pruebas locales */}
             {demoCodeHint && (
               <div style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', backgroundColor: '#00D9FF15', border: '1px solid #00D9FF44', color: '#00D9FF', fontSize: '12px', textAlign: 'center' }}>
-                Código de prueba generado: <strong style={{ letterSpacing: '2px' }}>{demoCodeHint}</strong>
+                Código de verificación: <strong style={{ letterSpacing: '2px' }}>{demoCodeHint}</strong>
               </div>
             )}
 
-            {/* 6 Casillas de Dígitos */}
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', margin: '8px 0' }}>
               {otpCode.map((digit, i) => (
                 <input

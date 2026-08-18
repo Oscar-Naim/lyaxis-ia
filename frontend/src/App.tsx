@@ -1,14 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn } from 'lucide-react';
+import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X } from 'lucide-react';
 import type { Message, Conversation, User } from './types';
 import { useSSEStream } from './useSSEStream';
 import { CodeBlock } from './CodeBlock';
 import { LandingPage } from './LandingPage';
 import { AuthModal } from './AuthModal';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://lyaxis-ia.onrender.com';
 const GOOGLE_CLIENT_ID = "789123456789-lyaxisexample.apps.googleusercontent.com";
 
 let audioCtx: AudioContext | null = null;
@@ -66,8 +66,11 @@ const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) =
 export default function App() {
   const [view, setView] = useState<'landing' | 'chat'>('landing');
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+
   const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('lyaxis_user');
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('lyaxis_user') : null;
     return saved ? JSON.parse(saved) : null;
   });
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -76,11 +79,22 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
-    return localStorage.getItem('lyaxis_sound') === 'true';
+    return typeof window !== 'undefined' ? localStorage.getItem('lyaxis_sound') === 'true' : false;
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (!mobile) setIsSidebarOpen(true);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const toggleSound = () => {
     const next = !soundEnabled;
@@ -102,6 +116,7 @@ export default function App() {
   };
 
   const { isStreaming, sendMessage, stopStreaming } = useSSEStream({
+    apiBaseUrl: API_BASE,
     onDone: () => {
       fetchConversations(user?.id);
     },
@@ -111,7 +126,7 @@ export default function App() {
         {
           id: Date.now().toString(),
           role: 'model',
-          content: `⚠️ Error de conexión: ${err.message}`,
+          content: `⚠️ Error de conexión con el servidor: ${err.message}`,
           timestamp: new Date().toISOString(),
         }
       ]);
@@ -161,6 +176,7 @@ export default function App() {
     if (isStreaming) return;
     setCurrentChatId(chatId);
     loadMessages(chatId);
+    if (isMobile) setIsSidebarOpen(false);
   };
 
   const createNewChat = async () => {
@@ -176,6 +192,7 @@ export default function App() {
         setConversations((prev) => [newChat, ...prev]);
         setCurrentChatId(newChat.id);
         setMessages([]);
+        if (isMobile) setIsSidebarOpen(false);
       }
     } catch (e) {
       console.error("Error creando chat:", e);
@@ -319,9 +336,9 @@ export default function App() {
   };
 
   const getModelLabel = (modelKey: 'speed' | 'cortex' | 'architect') => {
-    if (modelKey === 'architect') return 'LYAXIS Architect';
-    if (modelKey === 'cortex') return 'LYAXIS Cortex';
-    return 'LYAXIS Speed';
+    if (modelKey === 'architect') return 'Architect';
+    if (modelKey === 'cortex') return 'Cortex';
+    return 'Speed';
   };
 
   const getModelColor = (modelKey: 'speed' | 'cortex' | 'architect') => {
@@ -341,9 +358,34 @@ export default function App() {
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <div className="cyber-grid-bg" style={{ display: 'flex', width: '100vw', height: '100vh', color: '#ffffff' }}>
-        {/* Sidebar */}
-        <aside style={{ width: '280px', backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(12px)', borderRight: '1px solid #141418', display: 'flex', flexDirection: 'column', padding: '16px', flexShrink: 0 }}>
+      <div className="cyber-grid-bg" style={{ display: 'flex', width: '100vw', height: '100vh', color: '#ffffff', position: 'relative', overflow: 'hidden' }}>
+        
+        {/* Overlay Oscuro en Móvil cuando el Sidebar está abierto */}
+        {isMobile && isSidebarOpen && (
+          <div
+            onClick={() => setIsSidebarOpen(false)}
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(4px)', zIndex: 90 }}
+          />
+        )}
+
+        {/* Sidebar Responsive */}
+        <aside
+          style={{
+            position: isMobile ? 'fixed' : 'relative',
+            top: 0,
+            left: 0,
+            bottom: 0,
+            zIndex: 100,
+            width: '280px',
+            backgroundColor: '#000000',
+            borderRight: '1px solid #141418',
+            display: !isMobile || isSidebarOpen ? 'flex' : 'none',
+            flexDirection: 'column',
+            padding: '16px',
+            flexShrink: 0,
+            boxShadow: isMobile ? '10px 0 40px rgba(0,0,0,0.9)' : 'none',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #141418' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, #2563FF, #00D9FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(0, 217, 255, 0.3)' }}>
@@ -354,16 +396,27 @@ export default function App() {
                 <span style={{ fontSize: '11px', color: '#71717a' }}>LYAXIS labs™</span>
               </div>
             </div>
-            <button
-              onClick={() => setView('landing')}
-              title="Volver a la portada"
-              style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
-            >
-              <Home size={17} />
-            </button>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                onClick={() => setView('landing')}
+                title="Volver a la portada"
+                style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px' }}
+              >
+                <Home size={17} />
+              </button>
+              {isMobile && (
+                <button
+                  onClick={() => setIsSidebarOpen(false)}
+                  style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px' }}
+                >
+                  <X size={18} />
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Tarjeta de Usuario / Iniciar Sesión */}
+          {/* Tarjeta de Usuario */}
           <div style={{ padding: '10px 12px', borderRadius: '10px', backgroundColor: '#07070a', border: '1px solid #181822', marginBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             {user ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
@@ -379,7 +432,7 @@ export default function App() {
                 style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#00D9FF', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: 0 }}
               >
                 <LogIn size={15} />
-                <span>Iniciar sesión / Registrarse</span>
+                <span>Iniciar sesión</span>
               </button>
             )}
             {user && (
@@ -431,131 +484,136 @@ export default function App() {
         </aside>
 
         {/* Main Chat Area */}
-        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'transparent', minWidth: 0 }}>
-          {/* Header */}
-          <header style={{ height: '60px', borderBottom: '1px solid #141418', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px', backgroundColor: 'rgba(0, 0, 0, 0.8)', backdropFilter: 'blur(10px)', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '13px', color: '#71717a' }}>Motor:</span>
-              <div style={{ display: 'flex', backgroundColor: '#08080c', padding: '3px', borderRadius: '8px', border: '1px solid #181822' }}>
+        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'transparent', minWidth: 0, width: '100%' }}>
+          {/* Header Responsive */}
+          <header style={{ minHeight: '58px', borderBottom: '1px solid #141418', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 12px' : '0 24px', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)', flexShrink: 0, gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {isMobile && (
+                <button
+                  onClick={() => setIsSidebarOpen(true)}
+                  style={{ background: 'none', border: '1px solid #1c1c24', color: '#ffffff', padding: '6px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                >
+                  <Menu size={18} />
+                </button>
+              )}
+
+              {/* Selector de Motores */}
+              <div style={{ display: 'flex', backgroundColor: '#08080c', padding: '2px', borderRadius: '8px', border: '1px solid #181822' }}>
                 <button
                   onClick={() => setSelectedModel('speed')}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 12px',
+                    gap: '4px',
+                    padding: isMobile ? '5px 8px' : '6px 12px',
                     borderRadius: '6px',
                     border: 'none',
-                    fontSize: '12px',
+                    fontSize: isMobile ? '11px' : '12px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     backgroundColor: selectedModel === 'speed' ? '#2563FF' : 'transparent',
                     color: '#ffffff',
                   }}
                 >
-                  <Sparkles size={13} /> Speed
+                  <Sparkles size={12} /> Speed
                 </button>
                 <button
                   onClick={() => setSelectedModel('cortex')}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 12px',
+                    gap: '4px',
+                    padding: isMobile ? '5px 8px' : '6px 12px',
                     borderRadius: '6px',
                     border: 'none',
-                    fontSize: '12px',
+                    fontSize: isMobile ? '11px' : '12px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     backgroundColor: selectedModel === 'cortex' ? '#7C3AED' : 'transparent',
                     color: '#ffffff',
                   }}
                 >
-                  <Brain size={13} /> Cortex
+                  <Brain size={12} /> Cortex
                 </button>
                 <button
                   onClick={() => setSelectedModel('architect')}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 12px',
+                    gap: '4px',
+                    padding: isMobile ? '5px 8px' : '6px 12px',
                     borderRadius: '6px',
                     border: 'none',
-                    fontSize: '12px',
+                    fontSize: isMobile ? '11px' : '12px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     backgroundColor: selectedModel === 'architect' ? '#10B981' : 'transparent',
                     color: '#ffffff',
                   }}
                 >
-                  <Compass size={13} /> Architect
+                  <Compass size={12} /> Architect
                 </button>
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {!user && (
                 <button
                   onClick={() => setIsAuthOpen(true)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
+                    gap: '4px',
                     backgroundColor: '#121218',
                     border: '1px solid #22222e',
                     color: '#ffffff',
-                    padding: '6px 14px',
+                    padding: isMobile ? '5px 10px' : '6px 14px',
                     borderRadius: '20px',
-                    fontSize: '12px',
+                    fontSize: isMobile ? '11px' : '12px',
                     fontWeight: 600,
                     cursor: 'pointer',
                   }}
                 >
-                  <LogIn size={14} />
-                  <span>Acceder</span>
+                  <LogIn size={13} />
+                  <span>{isMobile ? 'Entrar' : 'Acceder'}</span>
                 </button>
               )}
               <button
                 onClick={toggleSound}
-                title={soundEnabled ? "Silenciar sonido de tecleo" : "Activar sonido de tecleo cibernético"}
+                title={soundEnabled ? "Silenciar audio" : "Activar audio"}
                 style={{
                   background: 'none',
                   border: '1px solid #1c1c26',
                   borderRadius: '8px',
-                  padding: '6px 10px',
+                  padding: '6px 8px',
                   color: soundEnabled ? '#00D9FF' : '#52525b',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '12px',
                   backgroundColor: soundEnabled ? '#00D9FF11' : 'transparent',
                 }}
               >
-                {soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
-                <span>{soundEnabled ? 'Audio ON' : 'Mute'}</span>
+                {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
               </button>
-              <span style={{ fontSize: '12px', color: '#52525b' }}>v1.0-beta</span>
             </div>
           </header>
 
           {/* Scrollable Messages Area */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '24px 16px', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ maxWidth: '860px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '22px', flex: 1 }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px 12px' : '24px 16px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ maxWidth: '860px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px', flex: 1 }}>
               {messages.length === 0 ? (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#71717a', gap: '16px', textAlign: 'center', minHeight: '50vh' }}>
-                  <div style={{ width: '54px', height: '54px', borderRadius: '14px', background: `linear-gradient(135deg, ${getModelColor(selectedModel)}, #00D9FF)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 30px ${getModelColor(selectedModel)}44` }}>
-                    {selectedModel === 'architect' ? <Compass size={28} color="#ffffff" /> : selectedModel === 'cortex' ? <Brain size={28} color="#ffffff" /> : <Terminal size={28} color="#ffffff" />}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#71717a', gap: '14px', textAlign: 'center', minHeight: '50vh', padding: '0 12px' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: `linear-gradient(135deg, ${getModelColor(selectedModel)}, #00D9FF)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 24px ${getModelColor(selectedModel)}44` }}>
+                    {selectedModel === 'architect' ? <Compass size={24} color="#ffffff" /> : selectedModel === 'cortex' ? <Brain size={24} color="#ffffff" /> : <Terminal size={24} color="#ffffff" />}
                   </div>
-                  <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
-                    {getModelLabel(selectedModel)}
+                  <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                    LYAXIS {getModelLabel(selectedModel)}
                   </h2>
-                  <p style={{ fontSize: '14px', maxWidth: '520px', margin: 0, lineHeight: '1.5', color: '#a1a1aa' }}>
+                  <p style={{ fontSize: '13.5px', maxWidth: '480px', margin: 0, lineHeight: '1.5', color: '#a1a1aa' }}>
                     {selectedModel === 'architect'
-                      ? 'Módulo de arquitectura de prompts y mentoría técnica. Pídeme diseñar un System Prompt para producción o explicarte cualquier concepto técnico paso a paso.'
+                      ? 'Módulo de arquitectura de prompts y mentoría técnica.'
                       : selectedModel === 'cortex'
-                      ? 'Motor de razonamiento profundo para arquitecturas de sistemas, algoritmos y depuración compleja.'
+                      ? 'Motor de razonamiento profundo para algoritmos y arquitectura.'
                       : 'Asistente de desarrollo ágil y streaming ultrarrápido de LYAXIS labs.'}
                   </p>
                 </div>
@@ -567,21 +625,22 @@ export default function App() {
                       display: 'flex',
                       flexDirection: 'column',
                       alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                      maxWidth: msg.role === 'user' ? '80%' : '100%',
+                      maxWidth: msg.role === 'user' ? (isMobile ? '90%' : '80%') : '100%',
                       width: msg.role === 'user' ? 'auto' : '100%',
                       backgroundColor: msg.role === 'user' ? '#111116' : 'rgba(6, 6, 9, 0.85)',
                       backdropFilter: 'blur(8px)',
                       border: msg.role === 'user' ? '1px solid #22222c' : '1px solid #14141c',
                       borderRadius: '14px',
-                      padding: '16px 20px',
-                      fontSize: '14.5px',
-                      lineHeight: '1.65',
+                      padding: isMobile ? '12px 14px' : '16px 20px',
+                      fontSize: isMobile ? '13.5px' : '14.5px',
+                      lineHeight: '1.6',
                       boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+                      overflowWrap: 'break-word',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', fontSize: '11.5px', color: '#71717a' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', fontSize: '11px', color: '#71717a' }}>
                       <span style={{ fontWeight: 600, color: msg.role === 'user' ? '#a1a1aa' : getModelColor(selectedModel) }}>
-                        {msg.role === 'user' ? 'Tú' : getModelLabel(selectedModel)}
+                        {msg.role === 'user' ? 'Tú' : `LYAXIS ${getModelLabel(selectedModel)}`}
                       </span>
                     </div>
                     <div style={{ color: '#e4e4e7', overflowWrap: 'break-word' }}>
@@ -606,42 +665,42 @@ export default function App() {
           </div>
 
           {/* Input Area */}
-          <div style={{ padding: '16px 24px 20px', borderTop: '1px solid #121216', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)', flexShrink: 0 }}>
+          <div style={{ padding: isMobile ? '10px 12px 14px' : '16px 24px 20px', borderTop: '1px solid #121216', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)', flexShrink: 0 }}>
             <div style={{ maxWidth: '860px', margin: '0 auto', width: '100%' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-end', backgroundColor: '#08080c', border: '1px solid #1a1a24', borderRadius: '14px', padding: '12px 16px', gap: '12px', boxShadow: '0 4px 25px rgba(0,0,0,0.8)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', backgroundColor: '#08080c', border: '1px solid #1a1a24', borderRadius: '14px', padding: isMobile ? '8px 12px' : '12px 16px', gap: '10px', boxShadow: '0 4px 25px rgba(0,0,0,0.8)' }}>
                 <textarea
                   ref={textareaRef}
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={selectedModel === 'cortex' ? "Pídeme analizar un algoritmo o arquitectura profunda..." : selectedModel === 'architect' ? "Pídeme diseñar un System Prompt o explicarte un concepto..." : "Escribe tu mensaje a LYAXIS IA..."}
+                  placeholder="Escribe tu mensaje a LYAXIS IA..."
                   rows={1}
                   style={{
                     flex: 1,
                     background: 'none',
                     border: 'none',
                     color: '#ffffff',
-                    fontSize: '14px',
+                    fontSize: isMobile ? '13.5px' : '14px',
                     resize: 'none',
                     outline: 'none',
-                    maxHeight: '160px',
+                    maxHeight: '140px',
                     fontFamily: 'inherit',
                   }}
                 />
                 {isStreaming ? (
                   <button
                     onClick={stopStreaming}
-                    style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#dc2626', border: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                    style={{ width: '34px', height: '34px', borderRadius: '10px', backgroundColor: '#dc2626', border: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
                   >
-                    <Square size={16} />
+                    <Square size={15} />
                   </button>
                 ) : (
                   <button
                     onClick={() => handleSend()}
                     disabled={!inputValue.trim()}
                     style={{
-                      width: '36px',
-                      height: '36px',
+                      width: '34px',
+                      height: '34px',
                       borderRadius: '10px',
                       backgroundColor: inputValue.trim() ? getModelColor(selectedModel) : '#1c1c24',
                       border: 'none',
@@ -650,16 +709,12 @@ export default function App() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       cursor: inputValue.trim() ? 'pointer' : 'default',
-                      transition: 'background-color 0.2s',
-                      boxShadow: inputValue.trim() ? `0 0 16px ${getModelColor(selectedModel)}44` : 'none',
+                      flexShrink: 0,
                     }}
                   >
-                    <Send size={16} />
+                    <Send size={15} />
                   </button>
                 )}
-              </div>
-              <div style={{ textAlign: 'center', fontSize: '11px', color: '#44444e', marginTop: '8px' }}>
-                LYAXIS IA • Modo {getModelLabel(selectedModel)} activo
               </div>
             </div>
           </div>
