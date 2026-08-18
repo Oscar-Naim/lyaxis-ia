@@ -1,0 +1,91 @@
+:root {
+  color-scheme: dark;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: #000000;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  height: 100%;
+  width: 100%;
+}
+
+/* Fondo de Cuadrícula Cibernética y Resplandor Ambiental */
+.cyber-grid-bg {
+  background-color: #000000;
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(37, 99, 255, 0.09) 0%, transparent 55%),
+    radial-gradient(circle at 100% 100%, rgba(0, 217, 255, 0.05) 0%, transparent 40%),
+    linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 36px 36px, 36px 36px;
+}
+
+/* Scrollbar Minimalista */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: #000000;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1c1c24;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2a2a38;
+}
+
+/* Animación de esferas de carga LYAXIS */
+@keyframes lyaxisPulse {
+  0%, 100% {
+    transform: scale(0.8);
+    opacity: 0.25;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 1;
+    box-shadow: 0 0 14px #00D9FF;
+  }
+}
+
+.lyaxis-loading-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563FF, #00D9FF);
+  display: inline-block;
+  animation: lyaxisPulse 1s infinite ease-in-out;
+}
+
+.lyaxis-loading-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.lyaxis-loading-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* Cursor palpitante */
+@keyframes lyaxisBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.lyaxis-cursor {
+  display: inline-block;
+  width: 6px;
+  height: 14px;
+  background-color: #00D9FF;
+  margin-left: 4px;
+  vertical-align: middle;
+  border-radius: 2px;
+  animation: lyaxisBlink 0.7s infinite;
+  box-shadow: 0 0 10px #00D9FF;
+}

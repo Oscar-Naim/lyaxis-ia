@@ -1,0 +1,20 @@
+# Secretos y variables de entorno
+.env
+*.env
+.env.*
+
+# Python
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/*.db
+backend/lyaxis.db
+
+# Node / React
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Sistema
+.DS_Store
+Thumbs.db
