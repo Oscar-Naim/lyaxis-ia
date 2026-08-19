@@ -492,9 +492,19 @@ def delete_conversation(cid: str):
     db.execute("DELETE FROM conversations WHERE id = ?", (cid,))
     return {"status": "deleted", "id": cid}
 
+def _get_genai_client_for_key(api_key: str):
+    try:
+        from google import genai
+        return genai.Client(api_key=api_key)
+    except Exception as e:
+        print(f"Error instanciando cliente para clave {api_key[:8]}: {e}")
+        return None
+
 async def generate_gemini_stream(conversation_id: Optional[str], user_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "speed"):
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key or "TuClaveAqui" in api_key:
+    raw_keys = os.getenv("GEMINI_API_KEY", "")
+    api_keys = [k.strip() for k in raw_keys.split(",") if k.strip() and "TuClaveAqui" not in k]
+
+    if not api_keys:
         yield f"data: {json.dumps({'token': '⚠️ Por favor configura tu GEMINI_API_KEY en las variables de entorno de Render.'})}\n\n"
         return
 
@@ -535,12 +545,6 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
         except Exception as err_db:
             print(f"Aviso DB mensaje: {err_db}")
 
-    # 2. Get cached Gemini client
-    client = _get_genai_client()
-    if not client:
-        yield f"data: {json.dumps({'token': '❌ No se pudo inicializar el cliente de IA. Verifica GEMINI_API_KEY.'})}\n\n"
-        return
-
     contents = []
     for msg in messages:
         if not msg.content or not msg.content.strip():
@@ -555,43 +559,59 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
 
     full_response_text = ""
     # Official Gemini models in order of failover
-    models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro"]
+    models_to_try = [
+        "gemini-3.6-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-3.5-flash",
+        "gemini-2.5-flash",
+        "gemini-1.5-pro"
+    ]
     last_err = None
 
-    for model_name in models_to_try:
-        try:
-            response = await client.aio.models.generate_content_stream(
-                model=model_name,
-                contents=contents,
-                config={
-                    "system_instruction": active_prompt,
-                    "temperature": temperature
-                },
-            )
-
-            async for chunk in response:
-                chunk_text = ""
-                try:
-                    if hasattr(chunk, "text") and chunk.text is not None:
-                        chunk_text = str(chunk.text)
-                    elif hasattr(chunk, "candidates") and chunk.candidates:
-                        parts = chunk.candidates[0].content.parts
-                        chunk_text = "".join([str(p.text) for p in parts if hasattr(p, "text") and p.text is not None])
-                except Exception:
-                    pass
-
-                if chunk_text:
-                    full_response_text += chunk_text
-                    yield f"data: {json.dumps({'token': chunk_text})}\n\n"
-            
-            if full_response_text:
-                last_err = None
-                break
-
-        except Exception as err_model:
-            last_err = err_model
-            print(f"Modelo {model_name} no disponible ({err_model}). Probando siguiente modelo...")
+    # Rotate through all available API keys in pool, and for each key try all models
+    for key_idx, current_key in enumerate(api_keys):
+        client = _get_genai_client_for_key(current_key)
+        if not client:
             continue
+
+        for model_name in models_to_try:
+            try:
+                response = await client.aio.models.generate_content_stream(
+                    model=model_name,
+                    contents=contents,
+                    config={
+                        "system_instruction": active_prompt,
+                        "temperature": temperature
+                    },
+                )
+
+                async for chunk in response:
+                    chunk_text = ""
+                    try:
+                        if hasattr(chunk, "text") and chunk.text is not None:
+                            chunk_text = str(chunk.text)
+                        elif hasattr(chunk, "candidates") and chunk.candidates:
+                            parts = chunk.candidates[0].content.parts
+                            chunk_text = "".join([str(p.text) for p in parts if hasattr(p, "text") and p.text is not None])
+                    except Exception:
+                        pass
+
+                    if chunk_text:
+                        full_response_text += chunk_text
+                        yield f"data: {json.dumps({'token': chunk_text})}\n\n"
+                
+                if full_response_text:
+                    last_err = None
+                    break
+
+            except Exception as err_model:
+                last_err = err_model
+                print(f"Clave #{key_idx + 1} con modelo {model_name} no disponible ({err_model}). Probando siguiente...")
+                continue
+
+        if full_response_text:
+            break
 
     if not full_response_text and last_err:
         err_msg = str(last_err)
