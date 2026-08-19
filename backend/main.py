@@ -6,7 +6,7 @@ import uuid
 import random
 from datetime import datetime
 from typing import List, Literal, Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -18,6 +18,20 @@ from google.auth.transport import requests as google_requests
 load_dotenv()
 
 app = FastAPI(title="LYAXIS IA Production API", version="1.0.0")
+
+# Middleware Universal de CORS: Garantiza cabeceras en TODAS las respuestas
+@app.middleware("http")
+async def add_cors_headers(request: Request, call_next):
+    if request.method == "OPTIONS":
+        response = Response(status_code=200)
+    else:
+        response = await call_next(request)
+    
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Expose-Headers"] = "*"
+    return response
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,33 +45,80 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 DB_PATH = os.path.join(os.path.dirname(__file__), "lyaxis.db")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "1073688660808-amgupffpqddmmo89vemaaupje20531t6.apps.googleusercontent.com")
 
+# Inicialización segura de SQLite local
+def init_sqlite():
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            google_id TEXT UNIQUE,
+            email TEXT UNIQUE,
+            phone TEXT UNIQUE,
+            name TEXT,
+            picture TEXT,
+            created_at TEXT NOT NULL
+        )
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS conversations (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            title TEXT NOT NULL,
+            model TEXT NOT NULL DEFAULT 'speed',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """)
+        conn.commit()
+
+init_sqlite()
+
+# Conector Resiliente con prueba rápida de conexión
 class Database:
     def __init__(self):
-        self.is_postgres = bool(DATABASE_URL)
-        self.fallback_mode = False
-
-    def get_connection(self):
-        if self.is_postgres and not self.fallback_mode:
+        self.use_postgres = False
+        if DATABASE_URL:
             try:
                 import psycopg2
-                from psycopg2.extras import RealDictCursor
                 db_url = DATABASE_URL
                 if "sslmode=" not in db_url:
                     db_url += ("?" if "?" not in db_url else "&") + "sslmode=require"
-                return psycopg2.connect(db_url, cursor_factory=RealDictCursor, connect_timeout=4)
+                test_conn = psycopg2.connect(db_url, connect_timeout=3)
+                test_conn.close()
+                self.use_postgres = True
+                print("PostgreSQL Supabase conectado exitosamente.")
             except Exception as e:
-                print(f"Aviso Supabase: {e}. Usando SQLite local.")
-                self.fallback_mode = True
+                print(f"Supabase no disponible ({e}), operando en SQLite local.")
+                self.use_postgres = False
 
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        return conn
+    def get_connection(self):
+        if self.use_postgres:
+            import psycopg2
+            from psycopg2.extras import RealDictCursor
+            db_url = DATABASE_URL
+            if "sslmode=" not in db_url:
+                db_url += ("?" if "?" not in db_url else "&") + "sslmode=require"
+            return psycopg2.connect(db_url, cursor_factory=RealDictCursor)
+        else:
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            return conn
 
     def execute(self, query: str, params: tuple = ()):
         conn = self.get_connection()
         try:
             cursor = conn.cursor()
-            if self.is_postgres and not self.fallback_mode:
+            if self.use_postgres:
                 pg_query = query.replace("?", "%s")
                 cursor.execute(pg_query, params)
             else:
@@ -77,7 +138,7 @@ class Database:
         conn = self.get_connection()
         try:
             cursor = conn.cursor()
-            if self.is_postgres and not self.fallback_mode:
+            if self.use_postgres:
                 pg_query = query.replace("?", "%s")
                 cursor.execute(pg_query, params)
             else:
@@ -94,7 +155,7 @@ class Database:
         conn = self.get_connection()
         try:
             cursor = conn.cursor()
-            if self.is_postgres and not self.fallback_mode:
+            if self.use_postgres:
                 pg_query = query.replace("?", "%s")
                 cursor.execute(pg_query, params)
             else:
@@ -109,42 +170,41 @@ class Database:
 
 db = Database()
 
-def init_db():
-    db.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        google_id TEXT UNIQUE,
-        email TEXT UNIQUE,
-        phone TEXT UNIQUE,
-        name TEXT,
-        picture TEXT,
-        created_at TEXT NOT NULL
-    )
-    """)
-    db.execute("""
-    CREATE TABLE IF NOT EXISTS conversations (
-        id TEXT PRIMARY KEY,
-        user_id TEXT,
-        title TEXT NOT NULL,
-        model TEXT NOT NULL DEFAULT 'speed',
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-    )
-    """)
-    db.execute("""
-    CREATE TABLE IF NOT EXISTS messages (
-        id TEXT PRIMARY KEY,
-        conversation_id TEXT NOT NULL,
-        role TEXT NOT NULL,
-        content TEXT NOT NULL,
-        created_at TEXT NOT NULL
-    )
-    """)
-
-try:
-    init_db()
-except Exception as e:
-    print(f"DB Init: {e}")
+# Inicializar tablas en Postgres si está activo
+if db.use_postgres:
+    try:
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            google_id TEXT UNIQUE,
+            email TEXT UNIQUE,
+            phone TEXT UNIQUE,
+            name TEXT,
+            picture TEXT,
+            created_at TEXT NOT NULL
+        )
+        """)
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS conversations (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            title TEXT NOT NULL,
+            model TEXT NOT NULL DEFAULT 'speed',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """)
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """)
+    except Exception as e:
+        print(f"Postgres tables init: {e}")
 
 otp_storage = {}
 
@@ -236,6 +296,10 @@ class VerifyOtpPayload(BaseModel):
 @app.get("/")
 def root():
     return {"status": "ok", "service": "LYAXIS IA Production API", "version": "1.0.0"}
+
+@app.options("/{full_path:path}")
+def options_handler(full_path: str):
+    return Response(status_code=200)
 
 @app.post("/api/v1/auth/otp/send")
 def send_otp_code(req: RequestOtpPayload):
@@ -386,7 +450,6 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
 
     user_msg = messages[-1] if messages and messages[-1].role == "user" else None
     
-    # 1. Persistencia
     if conversation_id and user_msg:
         try:
             now = datetime.utcnow().isoformat()
@@ -406,7 +469,6 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
         except Exception as err_db:
             print(f"Aviso guardando mensaje: {err_db}")
 
-    # 2. Formatear historial
     contents = []
     try:
         from google import genai
@@ -426,12 +488,11 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
             contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_msg.content.strip())]))
 
     except Exception as e_client:
-        yield f"data: {json.dumps({'token': f'❌ Error inicializando cliente de IA: {str(e_client)}'})}\n\n"
+        yield f"data: {json.dumps({'token': f'❌ Error cliente IA: {str(e_client)}'})}\n\n"
         return
 
-    # 3. Streaming con extracción segura de texto
     full_response_text = ""
-    models_to_try = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.7-flash", "gemini-3.6-flash"]
     last_err = None
 
     for model_name in models_to_try:
@@ -459,7 +520,7 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
                 if chunk_text:
                     full_response_text += chunk_text
                     yield f"data: {json.dumps({'token': chunk_text})}\n\n"
-                    await asyncio.sleep(0.012)
+                    await asyncio.sleep(0.01)
             
             if full_response_text:
                 last_err = None
@@ -474,10 +535,9 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
                 break
 
     if not full_response_text and last_err:
-        yield f"data: {json.dumps({'token': f'❌ Error en la generación de IA: {str(last_err)}'})}\n\n"
+        yield f"data: {json.dumps({'token': f'❌ Error al generar: {str(last_err)}'})}\n\n"
         return
 
-    # 4. Guardar respuesta final en BD
     if conversation_id and full_response_text:
         try:
             mid = str(uuid.uuid4())
@@ -488,7 +548,7 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
             )
             db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
         except Exception as err_db2:
-            print(f"Aviso guardando respuesta modelo: {err_db2}")
+            print(f"Aviso guardando modelo: {err_db2}")
 
 @app.post("/api/v1/chat/stream")
 async def chat_stream_endpoint(request: ChatRequest):
