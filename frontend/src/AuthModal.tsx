@@ -3,7 +3,16 @@ import { GoogleLogin } from '@react-oauth/google';
 import { X, Phone, Terminal, ArrowLeft } from 'lucide-react';
 import type { User } from './types';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://lyaxis-ia.onrender.com';
+const getCleanApiBase = () => {
+  let url = import.meta.env.VITE_API_BASE || 'https://lyaxis-ia.onrender.com';
+  url = url.trim().replace(/\/+$/, '');
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = `https://${url}`;
+  }
+  return url;
+};
+
+const API_BASE = getCleanApiBase();
 const GOOGLE_CLIENT_ID = "1073688660808-amgupffpqddmmo89vemaaupje20531t6.apps.googleusercontent.com";
 
 interface AuthModalProps {
@@ -12,16 +21,12 @@ interface AuthModalProps {
   onLoginSuccess: (user: User) => void;
 }
 
-// Decodificador seguro de tokens JWT de Google en el navegador
-// Decodificador seguro de tokens JWT de Google en el navegador
 const parseJwt = (token: string) => {
   try {
-    const base64Url = token.split('.')[1];
-    if (!base64Url) return null;
-
-    // Reemplazamos los caracteres URL-safe por los estándar de Base64
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-
+    const raw = token.split('.');
+    if (raw.length < 2) return null;
+    const payloadSegment = String(raw.slice(1, 2)[0] || '');
+    const base64 = payloadSegment.split('-').join('+').split('_').join('/');
     const jsonPayload = decodeURIComponent(
       window
         .atob(base64)
@@ -29,13 +34,12 @@ const parseJwt = (token: string) => {
         .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
         .join('')
     );
-
     return JSON.parse(jsonPayload);
-  } catch (error) {
-    console.error("Error al decodificar el JWT:", error);
+  } catch {
     return null;
   }
 };
+
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess }) => {
   const [step, setStep] = useState<'main' | 'phone_input' | 'verify_code'>('main');
   const [authType, setAuthType] = useState<'email' | 'phone'>('email');
@@ -47,7 +51,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
 
   if (!isOpen) return null;
 
-  // 1. Enviar Código OTP
   const handleRequestCode = async (customTarget?: string, type?: 'email' | 'phone') => {
     const inputTarget = (customTarget || target).trim();
     const finalType = type || authType;
@@ -60,7 +63,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
     setLoading(true);
     setError(null);
 
-    // Generar código de respaldo inmediato por si la red tarda
     const localCode = String(Math.floor(100000 + Math.random() * 900000));
     setTarget(inputTarget);
     setAuthType(finalType);
@@ -77,7 +79,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
     } catch {}
   };
 
-  // 2. Validar Código de 6 Dígitos
   const handleVerifyOtp = async () => {
     const fullCode = otpCode.join('').trim();
     if (fullCode.length !== 6) {
@@ -109,7 +110,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
     } catch {}
   };
 
-  // 3. Google Login Instantáneo
   const handleGoogleSuccess = async (credentialResponse: any) => {
     try {
       const payload = parseJwt(credentialResponse.credential);
@@ -121,11 +121,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
           picture: payload.picture || `https://api.dicebear.com/7.x/bottts/svg?seed=${payload.email}`
         };
 
-        // Inicia sesión en 1 milisegundo y cierra la ventana
         onLoginSuccess(googleUser);
         onClose();
 
-        // Sincroniza en la base de datos en segundo plano
         fetch(`${API_BASE}/api/v1/auth/google`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -185,10 +183,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
           </div>
         )}
 
-        {/* PANTALLA 1: PRINCIPAL */}
         {step === 'main' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {/* Botón Google */}
             <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
               <GoogleLogin
                 onSuccess={handleGoogleSuccess}
@@ -201,7 +197,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
               />
             </div>
 
-            {/* Botón Teléfono */}
             <button
               onClick={() => {
                 setAuthType('phone');
@@ -228,14 +223,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
               <span>Continuar con el teléfono</span>
             </button>
 
-            {/* Separador */}
             <div style={{ display: 'flex', alignItems: 'center', margin: '8px 0', gap: '12px' }}>
               <div style={{ flex: 1, height: '1px', backgroundColor: '#1c1c26' }} />
               <span style={{ fontSize: '11px', color: '#71717a', textTransform: 'uppercase' }}>o</span>
               <div style={{ flex: 1, height: '1px', backgroundColor: '#1c1c26' }} />
             </div>
 
-            {/* Input de Email */}
             <div>
               <input
                 type="email"
@@ -282,7 +275,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
           </div>
         )}
 
-        {/* PANTALLA 2: TELÉFONO */}
         {step === 'phone_input' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <button
@@ -331,7 +323,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
           </div>
         )}
 
-        {/* PANTALLA 3: CÓDIGO OTP */}
         {step === 'verify_code' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
             {demoCodeHint && (

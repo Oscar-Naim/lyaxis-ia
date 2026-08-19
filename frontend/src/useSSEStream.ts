@@ -7,7 +7,16 @@ interface UseSSEStreamOptions {
   onError?: (err: Error) => void;
 }
 
-export function useSSEStream({ apiBaseUrl = 'https://lyaxis-ia.onrender.com', onDone, onError }: UseSSEStreamOptions = {}) {
+const getCleanApiBase = (customUrl?: string) => {
+  let url = customUrl || import.meta.env.VITE_API_BASE || 'https://lyaxis-ia.onrender.com';
+  url = url.trim().replace(/\/+$/, '');
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = `https://${url}`;
+  }
+  return url;
+};
+
+export function useSSEStream({ apiBaseUrl, onDone, onError }: UseSSEStreamOptions = {}) {
   const [isStreaming, setIsStreaming] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -22,8 +31,8 @@ export function useSSEStream({ apiBaseUrl = 'https://lyaxis-ia.onrender.com', on
       abortControllerRef.current = new AbortController();
       let accumulatedText = '';
 
-      // Limpia cualquier barra diagonal al final de la URL para evitar errores 404
-      const baseUrl = (apiBaseUrl || 'https://lyaxis-ia.onrender.com').replace(/\/+$/, '');
+      // Fuerza la URL absoluta hacia Render sin prefijo de Vercel
+      const baseUrl = getCleanApiBase(apiBaseUrl);
 
       try {
         const payload = {

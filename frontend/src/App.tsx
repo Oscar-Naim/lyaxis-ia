@@ -8,7 +8,16 @@ import { CodeBlock } from './CodeBlock';
 import { LandingPage } from './LandingPage';
 import { AuthModal } from './AuthModal';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://lyaxis-ia.onrender.com';
+const getCleanApiBase = () => {
+  let url = import.meta.env.VITE_API_BASE || 'https://lyaxis-ia.onrender.com';
+  url = url.trim().replace(/\/+$/, '');
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = `https://${url}`;
+  }
+  return url;
+};
+
+const API_BASE = getCleanApiBase();
 const GOOGLE_CLIENT_ID = "1073688660808-amgupffpqddmmo89vemaaupje20531t6.apps.googleusercontent.com";
 
 let audioCtx: AudioContext | null = null;
@@ -659,7 +668,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Input Area envuelto en Formulario Nativo */}
+          {/* Input Area */}
           <div style={{ padding: isMobile ? '10px 12px 14px' : '16px 24px 20px', borderTop: '1px solid #121216', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)', flexShrink: 0 }}>
             <form
               onSubmit={(e) => {
