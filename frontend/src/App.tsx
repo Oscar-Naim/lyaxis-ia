@@ -73,6 +73,19 @@ export default function App() {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('lyaxis_user') : null;
     return saved ? JSON.parse(saved) : null;
   });
+
+  const [guestId] = useState<string>(() => {
+    if (typeof window === 'undefined') return `guest-${Date.now()}`;
+    let saved = localStorage.getItem('lyaxis_guest_id');
+    if (!saved) {
+      saved = `guest-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      localStorage.setItem('lyaxis_guest_id', saved);
+    }
+    return saved;
+  });
+
+  const activeUserId = user?.id || guestId;
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<'speed' | 'cortex' | 'architect'>('speed');
@@ -122,12 +135,12 @@ export default function App() {
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('lyaxis_user');
-    fetchConversations(undefined);
+    fetchConversations(guestId);
   };
 
   const { isStreaming, sendMessage, stopStreaming } = useSSEStream({
     onDone: () => {
-      fetchConversations(user?.id);
+      fetchConversations(activeUserId);
     },
     onError: (err) => {
       setMessages((prev) => [
@@ -135,7 +148,7 @@ export default function App() {
         {
           id: `err-${Date.now()}`,
           role: 'model',
-          content: `⚠️ Aviso de conexión: ${err.message}. Si el servidor estaba inactivo, se activará en unos segundos.`,
+          content: `⚠️ Aviso de servicio: ${err.message}`,
           timestamp: new Date().toISOString(),
           model: selectedModel,
         }
@@ -143,9 +156,10 @@ export default function App() {
     }
   });
 
-  const fetchConversations = async (userId?: string) => {
+  const fetchConversations = async (targetUserId?: string) => {
     try {
-      const url = userId ? `${API_BASE}/api/v1/conversations?user_id=${userId}` : `${API_BASE}/api/v1/conversations`;
+      const uid = targetUserId || activeUserId;
+      const url = `${API_BASE}/api/v1/conversations?user_id=${uid}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -172,8 +186,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchConversations(user?.id);
-  }, [user]);
+    fetchConversations(activeUserId);
+  }, [activeUserId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -192,7 +206,7 @@ export default function App() {
     const localId = `chat-${Date.now()}`;
     const newChat: Conversation = {
       id: localId,
-      userId: user?.id,
+      userId: activeUserId,
       title: 'Nueva conversación',
       createdAt: new Date().toISOString(),
       model: selectedModel
@@ -221,6 +235,18 @@ export default function App() {
     }
   };
 
+  const deleteAllConversations = async () => {
+    if (isStreaming) return;
+    try {
+      await fetch(`${API_BASE}/api/v1/conversations/all?user_id=${activeUserId}`, { method: 'DELETE' });
+      setConversations([]);
+      setMessages([]);
+      setCurrentChatId(null);
+    } catch (err) {
+      console.error("Error vaciando historial:", err);
+    }
+  };
+
   const handleSend = async (customText?: string) => {
     const textToSend = customText || inputValue;
     if (!textToSend || !textToSend.trim() || isStreaming) return;
@@ -234,7 +260,7 @@ export default function App() {
       setCurrentChatId(targetChatId);
       const localChat: Conversation = {
         id: targetChatId,
-        userId: user?.id,
+        userId: activeUserId,
         title: userText.slice(0, 30),
         createdAt: new Date().toISOString(),
         model: selectedModel
@@ -263,7 +289,7 @@ export default function App() {
     const updatedMessages = [...messages, userMessage];
     setMessages([...updatedMessages, assistantMessage]);
 
-    await sendMessage(updatedMessages, selectedModel, targetChatId, user?.id, (accumulatedText) => {
+    await sendMessage(updatedMessages, selectedModel, targetChatId, activeUserId, (accumulatedText) => {
       if (soundEnabled && Math.random() > 0.4) {
         playCyberClick();
       }
@@ -283,7 +309,7 @@ export default function App() {
     );
 
     // Refresh conversation list so newly created/updated conversation shows in sidebar
-    fetchConversations(user?.id);
+    fetchConversations(activeUserId);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -468,7 +494,19 @@ export default function App() {
           </button>
 
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontSize: '11px', color: '#52525b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Historial</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <span style={{ fontSize: '11px', color: '#52525b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Historial</span>
+              {conversations.length > 0 && (
+                <button
+                  type="button"
+                  onClick={deleteAllConversations}
+                  title="Borrar todo el historial"
+                  style={{ background: 'none', border: 'none', color: '#52525b', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                >
+                  <Trash2 size={11} /> Vaciar
+                </button>
+              )}
+            </div>
             {conversations.map((chat) => (
               <div
                 key={chat.id}

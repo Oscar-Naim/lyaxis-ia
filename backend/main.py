@@ -458,11 +458,17 @@ def list_conversations(user_id: Optional[str] = None):
             "ORDER BY c.updated_at DESC",
             (user_id.strip(),)
         )
-    return db.fetchall(
-        "SELECT c.id, c.user_id, c.title, c.model, c.created_at, c.updated_at "
-        "FROM conversations c WHERE EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id) "
-        "ORDER BY c.updated_at DESC"
-    )
+    return []
+
+@app.delete("/api/v1/conversations/all")
+def delete_all_conversations(user_id: Optional[str] = None):
+    if user_id and user_id.strip():
+        db.execute("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)", (user_id.strip(),))
+        db.execute("DELETE FROM conversations WHERE user_id = ?", (user_id.strip(),))
+    else:
+        db.execute("DELETE FROM messages")
+        db.execute("DELETE FROM conversations")
+    return {"status": "ok", "message": "Historial limpiado"}
 
 @app.post("/api/v1/conversations")
 def create_conversation(req: CreateConversationRequest):
@@ -513,7 +519,6 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
                     (conversation_id, user_id, title_text, model_type, now, now)
                 )
             else:
-                # Update title if it's default 'Nueva conversación'
                 new_title = title_text if conv.get("title") in ("Nueva conversación", None, "") else conv.get("title")
                 db.execute(
                     "UPDATE conversations SET user_id = COALESCE(user_id, ?), title = ?, updated_at = ? WHERE id = ?",
@@ -549,7 +554,8 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
         contents.append({"role": "user", "parts": [{"text": user_msg.content.strip()}]})
 
     full_response_text = ""
-    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+    # Official Gemini models in order of failover
+    models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro"]
     last_err = None
 
     for model_name in models_to_try:
@@ -584,14 +590,16 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
 
         except Exception as err_model:
             last_err = err_model
-            err_str = str(err_model)
-            if "503" in err_str or "UNAVAILABLE" in err_str or "404" in err_str or "NOT_FOUND" in err_str:
-                continue
-            else:
-                break
+            print(f"Modelo {model_name} no disponible ({err_model}). Probando siguiente modelo...")
+            continue
 
     if not full_response_text and last_err:
-        yield f"data: {json.dumps({'token': f'❌ Error al generar: {str(last_err)}'})}\n\n"
+        err_msg = str(last_err)
+        if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "QUOTA" in err_msg:
+            friendly_err = "⚠️ Límite de cuota alcanzado temporalmente en la API. Por favor espera 30 segundos e intentalo de nuevo."
+        else:
+            friendly_err = f"⚠️ Error del servicio de IA: {err_msg}"
+        yield f"data: {json.dumps({'token': friendly_err})}\n\n"
         return
 
     # Save response to DB (synchronous — reliable)
