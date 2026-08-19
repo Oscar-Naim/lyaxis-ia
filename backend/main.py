@@ -19,7 +19,6 @@ load_dotenv()
 
 app = FastAPI(title="LYAXIS IA Production API", version="1.0.0")
 
-# CORS Global
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -387,11 +386,10 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
 
     user_msg = messages[-1] if messages and messages[-1].role == "user" else None
     
-    # 1. Asegurar persistencia de conversación y mensaje de usuario
+    # 1. Persistencia
     if conversation_id and user_msg:
         try:
             now = datetime.utcnow().isoformat()
-            # Asegurar que la conversación exista en BD para evitar violación de clave foránea
             conv = db.fetchone("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
             if not conv:
                 db.execute(
@@ -408,7 +406,7 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
         except Exception as err_db:
             print(f"Aviso guardando mensaje: {err_db}")
 
-    # 2. Sanitizar el historial para Gemini
+    # 2. Formatear historial
     contents = []
     try:
         from google import genai
@@ -431,9 +429,9 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
         yield f"data: {json.dumps({'token': f'❌ Error inicializando cliente de IA: {str(e_client)}'})}\n\n"
         return
 
-    # 3. Streaming con tolerancia a fallos
+    # 3. Streaming con extracción segura de texto
     full_response_text = ""
-    models_to_try = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+    models_to_try = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
     last_err = None
 
     for model_name in models_to_try:
@@ -448,13 +446,24 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
             )
 
             async for chunk in response:
-                if chunk.text:
-                    full_response_text += chunk.text
-                    yield f"data: {json.dumps({'token': chunk.text})}\n\n"
+                chunk_text = ""
+                try:
+                    if hasattr(chunk, "text") and chunk.text:
+                        chunk_text = chunk.text
+                    elif hasattr(chunk, "candidates") and chunk.candidates:
+                        parts = chunk.candidates[0].content.parts
+                        chunk_text = "".join([p.text for p in parts if hasattr(p, "text") and p.text is not None])
+                except Exception:
+                    pass
+
+                if chunk_text:
+                    full_response_text += chunk_text
+                    yield f"data: {json.dumps({'token': chunk_text})}\n\n"
                     await asyncio.sleep(0.012)
             
-            last_err = None
-            break
+            if full_response_text:
+                last_err = None
+                break
 
         except Exception as err_model:
             last_err = err_model
@@ -464,8 +473,8 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
             else:
                 break
 
-    if last_err:
-        yield f"data: {json.dumps({'token': f'❌ Error al generar respuesta: {str(last_err)}'})}\n\n"
+    if not full_response_text and last_err:
+        yield f"data: {json.dumps({'token': f'❌ Error en la generación de IA: {str(last_err)}'})}\n\n"
         return
 
     # 4. Guardar respuesta final en BD
@@ -494,7 +503,6 @@ async def chat_stream_endpoint(request: ChatRequest):
         model_type=request.model or "speed"
     )
 
-    # Cabeceras CORS forzadas directamente en el stream para evitar bloqueos de navegador
     return StreamingResponse(
         generator,
         media_type="text/event-stream",
