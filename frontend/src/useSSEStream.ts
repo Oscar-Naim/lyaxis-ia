@@ -22,6 +22,19 @@ export function useSSEStream({ onDone, onError }: UseSSEStreamOptions = {}) {
       setIsStreaming(true);
       abortControllerRef.current = new AbortController();
       let accumulatedText = '';
+      let rafId: number | null = null;
+      let latestText = '';
+
+      // Batch DOM updates at screen refresh rate instead of per-token
+      const scheduleFlush = () => {
+        latestText = accumulatedText;
+        if (rafId === null) {
+          rafId = requestAnimationFrame(() => {
+            onToken(latestText);
+            rafId = null;
+          });
+        }
+      };
 
       try {
         const payload = {
@@ -67,15 +80,22 @@ export function useSSEStream({ onDone, onError }: UseSSEStreamOptions = {}) {
                 const parsed = JSON.parse(dataContent);
                 if (parsed.token) {
                   accumulatedText += parsed.token;
-                  onToken(accumulatedText);
+                  scheduleFlush();
                 }
               } catch {
                 accumulatedText += dataContent;
-                onToken(accumulatedText);
+                scheduleFlush();
               }
             }
           }
         }
+
+        // Final flush — ensure all remaining text is rendered
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+        onToken(accumulatedText);
 
         if (onDone) onDone(accumulatedText);
       } catch (err: any) {
@@ -84,6 +104,9 @@ export function useSSEStream({ onDone, onError }: UseSSEStreamOptions = {}) {
           if (onError) onError(err);
         }
       } finally {
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+        }
         setIsStreaming(false);
         abortControllerRef.current = null;
       }

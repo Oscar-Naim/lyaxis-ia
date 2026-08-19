@@ -89,3 +89,30 @@ html, body {
   animation: lyaxisBlink 0.7s infinite;
   box-shadow: 0 0 10px #00D9FF;
 }
+
+/* Smooth message appear animation */
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Textarea smooth resize */
+textarea {
+  transition: height 0.1s ease;
+}
+
+/* Smooth focus glow on input */
+textarea:focus {
+  box-shadow: 0 0 0 1px rgba(0, 217, 255, 0.15);
+}
+
+/* Suggested prompt hover animation */
+button:active {
+  transform: scale(0.98);
+}

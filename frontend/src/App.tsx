@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X } from 'lucide-react';
+import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb } from 'lucide-react';
 import type { Message, Conversation, User } from './types';
 import { useSSEStream } from './useSSEStream';
 import { CodeBlock } from './CodeBlock';
@@ -83,6 +83,15 @@ export default function App() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 160) + 'px';
+    }
+  }, [inputValue]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -624,10 +633,10 @@ export default function App() {
             <div style={{ maxWidth: '860px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px', flex: 1 }}>
               {messages.length === 0 ? (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#71717a', gap: '14px', textAlign: 'center', minHeight: '50vh', padding: '0 12px' }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: `linear-gradient(135deg, ${getModelColor(selectedModel)}, #00D9FF)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 24px ${getModelColor(selectedModel)}44` }}>
-                    {selectedModel === 'architect' ? <Compass size={24} color="#ffffff" /> : selectedModel === 'cortex' ? <Brain size={24} color="#ffffff" /> : <Terminal size={24} color="#ffffff" />}
+                  <div style={{ width: '52px', height: '52px', borderRadius: '16px', background: `linear-gradient(135deg, ${getModelColor(selectedModel)}, #00D9FF)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 30px ${getModelColor(selectedModel)}44` }}>
+                    {selectedModel === 'architect' ? <Compass size={26} color="#ffffff" /> : selectedModel === 'cortex' ? <Brain size={26} color="#ffffff" /> : <Terminal size={26} color="#ffffff" />}
                   </div>
-                  <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                  <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
                     LYAXIS {getModelLabel(selectedModel)}
                   </h2>
                   <p style={{ fontSize: '13.5px', maxWidth: '480px', margin: 0, lineHeight: '1.5', color: '#a1a1aa' }}>
@@ -637,6 +646,50 @@ export default function App() {
                       ? 'Motor de razonamiento profundo para algoritmos y arquitectura.'
                       : 'Asistente de desarrollo ágil y streaming ultrarrápido de LYAXIS labs.'}
                   </p>
+
+                  {/* Suggested Prompts */}
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px', width: '100%', maxWidth: '560px', marginTop: '16px' }}>
+                    {[
+                      { icon: <Code2 size={15} color="#2563FF" />, text: 'Genera un componente React con animaciones' },
+                      { icon: <Zap size={15} color="#00D9FF" />, text: 'Optimiza este algoritmo para máximo rendimiento' },
+                      { icon: <BookOpen size={15} color="#10B981" />, text: 'Explica la arquitectura de microservicios' },
+                      { icon: <Lightbulb size={15} color="#7C3AED" />, text: 'Crea un diseño responsive con CSS Grid' },
+                    ].map((prompt, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => handleSend(prompt.text)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '12px 14px',
+                          borderRadius: '12px',
+                          backgroundColor: '#08080c',
+                          border: '1px solid #1a1a24',
+                          color: '#d4d4d8',
+                          fontSize: '12.5px',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.2s ease',
+                          lineHeight: '1.35',
+                        }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.borderColor = getModelColor(selectedModel) + '66';
+                          (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#0c0c12';
+                          (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 0 16px ${getModelColor(selectedModel)}22`;
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.borderColor = '#1a1a24';
+                          (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#08080c';
+                          (e.currentTarget as HTMLButtonElement).style.boxShadow = 'none';
+                        }}
+                      >
+                        <div style={{ flexShrink: 0 }}>{prompt.icon}</div>
+                        <span>{prompt.text}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 messages.map((msg, msgIndex) => {
@@ -668,6 +721,21 @@ export default function App() {
                             {msg.role === 'user' ? 'Tú' : `LYAXIS ${getModelLabel(messageModel)}`}
                           </span>
                         </div>
+                        {msg.role === 'model' && msg.content && !msg.isStreaming && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(msg.content);
+                              setCopiedMsgId(msg.id);
+                              setTimeout(() => setCopiedMsgId(null), 2000);
+                            }}
+                            title="Copiar respuesta"
+                            style={{ background: 'none', border: 'none', color: copiedMsgId === msg.id ? '#00D9FF' : '#52525b', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', transition: 'color 0.2s' }}
+                          >
+                            {copiedMsgId === msg.id ? <Check size={12} /> : <Copy size={12} />}
+                            <span>{copiedMsgId === msg.id ? 'Copiado' : ''}</span>
+                          </button>
+                        )}
                       </div>
                       <div style={{ color: '#e4e4e7', overflowWrap: 'break-word' }}>
                         {!msg.content && msg.isStreaming ? (
