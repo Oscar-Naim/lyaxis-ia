@@ -9,12 +9,11 @@ import { LandingPage } from './LandingPage';
 import { AuthModal } from './AuthModal';
 
 const getCleanApiBase = () => {
-  let url = import.meta.env.VITE_API_BASE || 'https://lyaxis-ia.onrender.com';
-  url = url.trim().replace(/\/+$/, '');
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    url = `https://${url}`;
-  }
-  return url;
+  const raw = import.meta.env.VITE_API_BASE || 'https://lyaxis-ia.onrender.com';
+  let clean = String(raw).trim().replace(/\/+$/, '');
+  const isLocal = clean.includes('localhost') || clean.includes('127.0.0.1');
+  clean = clean.replace(/^(https?:\/\/|https?:\/)+/i, '');
+  return isLocal ? `http://${clean}` : `https://${clean}`;
 };
 
 const API_BASE = getCleanApiBase();
