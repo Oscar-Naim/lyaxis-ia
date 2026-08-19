@@ -3,7 +3,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import { X, Phone, Terminal, ArrowLeft } from 'lucide-react';
 import type { User } from './types';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://lyaxis-ia.onrender.com';
 
 interface AuthModalProps {
   isOpen: boolean;
