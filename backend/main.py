@@ -19,7 +19,7 @@ load_dotenv()
 
 app = FastAPI(title="LYAXIS IA Production API", version="1.0.0")
 
-# CORS 100% Abierto y Permisivo (Resuelve definitivamente el bloqueo de navegadores y celulares)
+# CORS Global
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -375,7 +375,7 @@ def delete_conversation(cid: str):
 async def generate_gemini_stream(conversation_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "speed"):
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key or "TuClaveAqui" in api_key:
-        yield f"data: {json.dumps({'token': '⚠️ Por favor configura tu GEMINI_API_KEY en el servidor.'})}\n\n"
+        yield f"data: {json.dumps({'token': '⚠️ Por favor configura tu GEMINI_API_KEY en las variables de entorno de Render.'})}\n\n"
         return
 
     if model_type == "architect":
@@ -386,39 +386,60 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
         active_prompt = SYSTEM_PROMPT
 
     user_msg = messages[-1] if messages and messages[-1].role == "user" else None
+    
+    # 1. Asegurar persistencia de conversación y mensaje de usuario
     if conversation_id and user_msg:
         try:
-            mid = user_msg.id or str(uuid.uuid4())
             now = datetime.utcnow().isoformat()
+            # Asegurar que la conversación exista en BD para evitar violación de clave foránea
+            conv = db.fetchone("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
+            if not conv:
+                db.execute(
+                    "INSERT INTO conversations (id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                    (conversation_id, user_msg.content[:30], model_type, now, now)
+                )
+            
+            mid = user_msg.id or str(uuid.uuid4())
             db.execute(
                 "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
                 (mid, conversation_id, "user", user_msg.content, now)
             )
-            count_data = db.fetchone("SELECT COUNT(*) as count FROM messages WHERE conversation_id = ?", (conversation_id,))
-            count = count_data.get("count", 1) if count_data else 1
-            if count == 1:
-                auto_title = user_msg.content[:30] + ("..." if len(user_msg.content) > 30 else "")
-                db.execute("UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?", (auto_title, now, conversation_id))
-            else:
-                db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
+            db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
         except Exception as err_db:
             print(f"Aviso guardando mensaje: {err_db}")
 
-    full_response_text = ""
+    # 2. Sanitizar el historial para Gemini
+    contents = []
     try:
         from google import genai
         from google.genai import types
 
         client = genai.Client(api_key=api_key)
         
-        contents = []
         for msg in messages:
+            if not msg.content or not msg.content.strip():
+                continue
+            if msg.content.startswith('⚠️') or msg.content.startswith('❌'):
+                continue
             role = "user" if msg.role == "user" else "model"
-            contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg.content)]))
+            contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg.content.strip())]))
 
+        if not contents and user_msg and user_msg.content:
+            contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_msg.content.strip())]))
+
+    except Exception as e_client:
+        yield f"data: {json.dumps({'token': f'❌ Error inicializando cliente de IA: {str(e_client)}'})}\n\n"
+        return
+
+    # 3. Streaming con tolerancia a fallos
+    full_response_text = ""
+    models_to_try = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+    last_err = None
+
+    for model_name in models_to_try:
         try:
             response = await client.aio.models.generate_content_stream(
-                model="gemini-3.7-flash",
+                model=model_name,
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=active_prompt,
@@ -430,41 +451,35 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
                 if chunk.text:
                     full_response_text += chunk.text
                     yield f"data: {json.dumps({'token': chunk.text})}\n\n"
-                    await asyncio.sleep(0.015)
+                    await asyncio.sleep(0.012)
+            
+            last_err = None
+            break
 
-        except Exception as e_inner:
-            err_str = str(e_inner)
-            if "503" in err_str or "UNAVAILABLE" in err_str:
-                response_backup = await client.aio.models.generate_content_stream(
-                    model="gemini-3.6-flash",
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        system_instruction=active_prompt,
-                        temperature=temperature,
-                    ),
-                )
-                async for chunk in response_backup:
-                    if chunk.text:
-                        full_response_text += chunk.text
-                        yield f"data: {json.dumps({'token': chunk.text})}\n\n"
-                        await asyncio.sleep(0.015)
+        except Exception as err_model:
+            last_err = err_model
+            err_str = str(err_model)
+            if "503" in err_str or "UNAVAILABLE" in err_str or "404" in err_str or "NOT_FOUND" in err_str:
+                continue
             else:
-                raise e_inner
+                break
 
-        if conversation_id and full_response_text:
-            try:
-                mid = str(uuid.uuid4())
-                now = datetime.utcnow().isoformat()
-                db.execute(
-                    "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (mid, conversation_id, "model", full_response_text, now)
-                )
-                db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
-            except Exception as err_db2:
-                print(f"Aviso guardando modelo: {err_db2}")
+    if last_err:
+        yield f"data: {json.dumps({'token': f'❌ Error al generar respuesta: {str(last_err)}'})}\n\n"
+        return
 
-    except Exception as e:
-        yield f"data: {json.dumps({'token': f'❌ Error: {str(e)}'})}\n\n"
+    # 4. Guardar respuesta final en BD
+    if conversation_id and full_response_text:
+        try:
+            mid = str(uuid.uuid4())
+            now = datetime.utcnow().isoformat()
+            db.execute(
+                "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                (mid, conversation_id, "model", full_response_text, now)
+            )
+            db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
+        except Exception as err_db2:
+            print(f"Aviso guardando respuesta modelo: {err_db2}")
 
 @app.post("/api/v1/chat/stream")
 async def chat_stream_endpoint(request: ChatRequest):
@@ -479,13 +494,17 @@ async def chat_stream_endpoint(request: ChatRequest):
         model_type=request.model or "speed"
     )
 
+    # Cabeceras CORS forzadas directamente en el stream para evitar bloqueos de navegador
     return StreamingResponse(
         generator,
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
         },
     )
 
