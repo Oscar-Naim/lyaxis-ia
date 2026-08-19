@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Terminal, Sparkles, Brain, ShieldCheck, ArrowRight, Clock, LogIn } from 'lucide-react';
+import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, Clock } from 'lucide-react';
 
 interface LandingPageProps {
   onEnterChat: () => void;
@@ -18,7 +18,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAut
       if (difference > 0) {
         const days = Math.floor(difference / (1000 * 60 * 60 * 24));
         const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
-        const minutes = Math.floor((difference / 1000 / 60) % 60);
+        const minutes = Math.floor((difference / (1000 * 60 * 60)) % 24);
         const seconds = Math.floor((difference / 1000) % 60);
         setTimeLeft({ days, hours, minutes, seconds });
       }
@@ -31,8 +31,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAut
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', overflowY: 'auto', overflowX: 'hidden', backgroundColor: '#000000', color: '#ffffff', display: 'flex', flexDirection: 'column' }}>
-      {/* Navbar Responsive */}
-      <nav style={{ minHeight: '65px', borderBottom: '1px solid #121216', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', backgroundColor: '#000000', position: 'sticky', top: 0, zIndex: 50, flexShrink: 0 }}>
+      {/* Navbar */}
+      <nav style={{ minHeight: '65px', borderBottom: '1px solid #121216', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', backgroundColor: '#000000', position: 'sticky', top: 0, zIndex: 50, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ width: '34px', height: '34px', borderRadius: '10px', background: 'linear-gradient(135deg, #2563FF, #00D9FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(0, 217, 255, 0.35)' }}>
             <Terminal size={18} color="#ffffff" />
@@ -43,7 +43,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAut
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
             onClick={onOpenAuth}
             style={{
@@ -149,39 +149,53 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAut
         </div>
       </section>
 
-      {/* Tarjetas Responsivas */}
+      {/* Los 4 Motores Oficiales de LYAXIS */}
       <section style={{ maxWidth: '1050px', margin: '0 auto', padding: '0 18px 60px', width: '100%', boxSizing: 'border-box', flexShrink: 0 }}>
         <h2 style={{ fontSize: '20px', fontWeight: 700, textAlign: 'center', marginBottom: '24px', color: '#e4e4e7' }}>
-          Arquitectura y Motores de LYAXIS
+          Arquitectura y Motores de LYAXIS IA
         </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+          {/* Motor 1: Speed */}
           <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#2563FF22', border: '1px solid #2563FF55', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Sparkles size={18} color="#2563FF" />
             </div>
             <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Speed</h3>
             <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
-              Motor optimizado para streaming instantáneo en milisegundos y desarrollo ágil.
+              Motor ultrarrápido optimizado para streaming instantáneo en milisegundos y desarrollo ágil.
             </p>
           </div>
 
+          {/* Motor 2: Cortex */}
           <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#7C3AED22', border: '1px solid #7C3AED55', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Brain size={18} color="#7C3AED" />
             </div>
             <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Cortex</h3>
             <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
-              Motor de razonamiento profundo para arquitecturas de sistemas y depuración analítica.
+              Motor de razonamiento profundo para arquitecturas de sistemas, algoritmos y depuración analítica.
             </p>
           </div>
 
+          {/* Motor 3: Architect */}
+          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#10B98122', border: '1px solid #10B98155', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Compass size={18} color="#10B981" />
+            </div>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Architect</h3>
+            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
+              Arquitecto de System Prompts estructurados para producción y mentoría técnica paso a paso.
+            </p>
+          </div>
+
+          {/* Motor 4: Honestidad */}
           <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#00D9FF22', border: '1px solid #00D9FF55', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <ShieldCheck size={18} color="#00D9FF" />
             </div>
             <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Honestidad Radical</h3>
             <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
-              Cero alucinaciones forzadas. Si algo tiene límites técnicos, se reconoce con rigor.
+              Cero alucinaciones forzadas ni relleno corporativo. Precisión técnica y código determinista.
             </p>
           </div>
         </div>

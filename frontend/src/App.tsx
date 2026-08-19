@@ -38,11 +38,12 @@ const playCyberClick = () => {
 
 const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) => {
   const [isOpen, setIsOpen] = useState(true);
-  if (!thoughtText.trim()) return null;
+  if (!thoughtText || !thoughtText.trim()) return null;
 
   return (
     <div style={{ margin: '0 0 14px 0', borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(124, 58, 237, 0.35)', backgroundColor: 'rgba(12, 8, 20, 0.7)', boxShadow: '0 0 18px rgba(124, 58, 237, 0.15)' }}>
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 14px', backgroundColor: 'rgba(124, 58, 237, 0.12)', border: 'none', color: '#c084fc', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
       >
@@ -125,6 +126,7 @@ export default function App() {
           role: 'model',
           content: `⚠️ Aviso de conexión: ${err.message}. Si el servidor estaba inactivo, se activará en unos segundos.`,
           timestamp: new Date().toISOString(),
+          model: selectedModel,
         }
       ]);
     }
@@ -139,6 +141,7 @@ export default function App() {
         setConversations(data);
         if (data.length > 0 && !currentChatId) {
           setCurrentChatId(data[0].id);
+          setSelectedModel(data[0].model || 'speed');
           loadMessages(data[0].id);
         }
       }
@@ -167,10 +170,11 @@ export default function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const selectConversation = (chatId: string) => {
+  const selectConversation = (chat: Conversation) => {
     if (isStreaming) return;
-    setCurrentChatId(chatId);
-    loadMessages(chatId);
+    setCurrentChatId(chat.id);
+    setSelectedModel(chat.model || 'speed');
+    loadMessages(chat.id);
     if (isMobile) setIsSidebarOpen(false);
   };
 
@@ -206,8 +210,7 @@ export default function App() {
       setConversations(updated);
       if (currentChatId === chatId) {
         if (updated.length > 0) {
-          setCurrentChatId(updated[0].id);
-          loadMessages(updated[0].id);
+          selectConversation(updated[0]);
         } else {
           createNewChat();
         }
@@ -243,6 +246,7 @@ export default function App() {
       role: 'user',
       content: userText,
       timestamp: new Date().toISOString(),
+      model: selectedModel,
     };
 
     const assistantPlaceholderId = `model-${Date.now() + 1}`;
@@ -251,6 +255,7 @@ export default function App() {
       role: 'model',
       content: '',
       timestamp: new Date().toISOString(),
+      model: selectedModel,
       isStreaming: true,
     };
 
@@ -275,6 +280,13 @@ export default function App() {
         msg.id === assistantPlaceholderId ? { ...msg, isStreaming: false } : msg
       )
     );
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   const renderMessageContent = (content: string, isModelStreaming?: boolean) => {
@@ -340,6 +352,12 @@ export default function App() {
     return '#2563FF';
   };
 
+  const getModelIcon = (modelKey: 'speed' | 'cortex' | 'architect') => {
+    if (modelKey === 'architect') return <Compass size={14} color="#10B981" />;
+    if (modelKey === 'cortex') return <Brain size={14} color="#7C3AED" />;
+    return <Sparkles size={14} color="#2563FF" />;
+  };
+
   if (view === 'landing') {
     return (
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
@@ -391,6 +409,7 @@ export default function App() {
             
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <button
+                type="button"
                 onClick={() => setView('landing')}
                 title="Volver a la portada"
                 style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px' }}
@@ -399,6 +418,7 @@ export default function App() {
               </button>
               {isMobile && (
                 <button
+                  type="button"
                   onClick={() => setIsSidebarOpen(false)}
                   style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px' }}
                 >
@@ -420,6 +440,7 @@ export default function App() {
               </div>
             ) : (
               <button
+                type="button"
                 onClick={() => setIsAuthOpen(true)}
                 style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#00D9FF', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: 0 }}
               >
@@ -428,13 +449,14 @@ export default function App() {
               </button>
             )}
             {user && (
-              <button onClick={handleLogout} title="Cerrar sesión" style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '4px' }}>
+              <button type="button" onClick={handleLogout} title="Cerrar sesión" style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '4px' }}>
                 <LogOut size={14} />
               </button>
             )}
           </div>
 
           <button
+            type="button"
             onClick={createNewChat}
             style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '10px 14px', backgroundColor: '#0a0a0e', border: '1px solid #1c1c24', borderRadius: '8px', color: '#ffffff', fontSize: '13px', cursor: 'pointer', marginBottom: '16px' }}
           >
@@ -446,7 +468,7 @@ export default function App() {
             {conversations.map((chat) => (
               <div
                 key={chat.id}
-                onClick={() => selectConversation(chat.id)}
+                onClick={() => selectConversation(chat)}
                 style={{
                   padding: '8px 12px',
                   borderRadius: '6px',
@@ -460,7 +482,10 @@ export default function App() {
                   justifyContent: 'space-between',
                 }}
               >
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.title}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                  {getModelIcon(chat.model)}
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.title}</span>
+                </div>
                 <Trash2
                   size={14}
                   color="#52525b"
@@ -482,6 +507,7 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {isMobile && (
                 <button
+                  type="button"
                   onClick={() => setIsSidebarOpen(true)}
                   style={{ background: 'none', border: '1px solid #1c1c24', color: '#ffffff', padding: '6px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                 >
@@ -492,6 +518,7 @@ export default function App() {
               {/* Selector de Motores */}
               <div style={{ display: 'flex', backgroundColor: '#08080c', padding: '2px', borderRadius: '8px', border: '1px solid #181822' }}>
                 <button
+                  type="button"
                   onClick={() => setSelectedModel('speed')}
                   style={{
                     display: 'flex',
@@ -510,6 +537,7 @@ export default function App() {
                   <Sparkles size={12} /> Speed
                 </button>
                 <button
+                  type="button"
                   onClick={() => setSelectedModel('cortex')}
                   style={{
                     display: 'flex',
@@ -528,6 +556,7 @@ export default function App() {
                   <Brain size={12} /> Cortex
                 </button>
                 <button
+                  type="button"
                   onClick={() => setSelectedModel('architect')}
                   style={{
                     display: 'flex',
@@ -551,6 +580,7 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {!user && (
                 <button
+                  type="button"
                   onClick={() => setIsAuthOpen(true)}
                   style={{
                     display: 'flex',
@@ -571,6 +601,7 @@ export default function App() {
                 </button>
               )}
               <button
+                type="button"
                 onClick={toggleSound}
                 title={soundEnabled ? "Silenciar audio" : "Activar audio"}
                 style={{
@@ -610,47 +641,55 @@ export default function App() {
                   </p>
                 </div>
               ) : (
-                messages.map((msg, msgIndex) => (
-                  <div
-                    key={msg.id || msgIndex}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                      maxWidth: msg.role === 'user' ? (isMobile ? '90%' : '80%') : '100%',
-                      width: msg.role === 'user' ? 'auto' : '100%',
-                      backgroundColor: msg.role === 'user' ? '#111116' : 'rgba(6, 6, 9, 0.85)',
-                      backdropFilter: 'blur(8px)',
-                      border: msg.role === 'user' ? '1px solid #22222c' : '1px solid #14141c',
-                      borderRadius: '14px',
-                      padding: isMobile ? '12px 14px' : '16px 20px',
-                      fontSize: isMobile ? '13.5px' : '14.5px',
-                      lineHeight: '1.6',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
-                      overflowWrap: 'break-word',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', fontSize: '11px', color: '#71717a' }}>
-                      <span style={{ fontWeight: 600, color: msg.role === 'user' ? '#a1a1aa' : getModelColor(selectedModel) }}>
-                        {msg.role === 'user' ? 'Tú' : `LYAXIS ${getModelLabel(selectedModel)}`}
-                      </span>
-                    </div>
-                    <div style={{ color: '#e4e4e7', overflowWrap: 'break-word' }}>
-                      {!msg.content && msg.isStreaming ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 2px' }}>
-                          <span className="lyaxis-loading-dot" />
-                          <span className="lyaxis-loading-dot" />
-                          <span className="lyaxis-loading-dot" />
+                messages.map((msg, msgIndex) => {
+                  const messageModel = msg.model || selectedModel;
+                  return (
+                    <div
+                      key={msg.id || msgIndex}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                        maxWidth: msg.role === 'user' ? (isMobile ? '90%' : '80%') : '100%',
+                        width: msg.role === 'user' ? 'auto' : '100%',
+                        backgroundColor: msg.role === 'user' ? '#111116' : 'rgba(6, 6, 9, 0.85)',
+                        backdropFilter: 'blur(8px)',
+                        border: msg.role === 'user' ? '1px solid #22222c' : `1px solid ${msg.role === 'model' ? getModelColor(messageModel) + '33' : '#14141c'}`,
+                        borderRadius: '14px',
+                        padding: isMobile ? '12px 14px' : '16px 20px',
+                        fontSize: isMobile ? '13.5px' : '14.5px',
+                        lineHeight: '1.6',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+                        overflowWrap: 'break-word',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', fontSize: '11px', color: '#71717a' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {msg.role === 'model' && getModelIcon(messageModel)}
+                          <span style={{ fontWeight: 600, color: msg.role === 'user' ? '#a1a1aa' : getModelColor(messageModel) }}>
+                            {msg.role === 'user' ? 'Tú' : `LYAXIS ${getModelLabel(messageModel)}`}
+                          </span>
                         </div>
-                      ) : (
-                        <>
-                          {renderMessageContent(msg.content, msg.isStreaming)}
-                          {msg.isStreaming && <span className="lyaxis-cursor" />}
-                        </>
-                      )}
+                      </div>
+                      <div style={{ color: '#e4e4e7', overflowWrap: 'break-word' }}>
+                        {!msg.content && msg.isStreaming ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 2px' }}>
+                            <span className="lyaxis-loading-dot" />
+                            <span className="lyaxis-loading-dot" />
+                            <span className="lyaxis-loading-dot" />
+                          </div>
+                        ) : !msg.content && !msg.isStreaming ? (
+                          <span style={{ color: '#71717a', fontStyle: 'italic' }}>⚠️ Conectando con la IA...</span>
+                        ) : (
+                          <>
+                            {renderMessageContent(msg.content, msg.isStreaming)}
+                            {msg.isStreaming && <span className="lyaxis-cursor" />}
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
               <div ref={messagesEndRef} />
             </div>
@@ -670,12 +709,7 @@ export default function App() {
                   ref={textareaRef}
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
+                  onKeyDown={handleKeyDown}
                   placeholder="Escribe tu mensaje a LYAXIS IA..."
                   rows={1}
                   style={{

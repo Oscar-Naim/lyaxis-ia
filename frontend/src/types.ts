@@ -11,6 +11,7 @@ export interface Message {
   role: 'user' | 'model';
   content: string;
   timestamp: string;
+  model?: 'speed' | 'cortex' | 'architect';
   isStreaming?: boolean;
 }
 

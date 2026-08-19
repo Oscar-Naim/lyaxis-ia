@@ -19,7 +19,6 @@ load_dotenv()
 
 app = FastAPI(title="LYAXIS IA Production API", version="1.0.0")
 
-# Middleware Universal de CORS: Garantiza cabeceras en TODAS las respuestas
 @app.middleware("http")
 async def add_cors_headers(request: Request, call_next):
     if request.method == "OPTIONS":
@@ -45,7 +44,6 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 DB_PATH = os.path.join(os.path.dirname(__file__), "lyaxis.db")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "1073688660808-amgupffpqddmmo89vemaaupje20531t6.apps.googleusercontent.com")
 
-# Inicialización segura de SQLite local
 def init_sqlite():
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
@@ -83,7 +81,6 @@ def init_sqlite():
 
 init_sqlite()
 
-# Conector Resiliente con prueba rápida de conexión
 class Database:
     def __init__(self):
         self.use_postgres = False
@@ -98,7 +95,7 @@ class Database:
                 self.use_postgres = True
                 print("PostgreSQL Supabase conectado exitosamente.")
             except Exception as e:
-                print(f"Supabase no disponible ({e}), operando en SQLite local.")
+                print(f"Aviso Supabase: {e}. Usando SQLite.")
                 self.use_postgres = False
 
     def get_connection(self):
@@ -170,7 +167,6 @@ class Database:
 
 db = Database()
 
-# Inicializar tablas en Postgres si está activo
 if db.use_postgres:
     try:
         db.execute("""
@@ -469,11 +465,10 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
         except Exception as err_db:
             print(f"Aviso guardando mensaje: {err_db}")
 
+    # Formateo universal para Google GenAI
     contents = []
     try:
         from google import genai
-        from google.genai import types
-
         client = genai.Client(api_key=api_key)
         
         for msg in messages:
@@ -482,10 +477,10 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
             if msg.content.startswith('⚠️') or msg.content.startswith('❌'):
                 continue
             role = "user" if msg.role == "user" else "model"
-            contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg.content.strip())]))
+            contents.append({"role": role, "parts": [{"text": msg.content.strip()}]})
 
         if not contents and user_msg and user_msg.content:
-            contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_msg.content.strip())]))
+            contents.append({"role": "user", "parts": [{"text": user_msg.content.strip()}]})
 
     except Exception as e_client:
         yield f"data: {json.dumps({'token': f'❌ Error cliente IA: {str(e_client)}'})}\n\n"
@@ -500,20 +495,20 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
             response = await client.aio.models.generate_content_stream(
                 model=model_name,
                 contents=contents,
-                config=types.GenerateContentConfig(
-                    system_instruction=active_prompt,
-                    temperature=temperature,
-                ),
+                config={
+                    "system_instruction": active_prompt,
+                    "temperature": temperature
+                },
             )
 
             async for chunk in response:
                 chunk_text = ""
                 try:
-                    if hasattr(chunk, "text") and chunk.text:
-                        chunk_text = chunk.text
+                    if hasattr(chunk, "text") and chunk.text is not None:
+                        chunk_text = str(chunk.text)
                     elif hasattr(chunk, "candidates") and chunk.candidates:
                         parts = chunk.candidates[0].content.parts
-                        chunk_text = "".join([p.text for p in parts if hasattr(p, "text") and p.text is not None])
+                        chunk_text = "".join([str(p.text) for p in parts if hasattr(p, "text") and p.text is not None])
                 except Exception:
                     pass
 
@@ -535,7 +530,7 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
                 break
 
     if not full_response_text and last_err:
-        yield f"data: {json.dumps({'token': f'❌ Error al generar: {str(last_err)}'})}\n\n"
+        yield f"data: {json.dumps({'token': f'❌ Error al generar respuesta: {str(last_err)}'})}\n\n"
         return
 
     if conversation_id and full_response_text:
