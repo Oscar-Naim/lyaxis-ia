@@ -17,11 +17,17 @@ from google.auth.transport import requests as google_requests
 
 load_dotenv()
 
-app = FastAPI(title="LYAXIS IA API", version="1.0.0")
+app = FastAPI(title="LYAXIS IA Production API", version="1.0.0")
 
+# CORS Corregido para Vercel y Localhost (Solución al bloqueo de navegador)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://lyaxis-ia-one.vercel.app",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -29,36 +35,47 @@ app.add_middleware(
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 DB_PATH = os.path.join(os.path.dirname(__file__), "lyaxis.db")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "1073688660808-amgupffpqddmmo89vemaaupje20531t6.apps.googleusercontent.com")
 
-# Conector inteligente: PostgreSQL en la nube (Supabase) o SQLite local
 class Database:
     def __init__(self):
         self.is_postgres = bool(DATABASE_URL)
+        self.fallback_mode = False
 
     def get_connection(self):
-        if self.is_postgres:
-            import psycopg2
-            from psycopg2.extras import RealDictCursor
-            db_url = DATABASE_URL
-            if "sslmode=" not in db_url:
-                db_url += ("?" if "?" not in db_url else "&") + "sslmode=require"
-            return psycopg2.connect(db_url, cursor_factory=RealDictCursor)
-        else:
-            conn = sqlite3.connect(DB_PATH)
-            conn.row_factory = sqlite3.Row
-            return conn
+        if self.is_postgres and not self.fallback_mode:
+            try:
+                import psycopg2
+                from psycopg2.extras import RealDictCursor
+                db_url = DATABASE_URL
+                if "sslmode=" not in db_url:
+                    db_url += ("?" if "?" not in db_url else "&") + "sslmode=require"
+                return psycopg2.connect(db_url, cursor_factory=RealDictCursor, connect_timeout=4)
+            except Exception as e:
+                print(f"Aviso Supabase: {e}. Usando SQLite local.")
+                self.fallback_mode = True
+
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
 
     def execute(self, query: str, params: tuple = ()):
         conn = self.get_connection()
         try:
             cursor = conn.cursor()
-            if self.is_postgres:
+            if self.is_postgres and not self.fallback_mode:
                 pg_query = query.replace("?", "%s")
                 cursor.execute(pg_query, params)
             else:
                 cursor.execute(query, params)
             conn.commit()
             return cursor
+        except Exception as e:
+            print(f"Error execute: {e}")
+            try:
+                conn.rollback()
+            except:
+                pass
         finally:
             conn.close()
 
@@ -66,13 +83,16 @@ class Database:
         conn = self.get_connection()
         try:
             cursor = conn.cursor()
-            if self.is_postgres:
+            if self.is_postgres and not self.fallback_mode:
                 pg_query = query.replace("?", "%s")
                 cursor.execute(pg_query, params)
             else:
                 cursor.execute(query, params)
             rows = cursor.fetchall()
             return [dict(r) for r in rows]
+        except Exception as e:
+            print(f"Error fetchall: {e}")
+            return []
         finally:
             conn.close()
 
@@ -80,13 +100,16 @@ class Database:
         conn = self.get_connection()
         try:
             cursor = conn.cursor()
-            if self.is_postgres:
+            if self.is_postgres and not self.fallback_mode:
                 pg_query = query.replace("?", "%s")
                 cursor.execute(pg_query, params)
             else:
                 cursor.execute(query, params)
             row = cursor.fetchone()
             return dict(row) if row else None
+        except Exception as e:
+            print(f"Error fetchone: {e}")
+            return None
         finally:
             conn.close()
 
@@ -111,31 +134,23 @@ def init_db():
         title TEXT NOT NULL,
         model TEXT NOT NULL DEFAULT 'speed',
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        updated_at TEXT NOT NULL
     )
     """)
-    if not db.is_postgres:
-        try:
-            db.execute("ALTER TABLE conversations ADD COLUMN user_id TEXT")
-        except Exception:
-            pass
-
     db.execute("""
     CREATE TABLE IF NOT EXISTS messages (
         id TEXT PRIMARY KEY,
         conversation_id TEXT NOT NULL,
         role TEXT NOT NULL,
         content TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE
+        created_at TEXT NOT NULL
     )
     """)
 
 try:
     init_db()
 except Exception as e:
-    print(f"Base de datos: {e}")
+    print(f"DB Init: {e}")
 
 otp_storage = {}
 
@@ -224,7 +239,6 @@ class VerifyOtpPayload(BaseModel):
     code: str
     auth_type: Literal["email", "phone"]
 
-# Endpoints de Autenticación
 @app.post("/api/v1/auth/otp/send")
 def send_otp_code(req: RequestOtpPayload):
     target = req.target.strip().lower()
@@ -300,13 +314,13 @@ def google_auth(req: GoogleAuthRequest):
         id_info = id_token.verify_oauth2_token(
             req.credential, 
             google_requests.Request(), 
-            audience=req.client_id or os.getenv("GOOGLE_CLIENT_ID")
+            audience=req.client_id or GOOGLE_CLIENT_ID
         )
 
         google_id = id_info.get("sub")
         email = id_info.get("email")
-        name = id_info.get("name")
-        picture = id_info.get("picture")
+        name = id_info.get("name") or (email.split("@")[0].capitalize() if email else "Usuario")
+        picture = id_info.get("picture") or f"https://api.dicebear.com/7.x/bottts/svg?seed={email}"
 
         user = db.fetchone("SELECT * FROM users WHERE google_id = ?", (google_id,))
         now = datetime.utcnow().isoformat()
@@ -330,9 +344,9 @@ def google_auth(req: GoogleAuthRequest):
             }
         }
     except Exception as e:
+        print(f"Error Google Auth: {e}")
         raise HTTPException(status_code=400, detail=f"Error autenticando con Google: {str(e)}")
 
-# Endpoints de Conversaciones
 @app.get("/api/v1/conversations")
 def list_conversations(user_id: Optional[str] = None):
     if user_id:
@@ -362,7 +376,7 @@ def delete_conversation(cid: str):
 async def generate_gemini_stream(conversation_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "speed"):
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key or "TuClaveAqui" in api_key:
-        yield f"data: {json.dumps({'token': '⚠️ Por favor configura tu GEMINI_API_KEY en el backend.'})}\n\n"
+        yield f"data: {json.dumps({'token': '⚠️ Por favor configura tu GEMINI_API_KEY en el servidor.'})}\n\n"
         return
 
     if model_type == "architect":
@@ -374,19 +388,22 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
 
     user_msg = messages[-1] if messages and messages[-1].role == "user" else None
     if conversation_id and user_msg:
-        mid = user_msg.id or str(uuid.uuid4())
-        now = datetime.utcnow().isoformat()
-        db.execute(
-            "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-            (mid, conversation_id, "user", user_msg.content, now)
-        )
-        count_data = db.fetchone("SELECT COUNT(*) as count FROM messages WHERE conversation_id = ?", (conversation_id,))
-        count = count_data.get("count", 1) if count_data else 1
-        if count == 1:
-            auto_title = user_msg.content[:30] + ("..." if len(user_msg.content) > 30 else "")
-            db.execute("UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?", (auto_title, now, conversation_id))
-        else:
-            db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
+        try:
+            mid = user_msg.id or str(uuid.uuid4())
+            now = datetime.utcnow().isoformat()
+            db.execute(
+                "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                (mid, conversation_id, "user", user_msg.content, now)
+            )
+            count_data = db.fetchone("SELECT COUNT(*) as count FROM messages WHERE conversation_id = ?", (conversation_id,))
+            count = count_data.get("count", 1) if count_data else 1
+            if count == 1:
+                auto_title = user_msg.content[:30] + ("..." if len(user_msg.content) > 30 else "")
+                db.execute("UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?", (auto_title, now, conversation_id))
+            else:
+                db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
+        except Exception as err_db:
+            print(f"Aviso guardando mensaje: {err_db}")
 
     full_response_text = ""
     try:
@@ -436,13 +453,16 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
                 raise e_inner
 
         if conversation_id and full_response_text:
-            mid = str(uuid.uuid4())
-            now = datetime.utcnow().isoformat()
-            db.execute(
-                "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                (mid, conversation_id, "model", full_response_text, now)
-            )
-            db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
+            try:
+                mid = str(uuid.uuid4())
+                now = datetime.utcnow().isoformat()
+                db.execute(
+                    "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (mid, conversation_id, "model", full_response_text, now)
+                )
+                db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
+            except Exception as err_db2:
+                print(f"Aviso guardando modelo: {err_db2}")
 
     except Exception as e:
         yield f"data: {json.dumps({'token': f'❌ Error: {str(e)}'})}\n\n"
