@@ -4,7 +4,7 @@ import sqlite3
 import asyncio
 import uuid
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Literal, Optional
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -337,7 +337,7 @@ def verify_otp_code(req: VerifyOtpPayload):
         if code != "123456":
             raise HTTPException(status_code=400, detail="El código de 6 dígitos es incorrecto o ha expirado.")
 
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     if req.auth_type == "email":
         user = db.fetchone("SELECT * FROM users WHERE email = ?", (target,))
         if not user:
@@ -396,7 +396,7 @@ def google_auth(req: GoogleAuthRequest):
         picture = id_info.get("picture") or f"https://api.dicebear.com/7.x/bottts/svg?seed={email}"
 
         user = db.fetchone("SELECT * FROM users WHERE google_id = ?", (google_id,))
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         if not user:
             user_id = str(uuid.uuid4())
             db.execute(
@@ -429,7 +429,7 @@ def list_conversations(user_id: Optional[str] = None):
 @app.post("/api/v1/conversations")
 def create_conversation(req: CreateConversationRequest):
     cid = str(uuid.uuid4())
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     db.execute(
         "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
         (cid, req.user_id, req.title, req.model, now, now)
@@ -464,7 +464,7 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
     # 1. Persistencia vinculada al usuario
     if conversation_id and user_msg:
         try:
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
             conv = db.fetchone("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
             if not conv:
                 db.execute(
@@ -507,7 +507,7 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
         return
 
     full_response_text = ""
-    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.7-flash", "gemini-3.6-flash"]
+    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
     last_err = None
 
     for model_name in models_to_try:
@@ -556,7 +556,7 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
     if conversation_id and full_response_text:
         try:
             mid = str(uuid.uuid4())
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
             db.execute(
                 "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
                 (mid, conversation_id, "model", full_response_text, now)

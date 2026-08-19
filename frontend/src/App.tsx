@@ -303,7 +303,7 @@ export default function App() {
                   const match = /language-(\w+)/.exec(className || '');
                   const codeString = String(children || '').replace(/\n$/, '');
                   if (!inline && match) {
-                    return <CodeBlock language={match} codeString={codeString} />;
+                    return <CodeBlock language={match[1]} codeString={codeString} />;
                   }
                   return <code style={{ backgroundColor: '#111118', color: '#00D9FF', padding: '2px 6px', borderRadius: '4px', fontSize: '13px', fontFamily: "'JetBrains Mono', Consolas, monospace" }} {...props}>{children}</code>;
                 }
@@ -327,7 +327,7 @@ export default function App() {
             const match = /language-(\w+)/.exec(className || '');
             const codeString = String(children || '').replace(/\n$/, '');
             if (!inline && match) {
-              return <CodeBlock language={match} codeString={codeString} />;
+              return <CodeBlock language={match[1]} codeString={codeString} />;
             }
             return <code style={{ backgroundColor: '#111118', color: '#00D9FF', padding: '2px 6px', borderRadius: '4px', fontSize: '13px', fontFamily: "'JetBrains Mono', Consolas, monospace" }} {...props}>{children}</code>;
           }
