@@ -124,9 +124,9 @@ export default function App() {
       setMessages((prev) => [
         ...prev,
         {
-          id: Date.now().toString(),
+          id: `err-${Date.now()}`,
           role: 'model',
-          content: `⚠️ Error de conexión con el servidor: ${err.message}`,
+          content: `⚠️ Aviso de conexión: ${err.message}. Si el servidor estaba inactivo, se activará en unos segundos.`,
           timestamp: new Date().toISOString(),
         }
       ]);
@@ -143,12 +143,10 @@ export default function App() {
         if (data.length > 0 && !currentChatId) {
           setCurrentChatId(data[0].id);
           loadMessages(data[0].id);
-        } else if (data.length === 0) {
-          createNewChat();
         }
       }
     } catch (e) {
-      console.error("Error cargando conversaciones:", e);
+      console.warn("Aviso cargando conversaciones:", e);
     }
   };
 
@@ -160,7 +158,7 @@ export default function App() {
         setMessages(data);
       }
     } catch (e) {
-      console.error("Error cargando mensajes:", e);
+      console.warn("Aviso cargando mensajes:", e);
     }
   };
 
@@ -179,30 +177,34 @@ export default function App() {
     if (isMobile) setIsSidebarOpen(false);
   };
 
-  const createNewChat = async () => {
+  const createNewChat = () => {
     if (isStreaming) return;
+    const localId = `chat-${Date.now()}`;
+    const newChat: Conversation = {
+      id: localId,
+      userId: user?.id,
+      title: 'Nueva conversación',
+      createdAt: new Date().toISOString(),
+      model: selectedModel
+    };
+    setConversations((prev) => [newChat, ...prev]);
+    setCurrentChatId(localId);
+    setMessages([]);
+    if (isMobile) setIsSidebarOpen(false);
+
     try {
-      const res = await fetch(`${API_BASE}/api/v1/conversations`, {
+      fetch(`${API_BASE}/api/v1/conversations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: user?.id, title: 'Nueva conversación', model: selectedModel })
       });
-      if (res.ok) {
-        const newChat = await res.json();
-        setConversations((prev) => [newChat, ...prev]);
-        setCurrentChatId(newChat.id);
-        setMessages([]);
-        if (isMobile) setIsSidebarOpen(false);
-      }
-    } catch (e) {
-      console.error("Error creando chat:", e);
-    }
+    } catch {}
   };
 
   const deleteConversation = async (chatId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await fetch(`${API_BASE}/api/v1/conversations/${chatId}`, { method: 'DELETE' });
+      fetch(`${API_BASE}/api/v1/conversations/${chatId}`, { method: 'DELETE' });
       const updated = conversations.filter((c) => c.id !== chatId);
       setConversations(updated);
       if (currentChatId === chatId) {
@@ -220,32 +222,33 @@ export default function App() {
 
   const handleSend = async (customText?: string) => {
     const textToSend = customText || inputValue;
-    if (!textToSend.trim() || isStreaming) return;
-
-    let targetChatId = currentChatId;
-    if (!targetChatId) {
-      const res = await fetch(`${API_BASE}/api/v1/conversations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user?.id, title: textToSend.trim().slice(0, 30), model: selectedModel })
-      });
-      const newChat = await res.json();
-      targetChatId = newChat.id;
-      setCurrentChatId(targetChatId);
-      setConversations((prev) => [newChat, ...prev]);
-    }
+    if (!textToSend || !textToSend.trim() || isStreaming) return;
 
     const userText = textToSend.trim();
     setInputValue('');
 
+    let targetChatId = currentChatId;
+    if (!targetChatId) {
+      targetChatId = `chat-${Date.now()}`;
+      setCurrentChatId(targetChatId);
+      const localChat: Conversation = {
+        id: targetChatId,
+        userId: user?.id,
+        title: userText.slice(0, 30),
+        createdAt: new Date().toISOString(),
+        model: selectedModel
+      };
+      setConversations((prev) => [localChat, ...prev]);
+    }
+
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: `user-${Date.now()}`,
       role: 'user',
       content: userText,
       timestamp: new Date().toISOString(),
     };
 
-    const assistantPlaceholderId = (Date.now() + 1).toString();
+    const assistantPlaceholderId = `model-${Date.now() + 1}`;
     const assistantMessage: Message = {
       id: assistantPlaceholderId,
       role: 'model',
@@ -275,13 +278,6 @@ export default function App() {
         msg.id === assistantPlaceholderId ? { ...msg, isStreaming: false } : msg
       )
     );
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
   };
 
   const renderMessageContent = (content: string, isModelStreaming?: boolean) => {
@@ -360,7 +356,6 @@ export default function App() {
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <div className="cyber-grid-bg" style={{ display: 'flex', width: '100vw', height: '100vh', color: '#ffffff', position: 'relative', overflow: 'hidden' }}>
         
-        {/* Overlay Oscuro en Móvil cuando el Sidebar está abierto */}
         {isMobile && isSidebarOpen && (
           <div
             onClick={() => setIsSidebarOpen(false)}
@@ -368,7 +363,7 @@ export default function App() {
           />
         )}
 
-        {/* Sidebar Responsive */}
+        {/* Sidebar */}
         <aside
           style={{
             position: isMobile ? 'fixed' : 'relative',
@@ -485,7 +480,7 @@ export default function App() {
 
         {/* Main Chat Area */}
         <main style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'transparent', minWidth: 0, width: '100%' }}>
-          {/* Header Responsive */}
+          {/* Header */}
           <header style={{ minHeight: '58px', borderBottom: '1px solid #141418', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 12px' : '0 24px', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)', flexShrink: 0, gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {isMobile && (
@@ -664,15 +659,26 @@ export default function App() {
             </div>
           </div>
 
-          {/* Input Area */}
+          {/* Input Area envuelto en Formulario Nativo */}
           <div style={{ padding: isMobile ? '10px 12px 14px' : '16px 24px 20px', borderTop: '1px solid #121216', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)', flexShrink: 0 }}>
-            <div style={{ maxWidth: '860px', margin: '0 auto', width: '100%' }}>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSend();
+              }}
+              style={{ maxWidth: '860px', margin: '0 auto', width: '100%' }}
+            >
               <div style={{ display: 'flex', alignItems: 'flex-end', backgroundColor: '#08080c', border: '1px solid #1a1a24', borderRadius: '14px', padding: isMobile ? '8px 12px' : '12px 16px', gap: '10px', boxShadow: '0 4px 25px rgba(0,0,0,0.8)' }}>
                 <textarea
                   ref={textareaRef}
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={handleKeyDown}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
                   placeholder="Escribe tu mensaje a LYAXIS IA..."
                   rows={1}
                   style={{
@@ -689,18 +695,19 @@ export default function App() {
                 />
                 {isStreaming ? (
                   <button
+                    type="button"
                     onClick={stopStreaming}
-                    style={{ width: '34px', height: '34px', borderRadius: '10px', backgroundColor: '#dc2626', border: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                    style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#dc2626', border: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
                   >
-                    <Square size={15} />
+                    <Square size={16} />
                   </button>
                 ) : (
                   <button
-                    onClick={() => handleSend()}
+                    type="submit"
                     disabled={!inputValue.trim()}
                     style={{
-                      width: '34px',
-                      height: '34px',
+                      width: '36px',
+                      height: '36px',
                       borderRadius: '10px',
                       backgroundColor: inputValue.trim() ? getModelColor(selectedModel) : '#1c1c24',
                       border: 'none',
@@ -710,17 +717,17 @@ export default function App() {
                       justifyContent: 'center',
                       cursor: inputValue.trim() ? 'pointer' : 'default',
                       flexShrink: 0,
+                      boxShadow: inputValue.trim() ? `0 0 16px ${getModelColor(selectedModel)}44` : 'none',
                     }}
                   >
-                    <Send size={15} />
+                    <Send size={16} />
                   </button>
                 )}
               </div>
-            </div>
+            </form>
           </div>
         </main>
 
-        {/* Modal de Autenticación */}
         <AuthModal
           isOpen={isAuthOpen}
           onClose={() => setIsAuthOpen(false)}
