@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb } from 'lucide-react';
+import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity } from 'lucide-react';
 import type { Message, Conversation, User } from './types';
 import { useSSEStream } from './useSSEStream';
 import { CodeBlock } from './CodeBlock';
 import { LandingPage } from './LandingPage';
 import { AuthModal } from './AuthModal';
+import { FuturisticDashboardModal } from './FuturisticDashboardModal';
 import { API_BASE, GOOGLE_CLIENT_ID } from './config';
 
 let audioCtx: AudioContext | null = null;
@@ -83,6 +84,7 @@ export default function App() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
 
   // Auto-resize textarea
@@ -199,14 +201,6 @@ export default function App() {
     setCurrentChatId(localId);
     setMessages([]);
     if (isMobile) setIsSidebarOpen(false);
-
-    try {
-      fetch(`${API_BASE}/api/v1/conversations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: localId, user_id: user?.id, title: 'Nueva conversación', model: selectedModel })
-      });
-    } catch {}
   };
 
   const deleteConversation = async (chatId: string, e: React.MouseEvent) => {
@@ -612,6 +606,33 @@ export default function App() {
               )}
               <button
                 type="button"
+                onClick={() => {
+                  if (soundEnabled) playCyberClick();
+                  setIsDashboardOpen(true);
+                }}
+                title="Abrir Telemetría HUD"
+                className="lyaxis-sound-btn"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  backgroundColor: 'rgba(0, 217, 255, 0.08)',
+                  border: '1px solid rgba(0, 217, 255, 0.25)',
+                  color: '#00D9FF',
+                  padding: isMobile ? '5px 8px' : '6px 12px',
+                  borderRadius: '8px',
+                  fontSize: isMobile ? '11px' : '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 0 12px rgba(0, 217, 255, 0.12)',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <Activity size={13} className="lyaxis-hero-icon" />
+                <span>HUD</span>
+              </button>
+              <button
+                type="button"
                 onClick={toggleSound}
                 title={soundEnabled ? "Silenciar audio" : "Activar audio"}
                 style={{
@@ -814,6 +835,20 @@ export default function App() {
           isOpen={isAuthOpen}
           onClose={() => setIsAuthOpen(false)}
           onLoginSuccess={handleLoginSuccess}
+        />
+
+        <FuturisticDashboardModal
+          isOpen={isDashboardOpen}
+          onClose={() => setIsDashboardOpen(false)}
+          selectedModel={selectedModel}
+          onSelectModel={(m) => {
+            setSelectedModel(m);
+            if (soundEnabled) playCyberClick();
+          }}
+          soundEnabled={soundEnabled}
+          onToggleSound={toggleSound}
+          messageCount={messages.length}
+          conversationCount={conversations.length}
         />
       </div>
     </GoogleOAuthProvider>
