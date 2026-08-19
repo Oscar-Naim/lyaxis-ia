@@ -7,7 +7,7 @@ interface UseSSEStreamOptions {
   onError?: (err: Error) => void;
 }
 
-export function useSSEStream({ apiBaseUrl = 'http://localhost:8000', onDone, onError }: UseSSEStreamOptions = {}) {
+export function useSSEStream({ apiBaseUrl = 'https://lyaxis-ia.onrender.com', onDone, onError }: UseSSEStreamOptions = {}) {
   const [isStreaming, setIsStreaming] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -22,6 +22,9 @@ export function useSSEStream({ apiBaseUrl = 'http://localhost:8000', onDone, onE
       abortControllerRef.current = new AbortController();
       let accumulatedText = '';
 
+      // Limpia cualquier barra diagonal al final de la URL para evitar errores 404
+      const baseUrl = (apiBaseUrl || 'https://lyaxis-ia.onrender.com').replace(/\/+$/, '');
+
       try {
         const payload = {
           conversation_id: conversationId,
@@ -30,7 +33,7 @@ export function useSSEStream({ apiBaseUrl = 'http://localhost:8000', onDone, onE
           temperature: model === 'cortex' ? 0.3 : model === 'architect' ? 0.5 : 0.7,
         };
 
-        const response = await fetch(`${apiBaseUrl}/api/v1/chat/stream`, {
+        const response = await fetch(`${baseUrl}/api/v1/chat/stream`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
