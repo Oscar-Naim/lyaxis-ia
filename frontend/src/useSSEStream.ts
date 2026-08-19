@@ -1,22 +1,13 @@
 import { useState, useRef, useCallback } from 'react';
 import type { Message } from './types';
+import { API_BASE } from './config';
 
 interface UseSSEStreamOptions {
-  apiBaseUrl?: string;
   onDone?: (fullText: string) => void;
   onError?: (err: Error) => void;
 }
 
-const getCleanApiBase = (customUrl?: string) => {
-  const raw = customUrl || import.meta.env.VITE_API_BASE || 'https://lyaxis-ia.onrender.com';
-  let clean = String(raw).trim().replace(/\/+$/, '');
-  const isLocal = clean.includes('localhost') || clean.includes('127.0.0.1');
-  // Elimina cualquier https:// o http:// duplicado
-  clean = clean.replace(/^(https?:\/\/|https?:\/)+/i, '');
-  return isLocal ? `http://${clean}` : `https://${clean}`;
-};
-
-export function useSSEStream({ apiBaseUrl, onDone, onError }: UseSSEStreamOptions = {}) {
+export function useSSEStream({ onDone, onError }: UseSSEStreamOptions = {}) {
   const [isStreaming, setIsStreaming] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -31,8 +22,6 @@ export function useSSEStream({ apiBaseUrl, onDone, onError }: UseSSEStreamOption
       abortControllerRef.current = new AbortController();
       let accumulatedText = '';
 
-      const baseUrl = getCleanApiBase(apiBaseUrl);
-
       try {
         const payload = {
           conversation_id: conversationId,
@@ -41,7 +30,7 @@ export function useSSEStream({ apiBaseUrl, onDone, onError }: UseSSEStreamOption
           temperature: model === 'cortex' ? 0.3 : model === 'architect' ? 0.5 : 0.7,
         };
 
-        const response = await fetch(`${baseUrl}/api/v1/chat/stream`, {
+        const response = await fetch(`${API_BASE}/api/v1/chat/stream`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -97,7 +86,7 @@ export function useSSEStream({ apiBaseUrl, onDone, onError }: UseSSEStreamOption
         abortControllerRef.current = null;
       }
     },
-    [apiBaseUrl, onDone, onError]
+    [onDone, onError]
   );
 
   const stopStreaming = useCallback(() => {

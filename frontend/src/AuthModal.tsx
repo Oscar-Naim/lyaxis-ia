@@ -2,17 +2,7 @@ import React, { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { X, Phone, Terminal, ArrowLeft } from 'lucide-react';
 import type { User } from './types';
-
-const getCleanApiBase = () => {
-  const raw = import.meta.env.VITE_API_BASE || 'https://lyaxis-ia.onrender.com';
-  let clean = String(raw).trim().replace(/\/+$/, '');
-  const isLocal = clean.includes('localhost') || clean.includes('127.0.0.1');
-  clean = clean.replace(/^(https?:\/\/|https?:\/)+/i, '');
-  return isLocal ? `http://${clean}` : `https://${clean}`;
-};
-
-const API_BASE = getCleanApiBase();
-const GOOGLE_CLIENT_ID = "1073688660808-amgupffpqddmmo89vemaaupje20531t6.apps.googleusercontent.com";
+import { API_BASE, GOOGLE_CLIENT_ID } from './config';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -23,9 +13,9 @@ interface AuthModalProps {
 const parseJwt = (token: string) => {
   try {
     const raw = token.split('.');
-    if (raw.length < 2) return null;
+    if (!raw || raw.length < 2) return null;
     const payloadSegment = String(raw.slice(1, 2)[0] || '');
-    const base64 = payloadSegment.split('-').join('+').split('_').join('/');
+    const base64 = payloadSegment.replace(/-/g, '+').replace(/_/g, '/');
     const jsonPayload = decodeURIComponent(
       window
         .atob(base64)

@@ -7,17 +7,7 @@ import { useSSEStream } from './useSSEStream';
 import { CodeBlock } from './CodeBlock';
 import { LandingPage } from './LandingPage';
 import { AuthModal } from './AuthModal';
-
-const getCleanApiBase = () => {
-  const raw = import.meta.env.VITE_API_BASE || 'https://lyaxis-ia.onrender.com';
-  let clean = String(raw).trim().replace(/\/+$/, '');
-  const isLocal = clean.includes('localhost') || clean.includes('127.0.0.1');
-  clean = clean.replace(/^(https?:\/\/|https?:\/)+/i, '');
-  return isLocal ? `http://${clean}` : `https://${clean}`;
-};
-
-const API_BASE = getCleanApiBase();
-const GOOGLE_CLIENT_ID = "1073688660808-amgupffpqddmmo89vemaaupje20531t6.apps.googleusercontent.com";
+import { API_BASE, GOOGLE_CLIENT_ID } from './config';
 
 let audioCtx: AudioContext | null = null;
 const playCyberClick = () => {
@@ -124,7 +114,6 @@ export default function App() {
   };
 
   const { isStreaming, sendMessage, stopStreaming } = useSSEStream({
-    apiBaseUrl: API_BASE,
     onDone: () => {
       fetchConversations(user?.id);
     },
