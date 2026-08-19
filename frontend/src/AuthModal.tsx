@@ -4,6 +4,7 @@ import { X, Phone, Terminal, ArrowLeft } from 'lucide-react';
 import type { User } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'https://lyaxis-ia.onrender.com';
+const GOOGLE_CLIENT_ID = "1073688660808-amgupffpqddmmo89vemaaupje20531t6.apps.googleusercontent.com";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -22,7 +23,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
 
   if (!isOpen) return null;
 
-  // 1. Enviar Código de Verificación OTP
+  // 1. Enviar Código OTP
   const handleRequestCode = async (customTarget?: string, type?: 'email' | 'phone') => {
     const inputTarget = (customTarget || target).trim();
     const finalType = type || authType;
@@ -52,7 +53,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
         setError(data.detail || 'Error al enviar código');
       }
     } catch {
-      setError('No se pudo conectar con el servidor backend.');
+      setError('No se pudo conectar con el servidor.');
     } finally {
       setLoading(false);
     }
@@ -92,19 +93,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
 
   // 3. Google Login
   const handleGoogleSuccess = async (credentialResponse: any) => {
+    setLoading(true);
+    setError(null);
     try {
       const res = await fetch(`${API_BASE}/api/v1/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: credentialResponse.credential })
+        body: JSON.stringify({ 
+          credential: credentialResponse.credential,
+          client_id: GOOGLE_CLIENT_ID
+        })
       });
       if (res.ok) {
         const data = await res.json();
         onLoginSuccess(data.user);
         onClose();
+      } else {
+        const errData = await res.json();
+        setError(errData.detail || 'Error al autenticar con Google');
       }
-    } catch {
-      setError('Error al autenticar con Google');
+    } catch (e) {
+      setError('Error de conexión al autenticar con Google');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -124,7 +135,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.82)', backdropFilter: 'blur(14px)', padding: '16px' }}>
       <div style={{ width: '100%', maxWidth: '380px', backgroundColor: '#07070a', border: '1px solid #1c1c28', borderRadius: '20px', padding: '32px 28px', color: '#ffffff', position: 'relative', boxShadow: '0 25px 70px rgba(0,0,0,0.95)' }}>
         
-        {/* Botón Cerrar */}
         <button
           onClick={onClose}
           style={{ position: 'absolute', top: '18px', right: '18px', background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '4px' }}
@@ -132,7 +142,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
           <X size={20} />
         </button>
 
-        {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #2563FF, #00D9FF)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '14px', boxShadow: '0 0 20px rgba(0, 217, 255, 0.35)' }}>
             <Terminal size={22} color="#ffffff" />
@@ -156,7 +165,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
         {/* PANTALLA 1: PRINCIPAL */}
         {step === 'main' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {/* 1. Botón Google */}
+            {/* Botón Google */}
             <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
               <GoogleLogin
                 onSuccess={handleGoogleSuccess}
@@ -169,7 +178,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
               />
             </div>
 
-            {/* 2. Botón Teléfono */}
+            {/* Botón Teléfono */}
             <button
               onClick={() => {
                 setAuthType('phone');
@@ -203,7 +212,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
               <div style={{ flex: 1, height: '1px', backgroundColor: '#1c1c26' }} />
             </div>
 
-            {/* 3. Input de Email */}
+            {/* Input de Email */}
             <div>
               <input
                 type="email"
@@ -250,7 +259,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
           </div>
         )}
 
-        {/* PANTALLA 2: INPUT DE TELÉFONO */}
+        {/* PANTALLA 2: TELÉFONO */}
         {step === 'phone_input' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <button
