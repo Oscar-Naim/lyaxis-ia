@@ -204,7 +204,7 @@ export default function App() {
       fetch(`${API_BASE}/api/v1/conversations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user?.id, title: 'Nueva conversación', model: selectedModel })
+        body: JSON.stringify({ id: localId, user_id: user?.id, title: 'Nueva conversación', model: selectedModel })
       });
     } catch {}
   };
@@ -287,6 +287,9 @@ export default function App() {
         msg.id === assistantPlaceholderId ? { ...msg, isStreaming: false } : msg
       )
     );
+
+    // Refresh conversation list so newly created/updated conversation shows in sidebar
+    fetchConversations(user?.id);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

@@ -247,3 +247,126 @@ html, body {
 textarea {
   transition: height 0.08s ease;
 }
+
+/* ====== FUTURISTIC MICRO-ANIMATIONS ====== */
+
+/* Hero icon breathing glow */
+@keyframes heroBreathing {
+  0%, 100% { box-shadow: 0 0 20px rgba(0, 217, 255, 0.25), 0 0 40px rgba(37, 99, 255, 0.1); }
+  50% { box-shadow: 0 0 28px rgba(0, 217, 255, 0.45), 0 0 60px rgba(37, 99, 255, 0.2); }
+}
+
+.lyaxis-hero-icon {
+  animation: heroBreathing 3s ease-in-out infinite;
+}
+
+/* Neon glow on input focus */
+@keyframes inputNeonPulse {
+  0%, 100% { border-color: #1a1a24; box-shadow: 0 4px 25px rgba(0,0,0,0.8); }
+  50% { border-color: rgba(0, 217, 255, 0.2); box-shadow: 0 4px 25px rgba(0,0,0,0.8), 0 0 15px rgba(0, 217, 255, 0.06); }
+}
+
+.lyaxis-input-container:focus-within {
+  border-color: rgba(0, 217, 255, 0.25) !important;
+  box-shadow: 0 4px 25px rgba(0,0,0,0.8), 0 0 20px rgba(0, 217, 255, 0.08) !important;
+  transition: all 0.3s ease;
+}
+
+/* Model selector button transitions */
+.lyaxis-model-btn {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.lyaxis-model-btn:hover {
+  transform: translateY(-1px);
+}
+
+.lyaxis-model-btn.active {
+  box-shadow: 0 0 12px rgba(var(--model-r), var(--model-g), var(--model-b), 0.35);
+}
+
+/* Sidebar conversation items */
+.lyaxis-sidebar-item {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.lyaxis-sidebar-item:hover {
+  transform: translateX(3px);
+  background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+.lyaxis-sidebar-item:hover .lyaxis-trash-icon {
+  opacity: 1;
+}
+
+.lyaxis-trash-icon {
+  opacity: 0;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.lyaxis-trash-icon:hover {
+  color: #f87171 !important;
+}
+
+/* New chat button glow */
+.lyaxis-new-chat-btn {
+  transition: all 0.25s ease;
+  position: relative;
+}
+
+.lyaxis-new-chat-btn:hover {
+  border-color: rgba(0, 217, 255, 0.3) !important;
+  box-shadow: 0 0 14px rgba(0, 217, 255, 0.08);
+  background-color: rgba(0, 217, 255, 0.04) !important;
+}
+
+/* Send button pulse when ready */
+@keyframes sendBtnReady {
+  0%, 100% { box-shadow: 0 0 12px rgba(37, 99, 255, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(37, 99, 255, 0.5); }
+}
+
+.lyaxis-send-btn.ready {
+  animation: sendBtnReady 2s ease-in-out infinite;
+}
+
+.lyaxis-send-btn {
+  transition: all 0.2s ease;
+}
+
+.lyaxis-send-btn:hover {
+  transform: scale(1.05);
+}
+
+/* Subtle scanline overlay for cyberpunk feel */
+@keyframes scanlineMove {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+.cyber-grid-bg::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0, 217, 255, 0.04), transparent);
+  animation: scanlineMove 8s linear infinite;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Header glassmorphism enhancement */
+.lyaxis-header {
+  transition: background-color 0.3s ease;
+}
+
+/* Sound toggle glow */
+.lyaxis-sound-btn.active {
+  box-shadow: 0 0 10px rgba(0, 217, 255, 0.15);
+  animation: heroBreathing 4s ease-in-out infinite;
+}

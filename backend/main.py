@@ -2,7 +2,6 @@ import os
 import json
 import sqlite3
 import asyncio
-import concurrent.futures
 import uuid
 import random
 from datetime import datetime, timezone
@@ -59,7 +58,8 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "1073688660808-amgupffpqddmmo89
 
 def init_sqlite():
     try:
-        with sqlite3.connect(DB_PATH) as conn:
+        with sqlite3.connect(DB_PATH, timeout=30.0) as conn:
+            conn.execute("PRAGMA journal_mode=WAL;")
             cursor = conn.cursor()
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -127,8 +127,12 @@ class Database:
                 print(f"Error conexion Postgres ({e}), usando SQLite de respaldo.")
                 self.use_postgres = False
 
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, timeout=30.0)
         conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("PRAGMA journal_mode=WAL;")
+        except Exception:
+            pass
         return conn
 
     def execute(self, query: str, params: tuple = ()):
@@ -218,9 +222,8 @@ if db.use_postgres:
     except Exception as e:
         print(f"Postgres tables init: {e}")
 
-# --- Cached Gemini Client (eliminates per-request import + instantiation) ---
+# --- Cached Gemini Client (avoids per-request import + instantiation) ---
 _genai_client = None
-_db_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
 def _get_genai_client():
     global _genai_client
@@ -234,13 +237,6 @@ def _get_genai_client():
         except Exception as e:
             print(f"Error initializing Gemini client: {e}")
     return _genai_client
-
-def _save_to_db_sync(fn, *args):
-    """Run a DB operation synchronously (for use in executor)."""
-    try:
-        fn(*args)
-    except Exception as e:
-        print(f"Background DB write error: {e}")
 
 otp_storage = {}
 
@@ -312,6 +308,7 @@ class ChatRequest(BaseModel):
     temperature: Optional[float] = 0.7
 
 class CreateConversationRequest(BaseModel):
+    id: Optional[str] = None
     user_id: Optional[str] = None
     title: Optional[str] = "Nueva conversación"
     model: Optional[Literal["speed", "cortex", "architect"]] = "speed"
@@ -453,12 +450,14 @@ def list_conversations(user_id: Optional[str] = None):
 
 @app.post("/api/v1/conversations")
 def create_conversation(req: CreateConversationRequest):
-    cid = str(uuid.uuid4())
+    cid = req.id or str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
-    db.execute(
-        "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-        (cid, req.user_id, req.title, req.model, now, now)
-    )
+    existing = db.fetchone("SELECT id FROM conversations WHERE id = ?", (cid,))
+    if not existing:
+        db.execute(
+            "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (cid, req.user_id, req.title, req.model, now, now)
+        )
     return {"id": cid, "user_id": req.user_id, "title": req.title, "model": req.model, "created_at": now, "updated_at": now}
 
 @app.get("/api/v1/conversations/{cid}/messages")
@@ -486,34 +485,36 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
 
     user_msg = messages[-1] if messages and messages[-1].role == "user" else None
     
-    # 1. Persistencia vinculada al usuario (non-blocking via thread pool)
+    # 1. Persist user message (synchronous — SQLite writes are <1ms)
     if conversation_id and user_msg:
-        def _persist_user_msg():
-            try:
-                now = datetime.now(timezone.utc).isoformat()
-                conv = db.fetchone("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
-                if not conv:
-                    db.execute(
-                        "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                        (conversation_id, user_id, user_msg.content[:30], model_type, now, now)
-                    )
-                else:
-                    db.execute(
-                        "UPDATE conversations SET user_id = COALESCE(user_id, ?), updated_at = ? WHERE id = ?",
-                        (user_id, now, conversation_id)
-                    )
-                mid = user_msg.id or str(uuid.uuid4())
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            title_text = user_msg.content[:30] if user_msg.content else "Nueva conversación"
+            conv = db.fetchone("SELECT id, title FROM conversations WHERE id = ?", (conversation_id,))
+            if not conv:
+                db.execute(
+                    "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (conversation_id, user_id, title_text, model_type, now, now)
+                )
+            else:
+                # Update title if it's default 'Nueva conversación'
+                new_title = title_text if conv.get("title") in ("Nueva conversación", None, "") else conv.get("title")
+                db.execute(
+                    "UPDATE conversations SET user_id = COALESCE(user_id, ?), title = ?, updated_at = ? WHERE id = ?",
+                    (user_id, new_title, now, conversation_id)
+                )
+            mid = user_msg.id or str(uuid.uuid4())
+            existing_msg = db.fetchone("SELECT id FROM messages WHERE id = ?", (mid,))
+            if not existing_msg:
                 db.execute(
                     "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
                     (mid, conversation_id, "user", user_msg.content, now)
                 )
-                db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
-            except Exception as err_db:
-                print(f"Aviso DB mensaje: {err_db}")
-        # Fire-and-forget: don't block streaming waiting for DB write
-        asyncio.get_event_loop().run_in_executor(_db_executor, _persist_user_msg)
+            db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
+        except Exception as err_db:
+            print(f"Aviso DB mensaje: {err_db}")
 
-    # 2. Build contents and get cached client
+    # 2. Get cached Gemini client
     client = _get_genai_client()
     if not client:
         yield f"data: {json.dumps({'token': '❌ No se pudo inicializar el cliente de IA. Verifica GEMINI_API_KEY.'})}\n\n"
@@ -577,22 +578,18 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
         yield f"data: {json.dumps({'token': f'❌ Error al generar: {str(last_err)}'})}\n\n"
         return
 
-    # Save response in background thread (don't block client connection)
+    # Save response to DB (synchronous — reliable)
     if conversation_id and full_response_text:
-        _final_text = full_response_text
-        _conv_id = conversation_id
-        def _persist_response():
-            try:
-                mid = str(uuid.uuid4())
-                now = datetime.now(timezone.utc).isoformat()
-                db.execute(
-                    "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (mid, _conv_id, "model", _final_text, now)
-                )
-                db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, _conv_id))
-            except Exception as err_db2:
-                print(f"Aviso guardando respuesta: {err_db2}")
-        asyncio.get_event_loop().run_in_executor(_db_executor, _persist_response)
+        try:
+            mid = str(uuid.uuid4())
+            now = datetime.now(timezone.utc).isoformat()
+            db.execute(
+                "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                (mid, conversation_id, "model", full_response_text, now)
+            )
+            db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
+        except Exception as err_db2:
+            print(f"Aviso guardando respuesta: {err_db2}")
 
 @app.post("/api/v1/chat/stream")
 async def chat_stream_endpoint(request: ChatRequest):
