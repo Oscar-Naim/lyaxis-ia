@@ -13,10 +13,15 @@ interface AuthModalProps {
 }
 
 // Decodificador seguro de tokens JWT de Google en el navegador
+// Decodificador seguro de tokens JWT de Google en el navegador
 const parseJwt = (token: string) => {
   try {
-    const base64Url = token.split('.');
+    const base64Url = token.split('.')[1];
+    if (!base64Url) return null;
+
+    // Reemplazamos los caracteres URL-safe por los estándar de Base64
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+
     const jsonPayload = decodeURIComponent(
       window
         .atob(base64)
@@ -24,12 +29,13 @@ const parseJwt = (token: string) => {
         .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
         .join('')
     );
+
     return JSON.parse(jsonPayload);
-  } catch {
+  } catch (error) {
+    console.error("Error al decodificar el JWT:", error);
     return null;
   }
 };
-
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess }) => {
   const [step, setStep] = useState<'main' | 'phone_input' | 'verify_code'>('main');
   const [authType, setAuthType] = useState<'email' | 'phone'>('email');
