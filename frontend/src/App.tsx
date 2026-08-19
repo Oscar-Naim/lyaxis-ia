@@ -9,7 +9,7 @@ import { LandingPage } from './LandingPage';
 import { AuthModal } from './AuthModal';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'https://lyaxis-ia.onrender.com';
-const GOOGLE_CLIENT_ID = "789123456789-lyaxisexample.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID = "1073688660808-amgupffpqddmmo89vemaaupje20531t6.apps.googleusercontent.com";
 
 let audioCtx: AudioContext | null = null;
 const playCyberClick = () => {
