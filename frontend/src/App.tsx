@@ -633,10 +633,10 @@ export default function App() {
             <div style={{ maxWidth: '860px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px', flex: 1 }}>
               {messages.length === 0 ? (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#71717a', gap: '14px', textAlign: 'center', minHeight: '50vh', padding: '0 12px' }}>
-                  <div style={{ width: '52px', height: '52px', borderRadius: '16px', background: `linear-gradient(135deg, ${getModelColor(selectedModel)}, #00D9FF)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 30px ${getModelColor(selectedModel)}44` }}>
-                    {selectedModel === 'architect' ? <Compass size={26} color="#ffffff" /> : selectedModel === 'cortex' ? <Brain size={26} color="#ffffff" /> : <Terminal size={26} color="#ffffff" />}
+                  <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: `linear-gradient(135deg, ${getModelColor(selectedModel)}, #00D9FF)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 24px ${getModelColor(selectedModel)}44` }}>
+                    {selectedModel === 'architect' ? <Compass size={24} color="#ffffff" /> : selectedModel === 'cortex' ? <Brain size={24} color="#ffffff" /> : <Terminal size={24} color="#ffffff" />}
                   </div>
-                  <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                  <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
                     LYAXIS {getModelLabel(selectedModel)}
                   </h2>
                   <p style={{ fontSize: '13.5px', maxWidth: '480px', margin: 0, lineHeight: '1.5', color: '#a1a1aa' }}>
@@ -647,46 +647,27 @@ export default function App() {
                       : 'Asistente de desarrollo ágil y streaming ultrarrápido de LYAXIS labs.'}
                   </p>
 
-                  {/* Suggested Prompts */}
-                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px', width: '100%', maxWidth: '560px', marginTop: '16px' }}>
+                  {/* Suggested Prompts — Futuristic Glassmorphism Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px', width: '100%', maxWidth: '580px', marginTop: '20px' }}>
                     {[
-                      { icon: <Code2 size={15} color="#2563FF" />, text: 'Genera un componente React con animaciones' },
-                      { icon: <Zap size={15} color="#00D9FF" />, text: 'Optimiza este algoritmo para máximo rendimiento' },
-                      { icon: <BookOpen size={15} color="#10B981" />, text: 'Explica la arquitectura de microservicios' },
-                      { icon: <Lightbulb size={15} color="#7C3AED" />, text: 'Crea un diseño responsive con CSS Grid' },
+                      { icon: <Code2 size={16} color="#2563FF" />, bg: 'rgba(37, 99, 255, 0.12)', border: 'rgba(37, 99, 255, 0.25)', text: 'Genera un componente React con animaciones fluidas' },
+                      { icon: <Zap size={16} color="#00D9FF" />, bg: 'rgba(0, 217, 255, 0.12)', border: 'rgba(0, 217, 255, 0.25)', text: 'Optimiza este algoritmo para máximo rendimiento' },
+                      { icon: <BookOpen size={16} color="#10B981" />, bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.25)', text: 'Explica la arquitectura de microservicios' },
+                      { icon: <Lightbulb size={16} color="#7C3AED" />, bg: 'rgba(124, 58, 237, 0.12)', border: 'rgba(124, 58, 237, 0.25)', text: 'Diseña un layout responsive con CSS Grid' },
                     ].map((prompt, i) => (
                       <button
                         key={i}
                         type="button"
+                        className="lyaxis-prompt-card"
                         onClick={() => handleSend(prompt.text)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          padding: '12px 14px',
-                          borderRadius: '12px',
-                          backgroundColor: '#08080c',
-                          border: '1px solid #1a1a24',
-                          color: '#d4d4d8',
-                          fontSize: '12.5px',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          transition: 'all 0.2s ease',
-                          lineHeight: '1.35',
-                        }}
-                        onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLButtonElement).style.borderColor = getModelColor(selectedModel) + '66';
-                          (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#0c0c12';
-                          (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 0 16px ${getModelColor(selectedModel)}22`;
-                        }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLButtonElement).style.borderColor = '#1a1a24';
-                          (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#08080c';
-                          (e.currentTarget as HTMLButtonElement).style.boxShadow = 'none';
-                        }}
                       >
-                        <div style={{ flexShrink: 0 }}>{prompt.icon}</div>
-                        <span>{prompt.text}</span>
+                        <div
+                          className="prompt-icon"
+                          style={{ backgroundColor: prompt.bg, border: `1px solid ${prompt.border}` }}
+                        >
+                          {prompt.icon}
+                        </div>
+                        <span className="prompt-text">{prompt.text}</span>
                       </button>
                     ))}
                   </div>
@@ -697,6 +678,7 @@ export default function App() {
                   return (
                     <div
                       key={msg.id || msgIndex}
+                      className="lyaxis-msg-bubble"
                       style={{
                         display: 'flex',
                         flexDirection: 'column',
@@ -724,13 +706,13 @@ export default function App() {
                         {msg.role === 'model' && msg.content && !msg.isStreaming && (
                           <button
                             type="button"
+                            className={`lyaxis-copy-btn${copiedMsgId === msg.id ? ' copied' : ''}`}
                             onClick={() => {
                               navigator.clipboard.writeText(msg.content);
                               setCopiedMsgId(msg.id);
                               setTimeout(() => setCopiedMsgId(null), 2000);
                             }}
                             title="Copiar respuesta"
-                            style={{ background: 'none', border: 'none', color: copiedMsgId === msg.id ? '#00D9FF' : '#52525b', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', transition: 'color 0.2s' }}
                           >
                             {copiedMsgId === msg.id ? <Check size={12} /> : <Copy size={12} />}
                             <span>{copiedMsgId === msg.id ? 'Copiado' : ''}</span>

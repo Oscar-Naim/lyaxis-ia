@@ -90,11 +90,148 @@ html, body {
   box-shadow: 0 0 10px #00D9FF;
 }
 
-/* Smooth message appear animation */
+/* ====== SUGGESTED PROMPT CARDS — Futuristic Glassmorphism ====== */
+
+@keyframes promptGlowPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes promptBorderShimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.lyaxis-prompt-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(8, 8, 14, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: #d4d4d8;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+  line-height: 1.4;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+/* Ambient glow behind card */
+.lyaxis-prompt-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 14px;
+  padding: 1px;
+  background: linear-gradient(135deg, transparent 30%, rgba(0, 217, 255, 0.12) 50%, transparent 70%);
+  background-size: 200% 200%;
+  animation: promptBorderShimmer 6s ease infinite;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.lyaxis-prompt-card:hover::before {
+  opacity: 1;
+}
+
+.lyaxis-prompt-card:hover {
+  background: rgba(12, 12, 22, 0.85);
+  border-color: rgba(0, 217, 255, 0.2);
+  box-shadow: 
+    0 0 20px rgba(0, 217, 255, 0.08),
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transform: translateY(-2px);
+}
+
+.lyaxis-prompt-card:active {
+  transform: translateY(0) scale(0.98);
+  transition: transform 0.1s ease;
+}
+
+.lyaxis-prompt-card .prompt-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* Subtle pulsing glow behind icon */
+.lyaxis-prompt-card .prompt-icon::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 12px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  animation: promptGlowPulse 3s ease-in-out infinite;
+}
+
+.lyaxis-prompt-card:hover .prompt-icon::after {
+  opacity: 1;
+}
+
+.lyaxis-prompt-card .prompt-text {
+  padding-top: 2px;
+  color: #a1a1aa;
+  transition: color 0.3s ease;
+}
+
+.lyaxis-prompt-card:hover .prompt-text {
+  color: #e4e4e7;
+}
+
+/* ====== COPY BUTTON — Minimal & Elegant ====== */
+
+.lyaxis-copy-btn {
+  background: none;
+  border: none;
+  color: #3f3f46;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  transition: all 0.2s ease;
+  opacity: 0;
+}
+
+/* Show on message hover */
+.lyaxis-msg-bubble:hover .lyaxis-copy-btn {
+  opacity: 1;
+}
+
+.lyaxis-copy-btn:hover {
+  color: #00D9FF;
+  background: rgba(0, 217, 255, 0.08);
+}
+
+.lyaxis-copy-btn.copied {
+  color: #00D9FF;
+  opacity: 1;
+}
+
+/* ====== MESSAGE ANIMATIONS ====== */
 @keyframes messageSlideIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -102,17 +239,11 @@ html, body {
   }
 }
 
-/* Textarea smooth resize */
+.lyaxis-msg-bubble {
+  animation: messageSlideIn 0.25s ease-out;
+}
+
+/* Textarea auto-resize smoothness */
 textarea {
-  transition: height 0.1s ease;
-}
-
-/* Smooth focus glow on input */
-textarea:focus {
-  box-shadow: 0 0 0 1px rgba(0, 217, 255, 0.15);
-}
-
-/* Suggested prompt hover animation */
-button:active {
-  transform: scale(0.98);
+  transition: height 0.08s ease;
 }
