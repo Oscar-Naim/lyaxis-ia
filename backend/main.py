@@ -19,7 +19,6 @@ load_dotenv()
 
 app = FastAPI(title="LYAXIS IA Production API", version="1.0.0")
 
-# 1. Manejador Global de Errores con CORS (Evita que cualquier error 500 sea bloqueado por el navegador)
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
@@ -32,7 +31,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
-# 2. Middleware Universal de CORS
 @app.middleware("http")
 async def add_cors_headers(request: Request, call_next):
     if request.method == "OPTIONS":
@@ -58,7 +56,6 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 DB_PATH = os.path.join(os.path.dirname(__file__), "lyaxis.db")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "1073688660808-amgupffpqddmmo89vemaaupje20531t6.apps.googleusercontent.com")
 
-# Inicializar SQLite local seguro
 def init_sqlite():
     try:
         with sqlite3.connect(DB_PATH) as conn:
@@ -99,7 +96,6 @@ def init_sqlite():
 
 init_sqlite()
 
-# Conector Ultra-Resiliente: Nunca falla ni bloquea peticiones
 class Database:
     def __init__(self):
         self.use_postgres = False
@@ -426,8 +422,8 @@ def google_auth(req: GoogleAuthRequest):
 
 @app.get("/api/v1/conversations")
 def list_conversations(user_id: Optional[str] = None):
-    if user_id:
-        return db.fetchall("SELECT id, user_id, title, model, created_at, updated_at FROM conversations WHERE user_id = ? ORDER BY updated_at DESC", (user_id,))
+    if user_id and user_id.strip():
+        return db.fetchall("SELECT id, user_id, title, model, created_at, updated_at FROM conversations WHERE user_id = ? ORDER BY updated_at DESC", (user_id.strip(),))
     return db.fetchall("SELECT id, user_id, title, model, created_at, updated_at FROM conversations ORDER BY updated_at DESC")
 
 @app.post("/api/v1/conversations")
@@ -450,7 +446,7 @@ def delete_conversation(cid: str):
     db.execute("DELETE FROM conversations WHERE id = ?", (cid,))
     return {"status": "deleted", "id": cid}
 
-async def generate_gemini_stream(conversation_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "speed"):
+async def generate_gemini_stream(conversation_id: Optional[str], user_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "speed"):
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key or "TuClaveAqui" in api_key:
         yield f"data: {json.dumps({'token': '⚠️ Por favor configura tu GEMINI_API_KEY en las variables de entorno de Render.'})}\n\n"
@@ -465,13 +461,22 @@ async def generate_gemini_stream(conversation_id: Optional[str], messages: List[
 
     user_msg = messages[-1] if messages and messages[-1].role == "user" else None
     
+    # 1. Persistencia vinculada al usuario
     if conversation_id and user_msg:
         try:
             now = datetime.utcnow().isoformat()
-            db.execute(
-                "INSERT INTO conversations (id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-                (conversation_id, user_msg.content[:30], model_type, now, now)
-            )
+            conv = db.fetchone("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
+            if not conv:
+                db.execute(
+                    "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (conversation_id, user_id, user_msg.content[:30], model_type, now, now)
+                )
+            else:
+                db.execute(
+                    "UPDATE conversations SET user_id = COALESCE(user_id, ?), updated_at = ? WHERE id = ?",
+                    (user_id, now, conversation_id)
+                )
+            
             mid = user_msg.id or str(uuid.uuid4())
             db.execute(
                 "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
@@ -568,6 +573,7 @@ async def chat_stream_endpoint(request: ChatRequest):
     temp = 0.3 if request.model == "cortex" else (0.5 if request.model == "architect" else 0.7)
     generator = generate_gemini_stream(
         conversation_id=request.conversation_id,
+        user_id=request.user_id,
         messages=request.messages,
         temperature=temp,
         model_type=request.model or "speed"

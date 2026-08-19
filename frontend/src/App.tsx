@@ -140,9 +140,7 @@ export default function App() {
         const data = await res.json();
         setConversations(data);
         if (data.length > 0 && !currentChatId) {
-          setCurrentChatId(data[0].id);
-          setSelectedModel(data[0].model || 'speed');
-          loadMessages(data[0].id);
+          selectConversation(data[0]);
         }
       }
     } catch (e) {
@@ -262,7 +260,7 @@ export default function App() {
     const updatedMessages = [...messages, userMessage];
     setMessages([...updatedMessages, assistantMessage]);
 
-    await sendMessage(updatedMessages, selectedModel, targetChatId, (accumulatedText) => {
+    await sendMessage(updatedMessages, selectedModel, targetChatId, user?.id, (accumulatedText) => {
       if (soundEnabled && Math.random() > 0.4) {
         playCyberClick();
       }

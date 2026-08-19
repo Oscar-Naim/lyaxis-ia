@@ -16,6 +16,7 @@ export function useSSEStream({ onDone, onError }: UseSSEStreamOptions = {}) {
       messages: Message[],
       model: 'speed' | 'cortex' | 'architect' | string,
       conversationId: string | null,
+      userId: string | undefined,
       onToken: (accumulated: string) => void
     ) => {
       setIsStreaming(true);
@@ -25,6 +26,7 @@ export function useSSEStream({ onDone, onError }: UseSSEStreamOptions = {}) {
       try {
         const payload = {
           conversation_id: conversationId,
+          user_id: userId || null,
           messages: messages.map((m) => ({ id: m.id, role: m.role, content: m.content })),
           model,
           temperature: model === 'cortex' ? 0.3 : model === 'architect' ? 0.5 : 0.7,
