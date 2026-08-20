@@ -680,3 +680,91 @@ textarea {
     opacity: 1;
   }
 }
+
+/* ====== STRIKING INVASIVE CYBER ANIMATIONS ====== */
+
+/* Fullscreen Cyber Model Switch Sweep */
+@keyframes cyberScanSweep {
+  0% {
+    top: -5%;
+    opacity: 0;
+    filter: blur(2px);
+  }
+  20% {
+    opacity: 0.9;
+    filter: blur(0px);
+  }
+  80% {
+    opacity: 0.9;
+    filter: blur(0px);
+  }
+  100% {
+    top: 105%;
+    opacity: 0;
+    filter: blur(4px);
+  }
+}
+
+.lyaxis-laser-scanline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, transparent 0%, var(--scan-color, #00D9FF) 50%, transparent 100%);
+  box-shadow: 0 0 25px var(--scan-color, #00D9FF), 0 0 50px var(--scan-color, #00D9FF);
+  pointer-events: none;
+  z-index: 99;
+  animation: cyberScanSweep 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Streaming Active Neon Border Sweep */
+@keyframes neonBorderRun {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.lyaxis-streaming-active {
+  position: relative;
+}
+
+.lyaxis-streaming-active::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 15px;
+  padding: 1px;
+  background: linear-gradient(90deg, #2563FF, #00D9FF, #7C3AED, #EC4899, #EF4444, #2563FF);
+  background-size: 300% 300%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: neonBorderRun 2.5s linear infinite;
+  pointer-events: none;
+}
+
+/* Cyber Title Glitch Entrance */
+@keyframes cyberTitleEntrance {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+    letter-spacing: 2px;
+    filter: blur(8px);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(2px) scale(1.02);
+    letter-spacing: 0.5px;
+    filter: blur(1px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    letter-spacing: 0.5px;
+    filter: blur(0);
+  }
+}
+
+.lyaxis-cyber-title {
+  animation: cyberTitleEntrance 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}

@@ -279,9 +279,15 @@ export default function App() {
     if (isMobile) setIsSidebarOpen(false);
   };
 
+  const [isScanlineActive, setIsScanlineActive] = useState(false);
+
   // Switch model and load last conversation for that model
   const switchModel = (newModel: ModelType) => {
     if (isStreaming || newModel === selectedModel) return;
+    if (soundEnabled) playCyberClick();
+    setIsScanlineActive(true);
+    setTimeout(() => setIsScanlineActive(false), 750);
+
     // Save current conversation for current model
     if (currentChatId) {
       updateLastChatPerModel(selectedModel, currentChatId);
@@ -650,7 +656,13 @@ export default function App() {
         </aside>
 
         {/* Main Chat Area */}
-        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'transparent', minWidth: 0, width: '100%' }}>
+        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'transparent', minWidth: 0, width: '100%', position: 'relative' }}>
+          {isScanlineActive && (
+            <div
+              className="lyaxis-laser-scanline"
+              style={{ '--scan-color': getModelColor(selectedModel) } as React.CSSProperties}
+            />
+          )}
           {/* Header */}
           <header style={{ minHeight: '58px', borderBottom: '1px solid #141418', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 12px' : '0 24px', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)', flexShrink: 0, gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

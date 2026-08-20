@@ -648,10 +648,9 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
     full_response_text = ""
     # Official Gemini models in order of failover — fast response first
     models_to_try = [
-        "gemini-2.5-flash",
         "gemini-2.0-flash",
         "gemini-1.5-flash",
-        "gemini-2.5-pro",
+        "gemini-2.5-flash",
         "gemini-1.5-pro"
     ]
     last_err = None
