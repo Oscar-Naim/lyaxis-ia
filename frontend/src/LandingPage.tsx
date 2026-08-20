@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, Clock } from 'lucide-react';
+import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, Clock, MessageCircle } from 'lucide-react';
 
 interface LandingPageProps {
   onEnterChat: () => void;
@@ -188,7 +188,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAut
             </p>
           </div>
 
-          {/* Motor 4: Honestidad */}
+          {/* Motor 4: Classic */}
+          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#F59E0B22', border: '1px solid #F59E0B55', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <MessageCircle size={18} color="#F59E0B" />
+            </div>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Classic</h3>
+            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
+              Tu compañero inteligente de uso diario. Conversación natural, versátil y amigable para cualquier tarea.
+            </p>
+          </div>
+
+          {/* Honestidad */}
           <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#00D9FF22', border: '1px solid #00D9FF55', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <ShieldCheck size={18} color="#00D9FF" />

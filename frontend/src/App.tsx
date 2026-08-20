@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity } from 'lucide-react';
+import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle } from 'lucide-react';
 import type { Message, Conversation, User } from './types';
 import { useSSEStream } from './useSSEStream';
 import { CodeBlock } from './CodeBlock';
@@ -88,7 +88,7 @@ export default function App() {
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<'speed' | 'cortex' | 'architect'>('speed');
+  const [selectedModel, setSelectedModel] = useState<'speed' | 'cortex' | 'architect' | 'classic'>('speed');
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
@@ -370,19 +370,22 @@ export default function App() {
     );
   };
 
-  const getModelLabel = (modelKey: 'speed' | 'cortex' | 'architect') => {
+  const getModelLabel = (modelKey: 'speed' | 'cortex' | 'architect' | 'classic') => {
+    if (modelKey === 'classic') return 'Classic';
     if (modelKey === 'architect') return 'Architect';
     if (modelKey === 'cortex') return 'Cortex';
     return 'Speed';
   };
 
-  const getModelColor = (modelKey: 'speed' | 'cortex' | 'architect') => {
+  const getModelColor = (modelKey: 'speed' | 'cortex' | 'architect' | 'classic') => {
+    if (modelKey === 'classic') return '#F59E0B';
     if (modelKey === 'architect') return '#10B981';
     if (modelKey === 'cortex') return '#7C3AED';
     return '#2563FF';
   };
 
-  const getModelIcon = (modelKey: 'speed' | 'cortex' | 'architect') => {
+  const getModelIcon = (modelKey: 'speed' | 'cortex' | 'architect' | 'classic') => {
+    if (modelKey === 'classic') return <MessageCircle size={14} color="#F59E0B" />;
     if (modelKey === 'architect') return <Compass size={14} color="#10B981" />;
     if (modelKey === 'cortex') return <Brain size={14} color="#7C3AED" />;
     return <Sparkles size={14} color="#2563FF" />;
@@ -616,6 +619,25 @@ export default function App() {
                 >
                   <Compass size={12} /> Architect
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedModel('classic')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: isMobile ? '5px 8px' : '6px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    fontSize: isMobile ? '11px' : '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    backgroundColor: selectedModel === 'classic' ? '#F59E0B' : 'transparent',
+                    color: '#ffffff',
+                  }}
+                >
+                  <MessageCircle size={12} /> Classic
+                </button>
               </div>
             </div>
 
@@ -695,14 +717,16 @@ export default function App() {
             <div style={{ maxWidth: '860px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px', flex: 1 }}>
               {messages.length === 0 ? (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#71717a', gap: '14px', textAlign: 'center', minHeight: '50vh', padding: '0 12px' }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: `linear-gradient(135deg, ${getModelColor(selectedModel)}, #00D9FF)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 24px ${getModelColor(selectedModel)}44` }}>
-                    {selectedModel === 'architect' ? <Compass size={24} color="#ffffff" /> : selectedModel === 'cortex' ? <Brain size={24} color="#ffffff" /> : <Terminal size={24} color="#ffffff" />}
+                  <div className="lyaxis-empty-state-orb" style={{ width: '48px', height: '48px', borderRadius: '14px', background: `linear-gradient(135deg, ${getModelColor(selectedModel)}, #00D9FF)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 24px ${getModelColor(selectedModel)}44` }}>
+                    {selectedModel === 'classic' ? <MessageCircle size={24} color="#ffffff" /> : selectedModel === 'architect' ? <Compass size={24} color="#ffffff" /> : selectedModel === 'cortex' ? <Brain size={24} color="#ffffff" /> : <Terminal size={24} color="#ffffff" />}
                   </div>
                   <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
                     LYAXIS {getModelLabel(selectedModel)}
                   </h2>
                   <p style={{ fontSize: '13.5px', maxWidth: '480px', margin: 0, lineHeight: '1.5', color: '#a1a1aa' }}>
-                    {selectedModel === 'architect'
+                    {selectedModel === 'classic'
+                      ? 'Tu compañero inteligente para el día a día. Pregunta lo que quieras.'
+                      : selectedModel === 'architect'
                       ? 'Módulo de arquitectura de prompts y mentoría técnica.'
                       : selectedModel === 'cortex'
                       ? 'Motor de razonamiento profundo para algoritmos y arquitectura.'

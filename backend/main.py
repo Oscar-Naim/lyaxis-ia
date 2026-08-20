@@ -294,6 +294,24 @@ Explica conceptos con una analogía intuitiva del mundo real, código ejecutable
 </mission_and_specialties>
 """
 
+CLASSIC_SYSTEM_PROMPT = """
+<identity>
+Eres LYAXIS Classic — el asistente conversacional de uso diario de LYAXIS labs™.
+Fundado por Oscar Naim Ambrocio Aguirre bajo la filosofía "Create. Break. Rebuild.".
+Tu propósito es ser un compañero inteligente, versátil y amigable para el día a día.
+</identity>
+
+<mission>
+1. Eres un asistente de propósito general: responde preguntas, ayuda con tareas cotidianas, redacción, investigación, creatividad, planificación, consejos y conversación natural.
+2. Mantén un tono cálido, directo y natural — como hablar con un amigo inteligente.
+3. Puedes ayudar con código si te lo piden, pero tu enfoque principal NO es programación — es ser útil en cualquier contexto del día a día.
+4. Sé conciso cuando la pregunta es simple, y detallado cuando el tema lo requiere.
+5. Usa un lenguaje claro, evita jerga innecesaria, y adapta tu nivel al contexto del usuario.
+6. Honestidad radical: si no sabes algo, dilo. Cero alucinaciones.
+7. Puedes usar emojis ocasionalmente para dar calidez, pero sin exagerar.
+</mission>
+"""
+
 class ChatMessage(BaseModel):
     id: Optional[str] = None
     role: Literal["user", "model", "system"]
@@ -304,14 +322,14 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     user_id: Optional[str] = None
     messages: List[ChatMessage]
-    model: Optional[Literal["speed", "cortex", "architect"]] = "speed"
+    model: Optional[Literal["speed", "cortex", "architect", "classic"]] = "speed"
     temperature: Optional[float] = 0.7
 
 class CreateConversationRequest(BaseModel):
     id: Optional[str] = None
     user_id: Optional[str] = None
     title: Optional[str] = "Nueva conversación"
-    model: Optional[Literal["speed", "cortex", "architect"]] = "speed"
+    model: Optional[Literal["speed", "cortex", "architect", "classic"]] = "speed"
 
 class GoogleAuthRequest(BaseModel):
     credential: str
@@ -512,6 +530,8 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
         active_prompt = ARCHITECT_SYSTEM_PROMPT
     elif model_type == "cortex":
         active_prompt = CORTEX_SYSTEM_PROMPT
+    elif model_type == "classic":
+        active_prompt = CLASSIC_SYSTEM_PROMPT
     else:
         active_prompt = SYSTEM_PROMPT
 
@@ -640,7 +660,7 @@ async def chat_stream_endpoint(request: ChatRequest):
     if not request.messages:
         raise HTTPException(status_code=400, detail="No se enviaron mensajes.")
 
-    temp = 0.3 if request.model == "cortex" else (0.5 if request.model == "architect" else 0.7)
+    temp = 0.3 if request.model == "cortex" else (0.5 if request.model == "architect" else (0.8 if request.model == "classic" else 0.7))
     generator = generate_gemini_stream(
         conversation_id=request.conversation_id,
         user_id=request.user_id,

@@ -4,8 +4,8 @@ import { X, Activity, Cpu, ShieldCheck, Zap, Radio, BarChart3, Sliders, RefreshC
 interface FuturisticDashboardModalProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedModel: 'speed' | 'cortex' | 'architect';
-  onSelectModel: (m: 'speed' | 'cortex' | 'architect') => void;
+  selectedModel: 'speed' | 'cortex' | 'architect' | 'classic';
+  onSelectModel: (m: 'speed' | 'cortex' | 'architect' | 'classic') => void;
   soundEnabled: boolean;
   onToggleSound: () => void;
   messageCount: number;
@@ -42,6 +42,7 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
     speed: { name: 'LYAXIS Speed v2.5', latency: '~12ms', tps: '145 t/s', focus: 'Streaming ultrarrápido' },
     cortex: { name: 'LYAXIS Cortex Pro', latency: '~24ms', tps: '95 t/s', focus: 'Razonamiento y Algoritmos' },
     architect: { name: 'LYAXIS Architect AI', latency: '~18ms', tps: '110 t/s', focus: 'Mentoría & Arquitectura' },
+    classic: { name: 'LYAXIS Classic', latency: '~14ms', tps: '135 t/s', focus: 'Asistente de uso diario' },
   };
 
   return (

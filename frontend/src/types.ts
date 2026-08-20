@@ -11,7 +11,7 @@ export interface Message {
   role: 'user' | 'model';
   content: string;
   timestamp: string;
-  model?: 'speed' | 'cortex' | 'architect';
+  model?: 'speed' | 'cortex' | 'architect' | 'classic';
   isStreaming?: boolean;
 }
 
@@ -20,5 +20,5 @@ export interface Conversation {
   userId?: string;
   title: string;
   createdAt: string;
-  model: 'speed' | 'cortex' | 'architect';
+  model: 'speed' | 'cortex' | 'architect' | 'classic';
 }

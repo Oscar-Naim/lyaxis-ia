@@ -42,7 +42,7 @@ export function useSSEStream({ onDone, onError }: UseSSEStreamOptions = {}) {
           user_id: userId || null,
           messages: messages.map((m) => ({ id: m.id, role: m.role, content: m.content })),
           model,
-          temperature: model === 'cortex' ? 0.3 : model === 'architect' ? 0.5 : 0.7,
+          temperature: model === 'cortex' ? 0.3 : model === 'architect' ? 0.5 : model === 'classic' ? 0.8 : 0.7,
         };
 
         const response = await fetch(`${API_BASE}/api/v1/chat/stream`, {
