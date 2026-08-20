@@ -720,13 +720,11 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
     full_response_text = ""
     # Official Gemini models
     models_to_try = [
+        "gemini-3.7-flash",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
         "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-exp",
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-pro",
-        "gemini-1.5-pro-latest"
+        "gemini-flash-latest"
     ]
     last_err = None
 
