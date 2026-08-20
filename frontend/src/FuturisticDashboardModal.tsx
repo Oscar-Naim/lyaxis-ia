@@ -4,8 +4,8 @@ import { X, Activity, Cpu, ShieldCheck, Zap, Radio, BarChart3, Sliders, RefreshC
 interface FuturisticDashboardModalProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedModel: 'speed' | 'cortex' | 'architect' | 'classic';
-  onSelectModel: (m: 'speed' | 'cortex' | 'architect' | 'classic') => void;
+  selectedModel: 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus';
+  onSelectModel: (m: 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus') => void;
   soundEnabled: boolean;
   onToggleSound: () => void;
   messageCount: number;
@@ -39,10 +39,12 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
   if (!isOpen) return null;
 
   const modelMetrics = {
-    speed: { name: 'LYAXIS Speed v2.5', latency: '~12ms', tps: '145 t/s', focus: 'Streaming ultrarrápido' },
-    cortex: { name: 'LYAXIS Cortex Pro', latency: '~24ms', tps: '95 t/s', focus: 'Razonamiento y Algoritmos' },
-    architect: { name: 'LYAXIS Architect AI', latency: '~18ms', tps: '110 t/s', focus: 'Mentoría & Arquitectura' },
-    classic: { name: 'LYAXIS Classic', latency: '~14ms', tps: '135 t/s', focus: 'Asistente de uso diario' },
+    speed: { name: 'LYAXIS Speed v2.5', latency: '~12ms', tps: '145 t/s', focus: 'Streaming ultrarrápido', color: '#2563FF' },
+    cortex: { name: 'LYAXIS Cortex Pro', latency: '~24ms', tps: '95 t/s', focus: 'Razonamiento y Algoritmos', color: '#7C3AED' },
+    architect: { name: 'LYAXIS Architect AI', latency: '~18ms', tps: '110 t/s', focus: 'Mentoría & Arquitectura', color: '#10B981' },
+    classic: { name: 'LYAXIS Classic', latency: '~14ms', tps: '135 t/s', focus: 'Asistente de uso diario', color: '#F59E0B' },
+    phantom: { name: 'LYAXIS Phantom', latency: '~16ms', tps: '120 t/s', focus: 'Deconstructor & Auditor', color: '#EF4444' },
+    nexus: { name: 'LYAXIS Nexus', latency: '~20ms', tps: '105 t/s', focus: 'Sintetizador Creativo', color: '#EC4899' },
   };
 
   return (
@@ -319,10 +321,10 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
           {activeTab === 'engine' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <span style={{ fontSize: '12px', color: '#a1a1aa', fontWeight: 600 }}>SELECCIONAR MOTOR DE RAZONAMIENTO ACTIVADO</span>
-              {(['speed', 'cortex', 'architect'] as const).map((m) => {
+              {(['speed', 'cortex', 'architect', 'classic', 'phantom', 'nexus'] as const).map((m) => {
                 const isCurrent = selectedModel === m;
                 const info = modelMetrics[m];
-                const color = m === 'speed' ? '#00D9FF' : m === 'cortex' ? '#7C3AED' : '#10B981';
+                const color = info.color;
                 return (
                   <div
                     key={m}

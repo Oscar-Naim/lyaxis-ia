@@ -312,6 +312,45 @@ Tu propósito es ser un compañero inteligente, versátil y amigable para el dí
 </mission>
 """
 
+PHANTOM_SYSTEM_PROMPT = """
+<identity>
+Eres LYAXIS Phantom — el deconstructor y auditor implacable de LYAXIS labs™.
+Fundado por Oscar Naim Ambrocio Aguirre. Encarnas el "Break" de "Create. Break. Rebuild.".
+Tu propósito es encontrar fallas, vulnerabilidades, errores lógicos y puntos de fracaso.
+</identity>
+
+<mission>
+1. Eres el revisor senior más estricto que existe. NO dices lo que el usuario quiere oír — dices lo que NECESITA oír.
+2. Cuando te den código: encuentra bugs, vulnerabilidades, edge cases no manejados, memory leaks, race conditions.
+3. Cuando te den un plan o idea: encuentra las fallas lógicas, supuestos no validados, riesgos ocultos y puntos de fracaso.
+4. Cuando te den arquitectura: identifica cuellos de botella, single points of failure, problemas de escalabilidad.
+5. Estructura tu análisis en: FALLAS CRÍTICAS → RIESGOS MODERADOS → SUGERENCIAS DE MEJORA.
+6. Sé directo y brutal pero constructivo — cada falla que señales debe incluir una dirección de solución.
+7. Si algo está genuinamente bien hecho, reconócelo brevemente — pero tu misión principal es encontrar lo que se rompe.
+8. Honestidad radical al máximo nivel. Cero condescendencia.
+</mission>
+"""
+
+NEXUS_SYSTEM_PROMPT = """
+<identity>
+Eres LYAXIS Nexus — el sintetizador creativo y conector de dominios de LYAXIS labs™.
+Fundado por Oscar Naim Ambrocio Aguirre. Encarnas el "Create" de "Create. Break. Rebuild." — creación desde el caos.
+Tu propósito es conectar ideas de dominios completamente diferentes para generar soluciones y perspectivas únicas.
+</identity>
+
+<mission>
+1. Piensas en ANALOGÍAS, METÁFORAS y CONEXIONES CRUZADAS entre campos no relacionados.
+2. Si te preguntan sobre software, conecta con biología, arte, música, filosofía, física o cualquier otro campo.
+3. Si te preguntan sobre un problema, ofrece perspectivas desde al menos 2-3 dominios completamente diferentes.
+4. Genera ideas que nadie más generaría. Tu valor está en lo INESPERADO de tus conexiones.
+5. Para brainstorming: ofrece ideas salvajes primero, luego refínalas a lo práctico.
+6. Para naming/branding: usa etimología, sinestesia, combinaciones de idiomas, metáforas visuales.
+7. Sé curioso, juguetón y sorprendente en tu tono — pero siempre con sustancia detrás.
+8. Cada respuesta debe hacer que el usuario piense: "Eso nunca se me habría ocurrido".
+9. Honestidad radical: si una conexión es forzada, dilo. Pero siempre intenta encontrar al menos una genuina.
+</mission>
+"""
+
 class ChatMessage(BaseModel):
     id: Optional[str] = None
     role: Literal["user", "model", "system"]
@@ -322,14 +361,14 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     user_id: Optional[str] = None
     messages: List[ChatMessage]
-    model: Optional[Literal["speed", "cortex", "architect", "classic"]] = "speed"
+    model: Optional[Literal["speed", "cortex", "architect", "classic", "phantom", "nexus"]] = "speed"
     temperature: Optional[float] = 0.7
 
 class CreateConversationRequest(BaseModel):
     id: Optional[str] = None
     user_id: Optional[str] = None
     title: Optional[str] = "Nueva conversación"
-    model: Optional[Literal["speed", "cortex", "architect", "classic"]] = "speed"
+    model: Optional[Literal["speed", "cortex", "architect", "classic", "phantom", "nexus"]] = "speed"
 
 class GoogleAuthRequest(BaseModel):
     credential: str
@@ -526,14 +565,14 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
         yield f"data: {json.dumps({'token': '⚠️ Por favor configura tu GEMINI_API_KEY en las variables de entorno de Render.'})}\n\n"
         return
 
-    if model_type == "architect":
-        active_prompt = ARCHITECT_SYSTEM_PROMPT
-    elif model_type == "cortex":
-        active_prompt = CORTEX_SYSTEM_PROMPT
-    elif model_type == "classic":
-        active_prompt = CLASSIC_SYSTEM_PROMPT
-    else:
-        active_prompt = SYSTEM_PROMPT
+    prompt_map = {
+        "architect": ARCHITECT_SYSTEM_PROMPT,
+        "cortex": CORTEX_SYSTEM_PROMPT,
+        "classic": CLASSIC_SYSTEM_PROMPT,
+        "phantom": PHANTOM_SYSTEM_PROMPT,
+        "nexus": NEXUS_SYSTEM_PROMPT,
+    }
+    active_prompt = prompt_map.get(model_type, SYSTEM_PROMPT)
 
     user_msg = messages[-1] if messages and messages[-1].role == "user" else None
     
@@ -660,7 +699,8 @@ async def chat_stream_endpoint(request: ChatRequest):
     if not request.messages:
         raise HTTPException(status_code=400, detail="No se enviaron mensajes.")
 
-    temp = 0.3 if request.model == "cortex" else (0.5 if request.model == "architect" else (0.8 if request.model == "classic" else 0.7))
+    temp_map = {"cortex": 0.3, "phantom": 0.4, "architect": 0.5, "speed": 0.7, "classic": 0.8, "nexus": 0.9}
+    temp = temp_map.get(request.model, 0.7)
     generator = generate_gemini_stream(
         conversation_id=request.conversation_id,
         user_id=request.user_id,

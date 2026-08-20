@@ -1,7 +1,59 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle } from 'lucide-react';
+import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette } from 'lucide-react';
+
+type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus';
+
+const ALL_MODELS: ModelType[] = ['speed', 'cortex', 'architect', 'classic', 'phantom', 'nexus'];
+
+const MODEL_META: Record<ModelType, { label: string; color: string; description: string }> = {
+  speed: { label: 'Speed', color: '#2563FF', description: 'Asistente de desarrollo ágil y streaming ultrarrápido de LYAXIS labs.' },
+  cortex: { label: 'Cortex', color: '#7C3AED', description: 'Motor de razonamiento profundo para algoritmos y arquitectura.' },
+  architect: { label: 'Architect', color: '#10B981', description: 'Módulo de arquitectura de prompts y mentoría técnica.' },
+  classic: { label: 'Classic', color: '#F59E0B', description: 'Tu compañero inteligente para el día a día. Pregunta lo que quieras.' },
+  phantom: { label: 'Phantom', color: '#EF4444', description: 'El deconstructor. Encuentra fallas, bugs y puntos de fracaso.' },
+  nexus: { label: 'Nexus', color: '#EC4899', description: 'Sintetizador creativo. Conecta ideas de dominios imposibles.' },
+};
+
+const MODEL_PROMPTS: Record<ModelType, { icon: React.ReactNode; bg: string; border: string; text: string }[]> = {
+  speed: [
+    { icon: <Code2 size={16} color="#2563FF" />, bg: 'rgba(37, 99, 255, 0.12)', border: 'rgba(37, 99, 255, 0.25)', text: 'Crea un hook de React para infinite scroll con IntersectionObserver' },
+    { icon: <Zap size={16} color="#00D9FF" />, bg: 'rgba(0, 217, 255, 0.12)', border: 'rgba(0, 217, 255, 0.25)', text: 'Genera una API REST con FastAPI, validación y docs automáticos' },
+    { icon: <Flame size={16} color="#F97316" />, bg: 'rgba(249, 115, 22, 0.12)', border: 'rgba(249, 115, 22, 0.25)', text: 'Implementa un dark mode toggle con CSS custom properties' },
+    { icon: <Terminal size={16} color="#2563FF" />, bg: 'rgba(37, 99, 255, 0.12)', border: 'rgba(37, 99, 255, 0.25)', text: 'Construye un componente de notificaciones toast animadas' },
+  ],
+  cortex: [
+    { icon: <Brain size={16} color="#7C3AED" />, bg: 'rgba(124, 58, 237, 0.12)', border: 'rgba(124, 58, 237, 0.25)', text: 'Analiza la complejidad temporal de este algoritmo recursivo' },
+    { icon: <Network size={16} color="#a78bfa" />, bg: 'rgba(167, 139, 250, 0.12)', border: 'rgba(167, 139, 250, 0.25)', text: 'Diseña un sistema de caché distribuido con invalidación' },
+    { icon: <Cpu size={16} color="#7C3AED" />, bg: 'rgba(124, 58, 237, 0.12)', border: 'rgba(124, 58, 237, 0.25)', text: '¿Cuándo usar BFS vs DFS? Dame el framework de decisión' },
+    { icon: <Lightbulb size={16} color="#c084fc" />, bg: 'rgba(192, 132, 252, 0.12)', border: 'rgba(192, 132, 252, 0.25)', text: 'Compara microservicios vs monolito para un MVP de 3 personas' },
+  ],
+  architect: [
+    { icon: <Compass size={16} color="#10B981" />, bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.25)', text: 'Diseña un System Prompt para un agente de soporte técnico' },
+    { icon: <BookOpen size={16} color="#34d399" />, bg: 'rgba(52, 211, 153, 0.12)', border: 'rgba(52, 211, 153, 0.25)', text: 'Enséñame el patrón Observer como si tuviera 12 años' },
+    { icon: <Code2 size={16} color="#10B981" />, bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.25)', text: 'Estructura un prompt de producción con few-shot examples' },
+    { icon: <Shield size={16} color="#6ee7b7" />, bg: 'rgba(110, 231, 183, 0.12)', border: 'rgba(110, 231, 183, 0.25)', text: '¿Cuáles son los 5 errores más comunes al diseñar prompts?' },
+  ],
+  classic: [
+    { icon: <Lightbulb size={16} color="#F59E0B" />, bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.25)', text: '¿Cuáles son las mejores técnicas de productividad para devs?' },
+    { icon: <MessageCircle size={16} color="#fbbf24" />, bg: 'rgba(251, 191, 36, 0.12)', border: 'rgba(251, 191, 36, 0.25)', text: 'Ayúdame a redactar un correo profesional convincente' },
+    { icon: <BookOpen size={16} color="#F59E0B" />, bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.25)', text: 'Dame un plan de estudio para aprender Rust en 30 días' },
+    { icon: <Sparkles size={16} color="#fcd34d" />, bg: 'rgba(252, 211, 77, 0.12)', border: 'rgba(252, 211, 77, 0.25)', text: 'Recomiéndame libros que cambien mi forma de pensar' },
+  ],
+  phantom: [
+    { icon: <Crosshair size={16} color="#EF4444" />, bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.25)', text: '¿Por qué mi código falla en producción pero no en local?' },
+    { icon: <Shield size={16} color="#f87171" />, bg: 'rgba(248, 113, 113, 0.12)', border: 'rgba(248, 113, 113, 0.25)', text: 'Encuentra las 3 peores vulnerabilidades de esta API' },
+    { icon: <Flame size={16} color="#EF4444" />, bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.25)', text: 'Destruye mi plan de negocio — dime por qué fracasaría' },
+    { icon: <Zap size={16} color="#fca5a5" />, bg: 'rgba(252, 165, 165, 0.12)', border: 'rgba(252, 165, 165, 0.25)', text: 'Audita esta arquitectura y muéstrame dónde se rompe' },
+  ],
+  nexus: [
+    { icon: <Waypoints size={16} color="#EC4899" />, bg: 'rgba(236, 72, 153, 0.12)', border: 'rgba(236, 72, 153, 0.25)', text: 'Conecta la biología con el diseño de software' },
+    { icon: <Palette size={16} color="#f472b6" />, bg: 'rgba(244, 114, 182, 0.12)', border: 'rgba(244, 114, 182, 0.25)', text: '¿Qué pasaría si los videojuegos fueran educación formal?' },
+    { icon: <Sparkles size={16} color="#EC4899" />, bg: 'rgba(236, 72, 153, 0.12)', border: 'rgba(236, 72, 153, 0.25)', text: 'Genera 10 nombres únicos para mi proyecto usando etimología' },
+    { icon: <Lightbulb size={16} color="#f9a8d4" />, bg: 'rgba(249, 168, 212, 0.12)', border: 'rgba(249, 168, 212, 0.25)', text: 'Combina minimalismo japonés con arquitectura de APIs' },
+  ],
+};
 import type { Message, Conversation, User } from './types';
 import { useSSEStream } from './useSSEStream';
 import { CodeBlock } from './CodeBlock';
@@ -88,8 +140,24 @@ export default function App() {
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<'speed' | 'cortex' | 'architect' | 'classic'>('speed');
+  const [selectedModel, setSelectedModel] = useState<ModelType>('speed');
   const [messages, setMessages] = useState<Message[]>([]);
+
+  // Track last active conversation per model for workspace-per-model behavior
+  const [lastChatPerModel, setLastChatPerModel] = useState<Partial<Record<ModelType, string | null>>>(() => {
+    if (typeof window === 'undefined') return {};
+    const saved = localStorage.getItem('lyaxis_last_chat_per_model');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // Persist lastChatPerModel to localStorage
+  const updateLastChatPerModel = (model: ModelType, chatId: string | null) => {
+    setLastChatPerModel(prev => {
+      const next = { ...prev, [model]: chatId };
+      localStorage.setItem('lyaxis_last_chat_per_model', JSON.stringify(next));
+      return next;
+    });
+  };
   const [inputValue, setInputValue] = useState('');
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     return typeof window !== 'undefined' ? localStorage.getItem('lyaxis_sound') === 'true' : false;
@@ -196,9 +264,33 @@ export default function App() {
   const selectConversation = (chat: Conversation) => {
     if (isStreaming) return;
     setCurrentChatId(chat.id);
-    setSelectedModel(chat.model || 'speed');
+    // Keep sidebar selection without overriding model — user controls model from header
+    updateLastChatPerModel(chat.model || 'speed', chat.id);
     loadMessages(chat.id);
     if (isMobile) setIsSidebarOpen(false);
+  };
+
+  // Switch model and load last conversation for that model
+  const switchModel = (newModel: ModelType) => {
+    if (isStreaming || newModel === selectedModel) return;
+    // Save current conversation for current model
+    if (currentChatId) {
+      updateLastChatPerModel(selectedModel, currentChatId);
+    }
+    setSelectedModel(newModel);
+    // Load last conversation for the new model
+    const lastChatId = lastChatPerModel[newModel];
+    if (lastChatId) {
+      const chat = conversations.find(c => c.id === lastChatId);
+      if (chat) {
+        setCurrentChatId(lastChatId);
+        loadMessages(lastChatId);
+        return;
+      }
+    }
+    // No previous conversation for this model — show empty state
+    setCurrentChatId(null);
+    setMessages([]);
   };
 
   const createNewChat = () => {
@@ -370,26 +462,19 @@ export default function App() {
     );
   };
 
-  const getModelLabel = (modelKey: 'speed' | 'cortex' | 'architect' | 'classic') => {
-    if (modelKey === 'classic') return 'Classic';
-    if (modelKey === 'architect') return 'Architect';
-    if (modelKey === 'cortex') return 'Cortex';
-    return 'Speed';
+  const getModelLabel = (modelKey: ModelType) => MODEL_META[modelKey]?.label || 'Speed';
+  const getModelColor = (modelKey: ModelType) => MODEL_META[modelKey]?.color || '#2563FF';
+
+  const MODEL_ICONS: Record<ModelType, (size: number) => React.ReactNode> = {
+    speed: (s) => <Sparkles size={s} color="#2563FF" />,
+    cortex: (s) => <Brain size={s} color="#7C3AED" />,
+    architect: (s) => <Compass size={s} color="#10B981" />,
+    classic: (s) => <MessageCircle size={s} color="#F59E0B" />,
+    phantom: (s) => <Crosshair size={s} color="#EF4444" />,
+    nexus: (s) => <Waypoints size={s} color="#EC4899" />,
   };
 
-  const getModelColor = (modelKey: 'speed' | 'cortex' | 'architect' | 'classic') => {
-    if (modelKey === 'classic') return '#F59E0B';
-    if (modelKey === 'architect') return '#10B981';
-    if (modelKey === 'cortex') return '#7C3AED';
-    return '#2563FF';
-  };
-
-  const getModelIcon = (modelKey: 'speed' | 'cortex' | 'architect' | 'classic') => {
-    if (modelKey === 'classic') return <MessageCircle size={14} color="#F59E0B" />;
-    if (modelKey === 'architect') return <Compass size={14} color="#10B981" />;
-    if (modelKey === 'cortex') return <Brain size={14} color="#7C3AED" />;
-    return <Sparkles size={14} color="#2563FF" />;
-  };
+  const getModelIcon = (modelKey: ModelType) => MODEL_ICONS[modelKey]?.(14) || <Sparkles size={14} color="#2563FF" />;
 
   if (view === 'landing') {
     return (
@@ -560,84 +645,31 @@ export default function App() {
                 </button>
               )}
 
-              {/* Selector de Motores */}
-              <div style={{ display: 'flex', backgroundColor: '#08080c', padding: '2px', borderRadius: '8px', border: '1px solid #181822' }}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedModel('speed')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: isMobile ? '5px 8px' : '6px 12px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    fontSize: isMobile ? '11px' : '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    backgroundColor: selectedModel === 'speed' ? '#2563FF' : 'transparent',
-                    color: '#ffffff',
-                  }}
-                >
-                  <Sparkles size={12} /> Speed
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedModel('cortex')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: isMobile ? '5px 8px' : '6px 12px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    fontSize: isMobile ? '11px' : '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    backgroundColor: selectedModel === 'cortex' ? '#7C3AED' : 'transparent',
-                    color: '#ffffff',
-                  }}
-                >
-                  <Brain size={12} /> Cortex
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedModel('architect')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: isMobile ? '5px 8px' : '6px 12px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    fontSize: isMobile ? '11px' : '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    backgroundColor: selectedModel === 'architect' ? '#10B981' : 'transparent',
-                    color: '#ffffff',
-                  }}
-                >
-                  <Compass size={12} /> Architect
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedModel('classic')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: isMobile ? '5px 8px' : '6px 12px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    fontSize: isMobile ? '11px' : '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    backgroundColor: selectedModel === 'classic' ? '#F59E0B' : 'transparent',
-                    color: '#ffffff',
-                  }}
-                >
-                  <MessageCircle size={12} /> Classic
-                </button>
+              {/* Selector de Motores — Dynamic */}
+              <div style={{ display: 'flex', backgroundColor: '#08080c', padding: '2px', borderRadius: '8px', border: '1px solid #181822', flexWrap: 'wrap', gap: '1px' }}>
+                {ALL_MODELS.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => switchModel(m)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: isMobile ? '5px 6px' : '6px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      fontSize: isMobile ? '10px' : '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      backgroundColor: selectedModel === m ? getModelColor(m) : 'transparent',
+                      color: '#ffffff',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    {MODEL_ICONS[m]?.(12)} {getModelLabel(m)}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -718,31 +750,20 @@ export default function App() {
               {messages.length === 0 ? (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#71717a', gap: '14px', textAlign: 'center', minHeight: '50vh', padding: '0 12px' }}>
                   <div className="lyaxis-empty-state-orb" style={{ width: '48px', height: '48px', borderRadius: '14px', background: `linear-gradient(135deg, ${getModelColor(selectedModel)}, #00D9FF)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 24px ${getModelColor(selectedModel)}44` }}>
-                    {selectedModel === 'classic' ? <MessageCircle size={24} color="#ffffff" /> : selectedModel === 'architect' ? <Compass size={24} color="#ffffff" /> : selectedModel === 'cortex' ? <Brain size={24} color="#ffffff" /> : <Terminal size={24} color="#ffffff" />}
+                    {MODEL_ICONS[selectedModel]?.(24)}
                   </div>
                   <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
                     LYAXIS {getModelLabel(selectedModel)}
                   </h2>
                   <p style={{ fontSize: '13.5px', maxWidth: '480px', margin: 0, lineHeight: '1.5', color: '#a1a1aa' }}>
-                    {selectedModel === 'classic'
-                      ? 'Tu compañero inteligente para el día a día. Pregunta lo que quieras.'
-                      : selectedModel === 'architect'
-                      ? 'Módulo de arquitectura de prompts y mentoría técnica.'
-                      : selectedModel === 'cortex'
-                      ? 'Motor de razonamiento profundo para algoritmos y arquitectura.'
-                      : 'Asistente de desarrollo ágil y streaming ultrarrápido de LYAXIS labs.'}
+                    {MODEL_META[selectedModel]?.description}
                   </p>
 
-                  {/* Suggested Prompts — Futuristic Glassmorphism Cards */}
+                  {/* Suggested Prompts — Dynamic per Model */}
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px', width: '100%', maxWidth: '580px', marginTop: '20px' }}>
-                    {[
-                      { icon: <Code2 size={16} color="#2563FF" />, bg: 'rgba(37, 99, 255, 0.12)', border: 'rgba(37, 99, 255, 0.25)', text: 'Genera un componente React con animaciones fluidas' },
-                      { icon: <Zap size={16} color="#00D9FF" />, bg: 'rgba(0, 217, 255, 0.12)', border: 'rgba(0, 217, 255, 0.25)', text: 'Optimiza este algoritmo para máximo rendimiento' },
-                      { icon: <BookOpen size={16} color="#10B981" />, bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.25)', text: 'Explica la arquitectura de microservicios' },
-                      { icon: <Lightbulb size={16} color="#7C3AED" />, bg: 'rgba(124, 58, 237, 0.12)', border: 'rgba(124, 58, 237, 0.25)', text: 'Diseña un layout responsive con CSS Grid' },
-                    ].map((prompt, i) => (
+                    {(MODEL_PROMPTS[selectedModel] || []).map((prompt, i) => (
                       <button
-                        key={i}
+                        key={`${selectedModel}-${i}`}
                         type="button"
                         className="lyaxis-prompt-card"
                         onClick={() => handleSend(prompt.text)}
@@ -904,7 +925,7 @@ export default function App() {
           onClose={() => setIsDashboardOpen(false)}
           selectedModel={selectedModel}
           onSelectModel={(m) => {
-            setSelectedModel(m);
+            switchModel(m);
             if (soundEnabled) playCyberClick();
           }}
           soundEnabled={soundEnabled}

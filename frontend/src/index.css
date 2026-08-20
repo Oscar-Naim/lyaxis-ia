@@ -553,6 +553,25 @@ textarea {
   }
 }
 
+.lyaxis-loading-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #00D9FF;
+  display: inline-block;
+  animation: elasticBounce 1.4s ease-in-out infinite;
+}
+
+.lyaxis-loading-dot:nth-child(2) {
+  animation-delay: 0.2s;
+  background-color: #7C3AED;
+}
+
+.lyaxis-loading-dot:nth-child(3) {
+  animation-delay: 0.4s;
+  background-color: #10B981;
+}
+
 /* ====== TYPEWRITER FADE — Streaming Text ====== */
 @keyframes typewriterFade {
   from {

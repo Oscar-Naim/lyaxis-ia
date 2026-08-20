@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, Clock, MessageCircle } from 'lucide-react';
+import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, Clock, MessageCircle, Crosshair, Waypoints } from 'lucide-react';
 
 interface LandingPageProps {
   onEnterChat: () => void;
@@ -196,6 +196,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAut
             <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Classic</h3>
             <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
               Tu compañero inteligente de uso diario. Conversación natural, versátil y amigable para cualquier tarea.
+            </p>
+          </div>
+
+          {/* Motor 5: Phantom */}
+          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#EF444422', border: '1px solid #EF444455', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Crosshair size={18} color="#EF4444" />
+            </div>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Phantom</h3>
+            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
+              El deconstructor. Encarna el "Break" — encuentra fallas, vulnerabilidades y puntos de fracaso.
+            </p>
+          </div>
+
+          {/* Motor 6: Nexus */}
+          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#EC489922', border: '1px solid #EC489955', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Waypoints size={18} color="#EC4899" />
+            </div>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Nexus</h3>
+            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
+              Sintetizador creativo. Conecta ideas de dominios completamente diferentes para soluciones únicas.
             </p>
           </div>
 
