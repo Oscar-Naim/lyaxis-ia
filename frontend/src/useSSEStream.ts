@@ -37,10 +37,18 @@ export function useSSEStream({ onDone, onError }: UseSSEStreamOptions = {}) {
       };
 
       try {
+        const sanitizedMessages = messages
+          .filter((m) => m && m.content && String(m.content).trim() && !String(m.content).startsWith('⚠️') && !String(m.content).startsWith('❌'))
+          .map((m) => ({
+            id: m.id || undefined,
+            role: (m.role === 'model' || m.role === 'assistant') ? 'model' : 'user',
+            content: String(m.content).trim(),
+          }));
+
         const payload = {
           conversation_id: conversationId,
           user_id: userId || null,
-          messages: messages.map((m) => ({ id: m.id, role: m.role, content: m.content })),
+          messages: sanitizedMessages,
           model,
           temperature: ({ cortex: 0.3, phantom: 0.4, architect: 0.5, speed: 0.7, classic: 0.8, nexus: 0.9 } as Record<string, number>)[model as string] ?? 0.7,
         };

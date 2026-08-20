@@ -353,22 +353,22 @@ Tu propósito es conectar ideas de dominios completamente diferentes para genera
 
 class ChatMessage(BaseModel):
     id: Optional[str] = None
-    role: Literal["user", "model", "system"]
-    content: str
+    role: Optional[str] = "user"
+    content: Optional[str] = ""
     timestamp: Optional[str] = None
 
 class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     user_id: Optional[str] = None
-    messages: List[ChatMessage]
-    model: Optional[Literal["speed", "cortex", "architect", "classic", "phantom", "nexus"]] = "speed"
+    messages: List[ChatMessage] = []
+    model: Optional[str] = "speed"
     temperature: Optional[float] = 0.7
 
 class CreateConversationRequest(BaseModel):
     id: Optional[str] = None
     user_id: Optional[str] = None
     title: Optional[str] = "Nueva conversación"
-    model: Optional[Literal["speed", "cortex", "architect", "classic", "phantom", "nexus"]] = "speed"
+    model: Optional[str] = "speed"
 
 class GoogleAuthRequest(BaseModel):
     credential: str
