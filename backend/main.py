@@ -704,6 +704,7 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
         except Exception as err_db:
             print(f"Aviso DB mensaje: {err_db}")
 
+    from google.genai import types
     contents = []
     for msg in messages:
         if not msg.content or not msg.content.strip():
@@ -711,18 +712,21 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
         if msg.content.startswith('⚠️') or msg.content.startswith('❌'):
             continue
         role = "user" if msg.role == "user" else "model"
-        contents.append({"role": role, "parts": [{"text": msg.content.strip()}]})
+        contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg.content.strip())]))
 
     if not contents and user_msg and user_msg.content:
-        contents.append({"role": "user", "parts": [{"text": user_msg.content.strip()}]})
+        contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_msg.content.strip())]))
 
     full_response_text = ""
-    # Official Gemini models in order of failover — fast response first
+    # Official Gemini models
     models_to_try = [
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
         "gemini-2.5-flash",
-        "gemini-1.5-pro"
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-exp",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-pro",
+        "gemini-1.5-pro-latest"
     ]
     last_err = None
 
