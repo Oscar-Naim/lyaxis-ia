@@ -714,18 +714,50 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
             print(f"Aviso guardando respuesta: {err_db2}")
 
 @app.post("/api/v1/chat/stream")
-async def chat_stream_endpoint(request: ChatRequest):
-    if not request.messages:
-        raise HTTPException(status_code=400, detail="No se enviaron mensajes.")
+async def chat_stream_endpoint(request: Request):
+    try:
+        body = await request.json()
+    except Exception as e:
+        print(f"Error parseando JSON body stream: {e}")
+        body = {}
+
+    if not isinstance(body, dict):
+        body = {}
+
+    conversation_id = body.get("conversation_id")
+    user_id = body.get("user_id")
+    model_type = str(body.get("model") or "speed")
 
     temp_map = {"cortex": 0.3, "phantom": 0.4, "architect": 0.5, "speed": 0.7, "classic": 0.8, "nexus": 0.9}
-    temp = temp_map.get(request.model, 0.7)
+    try:
+        temp = float(body.get("temperature") if body.get("temperature") is not None else temp_map.get(model_type, 0.7))
+    except Exception:
+        temp = 0.7
+
+    raw_messages = body.get("messages") or []
+    messages: List[ChatMessage] = []
+
+    if isinstance(raw_messages, list):
+        for m in raw_messages:
+            if isinstance(m, dict):
+                content = str(m.get("content") or "").strip()
+                if content and not content.startswith("⚠️") and not content.startswith("❌"):
+                    role = "model" if str(m.get("role")).lower() in ("model", "assistant") else "user"
+                    messages.append(ChatMessage(
+                        id=str(m.get("id")) if m.get("id") else None,
+                        role=role,
+                        content=content
+                    ))
+
+    if not messages:
+        messages = [ChatMessage(role="user", content="Hola")]
+
     generator = generate_gemini_stream(
-        conversation_id=request.conversation_id,
-        user_id=request.user_id,
-        messages=request.messages,
+        conversation_id=conversation_id,
+        user_id=user_id,
+        messages=messages,
         temperature=temp,
-        model_type=request.model or "speed"
+        model_type=model_type
     )
 
     return StreamingResponse(
