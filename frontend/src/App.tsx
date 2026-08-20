@@ -60,6 +60,7 @@ import { CodeBlock } from './CodeBlock';
 import { LandingPage } from './LandingPage';
 import { AuthModal } from './AuthModal';
 import { FuturisticDashboardModal } from './FuturisticDashboardModal';
+import { LyaxisInfoDrawer } from './LyaxisInfoDrawer';
 import { API_BASE, GOOGLE_CLIENT_ID } from './config';
 
 let audioCtx: AudioContext | null = null;
@@ -120,6 +121,14 @@ export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  const [isInfoDrawerOpen, setIsInfoDrawerOpen] = useState(false);
+  const [infoDrawerTab, setInfoDrawerTab] = useState<'manifesto' | 'ecosystem' | 'security' | 'terms'>('manifesto');
+
+  const openInfoDrawer = (tab: 'manifesto' | 'ecosystem' | 'security' | 'terms' = 'manifesto') => {
+    setInfoDrawerTab(tab);
+    setIsInfoDrawerOpen(true);
+    if (soundEnabled) playCyberClick();
+  };
 
   const [user, setUser] = useState<User | null>(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('lyaxis_user') : null;
@@ -479,8 +488,13 @@ export default function App() {
   if (view === 'landing') {
     return (
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-        <LandingPage onEnterChat={() => setView('chat')} onOpenAuth={() => setIsAuthOpen(true)} />
+        <LandingPage
+          onEnterChat={() => setView('chat')}
+          onOpenAuth={() => setIsAuthOpen(true)}
+          onOpenInfo={openInfoDrawer}
+        />
         <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} onLoginSuccess={handleLoginSuccess} />
+        <LyaxisInfoDrawer isOpen={isInfoDrawerOpen} onClose={() => setIsInfoDrawerOpen(false)} initialTab={infoDrawerTab} />
       </GoogleOAuthProvider>
     );
   }
@@ -696,6 +710,28 @@ export default function App() {
                   <span>{isMobile ? 'Entrar' : 'Acceder'}</span>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => openInfoDrawer('manifesto')}
+                title="Filosofía, Manifiesto y Legales"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  backgroundColor: 'rgba(124, 58, 237, 0.08)',
+                  border: '1px solid rgba(124, 58, 237, 0.25)',
+                  color: '#a78bfa',
+                  padding: isMobile ? '5px 8px' : '6px 12px',
+                  borderRadius: '8px',
+                  fontSize: isMobile ? '11px' : '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <BookOpen size={13} color="#a78bfa" />
+                <span>{isMobile ? 'Info' : 'Manifiesto'}</span>
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -932,6 +968,12 @@ export default function App() {
           onToggleSound={toggleSound}
           messageCount={messages.length}
           conversationCount={conversations.length}
+        />
+
+        <LyaxisInfoDrawer
+          isOpen={isInfoDrawerOpen}
+          onClose={() => setIsInfoDrawerOpen(false)}
+          initialTab={infoDrawerTab}
         />
       </div>
     </GoogleOAuthProvider>

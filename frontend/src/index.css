@@ -668,3 +668,15 @@ textarea {
 .lyaxis-prompt-card:nth-child(2) { animation-delay: 0.12s; }
 .lyaxis-prompt-card:nth-child(3) { animation-delay: 0.19s; }
 .lyaxis-prompt-card:nth-child(4) { animation-delay: 0.26s; }
+
+/* ====== DRAWER SLIDE IN ANIMATION ====== */
+@keyframes drawerSlideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}

@@ -4,9 +4,10 @@ import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, Clock, Mes
 interface LandingPageProps {
   onEnterChat: () => void;
   onOpenAuth: () => void;
+  onOpenInfo?: (tab?: 'manifesto' | 'ecosystem' | 'security' | 'terms') => void;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAuth }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAuth, onOpenInfo }) => {
   const targetDate = new Date('2026-10-17T00:00:00').getTime();
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
 
@@ -44,6 +45,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAut
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {onOpenInfo && (
+            <button
+              onClick={() => onOpenInfo('manifesto')}
+              style={{
+                backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                border: '1px solid rgba(124, 58, 237, 0.3)',
+                color: '#a78bfa',
+                padding: '7px 14px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              Manifiesto
+            </button>
+          )}
+
           <button
             onClick={onOpenAuth}
             style={{
@@ -149,12 +169,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAut
         </div>
       </section>
 
-      {/* Los 4 Motores Oficiales de LYAXIS */}
+      {/* Los 6 Motores Oficiales de LYAXIS */}
       <section style={{ maxWidth: '1050px', margin: '0 auto', padding: '0 18px 60px', width: '100%', boxSizing: 'border-box', flexShrink: 0 }}>
         <h2 style={{ fontSize: '20px', fontWeight: 700, textAlign: 'center', marginBottom: '24px', color: '#e4e4e7' }}>
           Arquitectura y Motores de LYAXIS IA
         </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
           {/* Motor 1: Speed */}
           <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#2563FF22', border: '1px solid #2563FF55', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -171,7 +191,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAut
             <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#7C3AED22', border: '1px solid #7C3AED55', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Brain size={18} color="#7C3AED" />
             </div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Cortex</h3>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Cortex Pro</h3>
             <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
               Motor de razonamiento profundo para arquitecturas de sistemas, algoritmos y depuración analítica.
             </p>
@@ -239,10 +259,32 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAut
         <p style={{ fontSize: '13px', color: '#71717a', maxWidth: '520px', margin: '0 auto 10px', fontStyle: 'italic' }}>
           "El error no es una falla fatal, sino información valiosa para la siguiente iteración."
         </p>
-        <span style={{ fontSize: '11.5px', color: '#a1a1aa', fontWeight: 600 }}>
+        <div style={{ fontSize: '11.5px', color: '#a1a1aa', fontWeight: 600, marginBottom: '14px' }}>
           Oscar Naim Ambrocio Aguirre — Fundador de LYAXIS labs™
-        </span>
-        <div style={{ marginTop: '14px', fontSize: '10.5px', color: '#52525b' }}>
+        </div>
+
+        {/* Footer Navigation Links */}
+        {onOpenInfo && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '18px', flexWrap: 'wrap', fontSize: '12px', color: '#00D9FF', margin: '14px 0' }}>
+            <button type="button" onClick={() => onOpenInfo('manifesto')} style={{ background: 'none', border: 'none', color: '#00D9FF', cursor: 'pointer', fontWeight: 600 }}>
+              Manifiesto & Filosofía
+            </button>
+            <span>•</span>
+            <button type="button" onClick={() => onOpenInfo('ecosystem')} style={{ background: 'none', border: 'none', color: '#00D9FF', cursor: 'pointer', fontWeight: 600 }}>
+              Ecosistema Modular
+            </button>
+            <span>•</span>
+            <button type="button" onClick={() => onOpenInfo('security')} style={{ background: 'none', border: 'none', color: '#00D9FF', cursor: 'pointer', fontWeight: 600 }}>
+              Seguridad & Privacidad
+            </button>
+            <span>•</span>
+            <button type="button" onClick={() => onOpenInfo('terms')} style={{ background: 'none', border: 'none', color: '#00D9FF', cursor: 'pointer', fontWeight: 600 }}>
+              Términos de Servicio
+            </button>
+          </div>
+        )}
+
+        <div style={{ marginTop: '10px', fontSize: '10.5px', color: '#52525b' }}>
           © 2026 LYAXIS labs. Create. Break. Rebuild.
         </div>
       </footer>
