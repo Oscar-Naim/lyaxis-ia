@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette, PanelLeft, PanelLeftClose, Hammer, GraduationCap } from 'lucide-react';
+import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette, PanelLeft, PanelLeftClose, Hammer, GraduationCap, FileDown } from 'lucide-react';
+import { exportChatToPDF } from './pdfExporter';
 
 type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister';
 
@@ -455,7 +457,15 @@ export default function App() {
           <ThinkingAccordion thoughtText={thoughtPart} />
           {finalContent ? (
             <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
               components={{
+                table({ children, ...props }) {
+                  return (
+                    <div className="lyaxis-markdown-table-wrapper">
+                      <table {...props}>{children}</table>
+                    </div>
+                  );
+                },
                 code({ node, inline, className, children, ...props }: any) {
                   const match = /language-(\w+)/.exec(className || '');
                   const codeString = String(children || '').replace(/\n$/, '');
@@ -479,7 +489,15 @@ export default function App() {
 
     return (
       <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
         components={{
+          table({ children, ...props }) {
+            return (
+              <div className="lyaxis-markdown-table-wrapper">
+                <table {...props}>{children}</table>
+              </div>
+            );
+          },
           code({ node, inline, className, children, ...props }: any) {
             const match = /language-(\w+)/.exec(className || '');
             const codeString = String(children || '').replace(/\n$/, '');
@@ -875,6 +893,33 @@ export default function App() {
               </button>
               <button
                 type="button"
+                onClick={() => exportChatToPDF(
+                  conversations.find(c => c.id === currentChatId)?.title || 'Conversación LYAXIS',
+                  getModelLabel(selectedModel),
+                  getModelColor(selectedModel),
+                  messages
+                )}
+                title="Descargar chat completo en PDF"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: '#ffffff',
+                  padding: isMobile ? '5px 8px' : '6px 12px',
+                  borderRadius: '8px',
+                  fontSize: isMobile ? '11px' : '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <FileDown size={14} color="#00D9FF" />
+                {!isMobile && <span>PDF</span>}
+              </button>
+              <button
+                type="button"
                 onClick={toggleSound}
                 title={soundEnabled ? "Silenciar audio" : "Activar audio"}
                 style={{
@@ -964,7 +1009,7 @@ export default function App() {
                           <div className="lyaxis-action-bar">
                             <button
                               type="button"
-                              title="Copiar mensaje"
+                              title="Copiar respuesta"
                               className={`lyaxis-action-btn${copiedMsgId === msg.id ? ' copied' : ''}`}
                               onClick={() => {
                                 navigator.clipboard.writeText(msg.content);
@@ -973,6 +1018,19 @@ export default function App() {
                               }}
                             >
                               {copiedMsgId === msg.id ? <Check size={13} /> : <Copy size={13} />}
+                            </button>
+                            <button
+                              type="button"
+                              title="Descargar esta respuesta como PDF"
+                              className="lyaxis-action-btn"
+                              onClick={() => exportChatToPDF(
+                                conversations.find(c => c.id === currentChatId)?.title || 'Respuesta LYAXIS',
+                                getModelLabel(messageModel),
+                                getModelColor(messageModel),
+                                [msg]
+                              )}
+                            >
+                              <FileDown size={13} />
                             </button>
                           </div>
                         )}

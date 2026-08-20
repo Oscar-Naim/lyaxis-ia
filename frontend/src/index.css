@@ -975,3 +975,55 @@ textarea {
 .lyaxis-action-btn.copied {
   color: #10b981;
 }
+
+/* ====== MARKDOWN TABLE STYLING ====== */
+.lyaxis-markdown-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin: 14px 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(10, 10, 15, 0.65);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.lyaxis-markdown-table-wrapper table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.lyaxis-markdown-table-wrapper th {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #00D9FF;
+  font-weight: 700;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  letter-spacing: 0.3px;
+}
+
+.lyaxis-markdown-table-wrapper th:last-child {
+  border-right: none;
+}
+
+.lyaxis-markdown-table-wrapper td {
+  padding: 9px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+  color: #e4e4e7;
+  line-height: 1.5;
+}
+
+.lyaxis-markdown-table-wrapper td:last-child {
+  border-right: none;
+}
+
+.lyaxis-markdown-table-wrapper tr:nth-child(even) td {
+  background-color: rgba(255, 255, 255, 0.018);
+}
+
+.lyaxis-markdown-table-wrapper tr:hover td {
+  background-color: rgba(0, 217, 255, 0.06);
+}
