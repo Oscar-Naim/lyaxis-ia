@@ -561,7 +561,7 @@ export default function App() {
         {isMobile && isSidebarOpen && (
           <div
             onClick={() => setIsSidebarOpen(false)}
-            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(4px)', zIndex: 90 }}
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.8)', backdropFilter: 'blur(6px)', zIndex: 10000 }}
           />
         )}
 
@@ -572,7 +572,7 @@ export default function App() {
             top: 0,
             left: 0,
             bottom: 0,
-            zIndex: 100,
+            zIndex: 10001,
             width: isSidebarOpen ? '280px' : '0px',
             display: isSidebarOpen ? 'flex' : 'none',
             backgroundColor: '#000000',
@@ -722,7 +722,7 @@ export default function App() {
             </div>
           )}
           {/* Header */}
-          <header style={{ minHeight: '58px', borderBottom: '1px solid #141418', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 12px' : '0 24px', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)', flexShrink: 0, gap: '8px' }}>
+          <header style={{ minHeight: '58px', borderBottom: '1px solid #141418', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 10px' : '0 24px', backgroundColor: 'rgba(0, 0, 0, 0.95)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', position: 'relative', zIndex: 500, flexShrink: 0, gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {!isSidebarOpen && (
                 <button
@@ -783,25 +783,27 @@ export default function App() {
                   <>
                     {/* Invisible overlay to close dropdown when clicking outside */}
                     <div 
-                      style={{ position: 'fixed', inset: 0, zIndex: 90 }} 
+                      style={{ position: 'fixed', inset: 0, zIndex: 9998, backgroundColor: 'transparent' }} 
                       onClick={() => setIsModelDropdownOpen(false)} 
                     />
                     <div style={{
                       position: 'absolute',
-                      top: '100%',
+                      top: 'calc(100% + 6px)',
                       left: 0,
-                      marginTop: '6px',
-                      width: '220px',
-                      backgroundColor: '#08080c',
-                      border: '1px solid #181822',
+                      width: isMobile ? 'calc(100vw - 24px)' : '240px',
+                      maxWidth: '280px',
+                      backgroundColor: '#08080d',
+                      border: '1px solid rgba(0, 217, 255, 0.35)',
                       borderRadius: '12px',
                       padding: '6px',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '2px',
-                      zIndex: 100,
-                      boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)',
+                      zIndex: 9999,
+                      boxShadow: '0 15px 50px rgba(0, 0, 0, 0.95), 0 0 24px rgba(0, 217, 255, 0.18)',
                       animation: 'cyberTitleEntrance 0.2s ease-out forwards',
+                      maxHeight: '75vh',
+                      overflowY: 'auto',
                     }}>
                       <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                         Modelos Lyaxis IA
