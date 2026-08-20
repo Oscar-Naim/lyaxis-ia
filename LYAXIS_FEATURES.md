@@ -43,6 +43,9 @@ En lugar de tener una IA genérica que lo haga todo a medias, LYAXIS divide su "
 7. **🛠️ Forge (Naranja Industrial):** 
    - *Rol:* Constructor pragmático.
    - *Uso:* Convierte ideas vagas ("quiero hacer una app de postres") en planes estructurados, modelos de negocio o MVP (Mínimo Producto Viable).
+8. **🎓 Magister (Teal/Cian Pedagógico):** 
+   - *Rol:* Copiloto pedagógico y especialista en planeación docente.
+   - *Uso:* Diseña planeaciones didácticas SEP, proyectos de la Nueva Escuela Mexicana (NEM), secuencias didácticas por momentos, rúbricas de evaluación formativa y ajustes razonables para Preescolar, Primaria, Secundaria y Preparatoria.
 
 ---
 

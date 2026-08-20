@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette, PanelLeft, PanelLeftClose, Hammer } from 'lucide-react';
+import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette, PanelLeft, PanelLeftClose, Hammer, GraduationCap } from 'lucide-react';
 
-type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge';
+type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister';
 
-const ALL_MODELS: ModelType[] = ['speed', 'cortex', 'architect', 'classic', 'phantom', 'nexus', 'forge'];
+const ALL_MODELS: ModelType[] = ['speed', 'cortex', 'architect', 'classic', 'phantom', 'nexus', 'forge', 'magister'];
 
 const MODEL_META: Record<ModelType, { label: string; color: string; description: string }> = {
   speed: { label: 'Speed', color: '#2563FF', description: 'Asistente de desarrollo ágil y streaming ultrarrápido de LYAXIS labs.' },
@@ -15,6 +15,7 @@ const MODEL_META: Record<ModelType, { label: string; color: string; description:
   phantom: { label: 'Phantom', color: '#EF4444', description: 'El deconstructor. Encuentra fallas, bugs y puntos de fracaso.' },
   nexus: { label: 'Nexus', color: '#EC4899', description: 'Sintetizador creativo. Conecta ideas de dominios imposibles.' },
   forge: { label: 'Forge', color: '#F97316', description: 'Constructor práctico. Convierte ideas vagas en proyectos reales y concretos.' },
+  magister: { label: 'Magister', color: '#06B6D4', description: 'Copiloto pedagógico y arquitecto de planeaciones docente SEP para todos los niveles.' },
 };
 
 const MODEL_PROMPTS: Record<ModelType, { icon: React.ReactNode; bg: string; border: string; text: string }[]> = {
@@ -59,6 +60,12 @@ const MODEL_PROMPTS: Record<ModelType, { icon: React.ReactNode; bg: string; bord
     { icon: <Lightbulb size={16} color="#fb923c" />, bg: 'rgba(251, 146, 60, 0.12)', border: 'rgba(251, 146, 60, 0.25)', text: 'Tengo una idea para vender postres, ayúdame a estructurarla' },
     { icon: <Waypoints size={16} color="#F97316" />, bg: 'rgba(249, 115, 22, 0.12)', border: 'rgba(249, 115, 22, 0.25)', text: 'Diseña un sistema personal para organizar mi dinero' },
     { icon: <Compass size={16} color="#fdba74" />, bg: 'rgba(253, 186, 116, 0.12)', border: 'rgba(253, 186, 116, 0.25)', text: 'Quiero aprender fotografía, hazme un plan práctico' },
+  ],
+  magister: [
+    { icon: <GraduationCap size={16} color="#06B6D4" />, bg: 'rgba(6, 182, 212, 0.12)', border: 'rgba(6, 182, 212, 0.25)', text: 'Crea una planeación NEM (Fase 4, 3° Primaria) para el proyecto "Cuidado del Agua"' },
+    { icon: <BookOpen size={16} color="#22d3ee" />, bg: 'rgba(34, 211, 238, 0.12)', border: 'rgba(34, 211, 238, 0.25)', text: 'Diseña un proyecto STEAM de Indagación para Secundaria sobre Energías Renovables' },
+    { icon: <Sparkles size={16} color="#06B6D4" />, bg: 'rgba(6, 182, 212, 0.12)', border: 'rgba(6, 182, 212, 0.25)', text: 'Genera una rúbrica analítica de evaluación formativa para Preescolar en expresión artística' },
+    { icon: <Compass size={16} color="#67e8f9" />, bg: 'rgba(103, 232, 249, 0.12)', border: 'rgba(103, 232, 249, 0.25)', text: 'Estructura una secuencia didáctica de 5 sesiones de historia para Preparatoria' },
   ],
 };
 import type { Message, Conversation, User } from './types';
@@ -499,6 +506,7 @@ export default function App() {
     phantom: (s) => <Crosshair size={s} color="#EF4444" />,
     nexus: (s) => <Waypoints size={s} color="#EC4899" />,
     forge: (s) => <Hammer size={s} color="#F97316" />,
+    magister: (s) => <GraduationCap size={s} color="#06B6D4" />,
   };
 
   const getModelIcon = (modelKey: ModelType) => MODEL_ICONS[modelKey]?.(14) || <Sparkles size={14} color="#2563FF" />;

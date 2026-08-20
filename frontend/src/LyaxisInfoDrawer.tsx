@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ShieldCheck, BookOpen, Layers, Lock, Cpu, Sparkles, Terminal, Flame, Zap, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
+import { X, ShieldCheck, BookOpen, Layers, Lock, Cpu, Sparkles, Terminal, Flame, Zap, CheckCircle2, AlertCircle, FileText, GraduationCap } from 'lucide-react';
 
 interface LyaxisInfoDrawerProps {
   isOpen: boolean;
@@ -259,6 +259,7 @@ export const LyaxisInfoDrawer: React.FC<LyaxisInfoDrawerProps> = ({
               {[
                 { name: 'LYAXIS labs™', type: 'Casa Matriz', desc: 'Núcleo de dirección, filosofía, investigación y gobernanza técnica.', icon: <Sparkles size={16} color="#00D9FF" />, tag: 'Core' },
                 { name: 'LYAXIS IA', type: 'Producto Insignia', desc: 'Plataforma conversacional multi-motor de alta velocidad y streaming en tiempo real sin relleno.', icon: <Cpu size={16} color="#7C3AED" />, tag: 'Live v2.5' },
+                { name: 'LYAXIS Magister', type: 'Motor Pedagógico', desc: 'Copiloto docente especializado en planeaciones SEP, proyectos NEM y rúbricas para todos los niveles.', icon: <GraduationCap size={16} color="#06B6D4" />, tag: 'Docentes' },
                 { name: 'LYAXIS OS', type: 'Sistemas e Interfaces', desc: 'Investigación en entornos deterministas, soberanía digital y permisos granulares.', icon: <Terminal size={16} color="#10B981" />, tag: 'R&D' },
                 { name: 'LYAXIS Canvas', type: 'Live Web Sandbox', desc: 'Entorno de prototipado HTML/JS/CSS en vivo para pruebas rápidas de interfaz.', icon: <Flame size={16} color="#F59E0B" />, tag: 'En desarrollo' },
                 { name: 'Chaos Fuzzer', type: 'Pruebas de Estrés', desc: 'Simulador para detectar vulnerabilidades, memory leaks y puntos de quiebre en código.', icon: <Zap size={16} color="#EF4444" />, tag: 'Lab Tool' },

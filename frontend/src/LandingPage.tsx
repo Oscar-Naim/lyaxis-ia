@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, Clock, MessageCircle, Crosshair, Waypoints } from 'lucide-react';
+import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, Clock, MessageCircle, Crosshair, Waypoints, Hammer, GraduationCap } from 'lucide-react';
 
 interface LandingPageProps {
   onEnterChat: () => void;
@@ -238,6 +238,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAut
             <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Nexus</h3>
             <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
               Sintetizador creativo. Conecta ideas de dominios completamente diferentes para soluciones únicas.
+            </p>
+          </div>
+
+          {/* Motor 7: Forge */}
+          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#F9731622', border: '1px solid #F9731655', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Hammer size={18} color="#F97316" />
+            </div>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Forge</h3>
+            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
+              Constructor práctico. Convierte ideas vagas en estructuras de proyectos, MVPs y planes concretos.
+            </p>
+          </div>
+
+          {/* Motor 8: Magister */}
+          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#06B6D422', border: '1px solid #06B6D455', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <GraduationCap size={18} color="#06B6D4" />
+            </div>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Magister</h3>
+            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
+              Copiloto pedagógico. Diseña planeaciones didácticas SEP, proyectos NEM y rúbricas para todos los niveles educativos.
             </p>
           </div>
 
