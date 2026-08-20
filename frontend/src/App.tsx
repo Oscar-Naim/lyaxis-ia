@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette } from 'lucide-react';
+import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette, PanelLeft, PanelLeftClose } from 'lucide-react';
 
 type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus';
 
@@ -119,8 +119,8 @@ const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) =
 export default function App() {
   const [view, setView] = useState<'landing' | 'chat'>('landing');
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window === 'undefined' ? true : window.innerWidth >= 768);
   const [isInfoDrawerOpen, setIsInfoDrawerOpen] = useState(false);
   const [infoDrawerTab, setInfoDrawerTab] = useState<'manifesto' | 'ecosystem' | 'security' | 'terms'>('manifesto');
 
@@ -518,14 +518,16 @@ export default function App() {
             left: 0,
             bottom: 0,
             zIndex: 100,
-            width: '280px',
+            width: isSidebarOpen ? '280px' : '0px',
+            display: isSidebarOpen ? 'flex' : 'none',
             backgroundColor: '#000000',
             borderRight: '1px solid #141418',
-            display: !isMobile || isSidebarOpen ? 'flex' : 'none',
             flexDirection: 'column',
-            padding: '16px',
+            padding: isSidebarOpen ? '16px' : '0px',
             flexShrink: 0,
             boxShadow: isMobile ? '10px 0 40px rgba(0,0,0,0.9)' : 'none',
+            transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            overflow: 'hidden',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #141418' }}>
@@ -548,19 +550,18 @@ export default function App() {
                 type="button"
                 onClick={() => openInfoDrawer('manifesto')}
                 title="Manifiesto, Filosofía y Legales de LYAXIS labs™"
-                style={{ background: 'none', border: '1px solid rgba(0, 217, 255, 0.25)', borderRadius: '8px', color: '#00D9FF', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: 'rgba(0, 217, 255, 0.08)' }}
+                style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px' }}
               >
                 <Home size={17} />
               </button>
-              {isMobile && (
-                <button
-                  type="button"
-                  onClick={() => setIsSidebarOpen(false)}
-                  style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px' }}
-                >
-                  <X size={18} />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen(false)}
+                title="Ocultar barra lateral"
+                style={{ background: 'none', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px', color: '#a1a1aa', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
+              >
+                <PanelLeftClose size={17} />
+              </button>
             </div>
           </div>
 
@@ -653,13 +654,30 @@ export default function App() {
           {/* Header */}
           <header style={{ minHeight: '58px', borderBottom: '1px solid #141418', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 12px' : '0 24px', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)', flexShrink: 0, gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {isMobile && (
+              {!isSidebarOpen && (
                 <button
                   type="button"
                   onClick={() => setIsSidebarOpen(true)}
-                  style={{ background: 'none', border: '1px solid #1c1c24', color: '#ffffff', padding: '6px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                  title="Mostrar barra lateral (Historial)"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: 'rgba(0, 217, 255, 0.08)',
+                    border: '1px solid rgba(0, 217, 255, 0.25)',
+                    color: '#00D9FF',
+                    padding: '6px 10px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: '0 0 12px rgba(0, 217, 255, 0.12)',
+                    transition: 'all 0.2s ease',
+                    flexShrink: 0,
+                  }}
                 >
-                  <Menu size={18} />
+                  <PanelLeft size={16} color="#00D9FF" />
+                  {!isMobile && <span>Historial</span>}
                 </button>
               )}
 
