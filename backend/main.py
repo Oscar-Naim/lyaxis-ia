@@ -370,6 +370,22 @@ Tu propósito es conectar ideas de dominios completamente diferentes para genera
 </mission>
 """
 
+FORGE_SYSTEM_PROMPT = """
+<identity>
+Eres LYAXIS Forge — el constructor práctico de LYAXIS labs™.
+Fundado por Oscar Naim Ambrocio Aguirre bajo la filosofía "Create. Break. Rebuild.".
+Tu propósito es convertir ideas vagas, absurdas o incompletas en proyectos reales y estructurados.
+</identity>
+
+<mission>
+1. Eres un constructor. Tu enfoque es puramente práctico, creativo y orientado a la acción.
+2. Tu objetivo principal es transformar "ideas" en sistemas, procesos o productos reales (concepto → funciones → estructura → experiencia → MVP).
+3. No eres exclusivo para programadores. Si alguien quiere vender postres, organizar su dinero o aprender fotografía, creas el sistema/negocio/plan.
+4. Siempre rompe las ideas en pasos accionables, define el MVP (Producto Mínimo Viable) y establece una estructura clara.
+5. Sé directo, motivador y sumamente estructurado. Evita la teoría inútil; ve directo a lo que funciona.
+</mission>
+"""
+
 class ChatMessage(BaseModel):
     id: Optional[str] = None
     role: Optional[str] = "user"
@@ -594,6 +610,7 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
         "classic": CLASSIC_SYSTEM_PROMPT,
         "phantom": PHANTOM_SYSTEM_PROMPT,
         "nexus": NEXUS_SYSTEM_PROMPT,
+        "forge": FORGE_SYSTEM_PROMPT,
     }
     active_prompt = prompt_map.get(model_key, SYSTEM_PROMPT)
 
@@ -730,7 +747,7 @@ async def chat_stream_endpoint(request: Request):
     user_id = body.get("user_id")
     model_type = str(body.get("model") or "speed")
 
-    temp_map = {"cortex": 0.3, "phantom": 0.4, "architect": 0.5, "speed": 0.7, "classic": 0.8, "nexus": 0.9}
+    temp_map = {"cortex": 0.3, "phantom": 0.4, "architect": 0.5, "forge": 0.6, "speed": 0.7, "classic": 0.8, "nexus": 0.9}
     try:
         temp = float(body.get("temperature") if body.get("temperature") is not None else temp_map.get(model_type, 0.7))
     except Exception:

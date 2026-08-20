@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette, PanelLeft, PanelLeftClose } from 'lucide-react';
+import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette, PanelLeft, PanelLeftClose, Hammer } from 'lucide-react';
 
-type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus';
+type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge';
 
-const ALL_MODELS: ModelType[] = ['speed', 'cortex', 'architect', 'classic', 'phantom', 'nexus'];
+const ALL_MODELS: ModelType[] = ['speed', 'cortex', 'architect', 'classic', 'phantom', 'nexus', 'forge'];
 
 const MODEL_META: Record<ModelType, { label: string; color: string; description: string }> = {
   speed: { label: 'Speed', color: '#2563FF', description: 'Asistente de desarrollo ágil y streaming ultrarrápido de LYAXIS labs.' },
@@ -14,6 +14,7 @@ const MODEL_META: Record<ModelType, { label: string; color: string; description:
   classic: { label: 'Classic', color: '#F59E0B', description: 'Tu compañero inteligente para el día a día. Pregunta lo que quieras.' },
   phantom: { label: 'Phantom', color: '#EF4444', description: 'El deconstructor. Encuentra fallas, bugs y puntos de fracaso.' },
   nexus: { label: 'Nexus', color: '#EC4899', description: 'Sintetizador creativo. Conecta ideas de dominios imposibles.' },
+  forge: { label: 'Forge', color: '#F97316', description: 'Constructor práctico. Convierte ideas vagas en proyectos reales y concretos.' },
 };
 
 const MODEL_PROMPTS: Record<ModelType, { icon: React.ReactNode; bg: string; border: string; text: string }[]> = {
@@ -52,6 +53,12 @@ const MODEL_PROMPTS: Record<ModelType, { icon: React.ReactNode; bg: string; bord
     { icon: <Palette size={16} color="#f472b6" />, bg: 'rgba(244, 114, 182, 0.12)', border: 'rgba(244, 114, 182, 0.25)', text: '¿Qué pasaría si los videojuegos fueran educación formal?' },
     { icon: <Sparkles size={16} color="#EC4899" />, bg: 'rgba(236, 72, 153, 0.12)', border: 'rgba(236, 72, 153, 0.25)', text: 'Genera 10 nombres únicos para mi proyecto usando etimología' },
     { icon: <Lightbulb size={16} color="#f9a8d4" />, bg: 'rgba(249, 168, 212, 0.12)', border: 'rgba(249, 168, 212, 0.25)', text: 'Combina minimalismo japonés con arquitectura de APIs' },
+  ],
+  forge: [
+    { icon: <Hammer size={16} color="#F97316" />, bg: 'rgba(249, 115, 22, 0.12)', border: 'rgba(249, 115, 22, 0.25)', text: 'Quiero hacer una página para intercambiar habilidades' },
+    { icon: <Lightbulb size={16} color="#fb923c" />, bg: 'rgba(251, 146, 60, 0.12)', border: 'rgba(251, 146, 60, 0.25)', text: 'Tengo una idea para vender postres, ayúdame a estructurarla' },
+    { icon: <Waypoints size={16} color="#F97316" />, bg: 'rgba(249, 115, 22, 0.12)', border: 'rgba(249, 115, 22, 0.25)', text: 'Diseña un sistema personal para organizar mi dinero' },
+    { icon: <Compass size={16} color="#fdba74" />, bg: 'rgba(253, 186, 116, 0.12)', border: 'rgba(253, 186, 116, 0.25)', text: 'Quiero aprender fotografía, hazme un plan práctico' },
   ],
 };
 import type { Message, Conversation, User } from './types';
@@ -491,6 +498,7 @@ export default function App() {
     classic: (s) => <MessageCircle size={s} color="#F59E0B" />,
     phantom: (s) => <Crosshair size={s} color="#EF4444" />,
     nexus: (s) => <Waypoints size={s} color="#EC4899" />,
+    forge: (s) => <Hammer size={s} color="#F97316" />,
   };
 
   const getModelIcon = (modelKey: ModelType) => MODEL_ICONS[modelKey]?.(14) || <Sparkles size={14} color="#2563FF" />;
