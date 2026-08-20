@@ -521,6 +521,17 @@ export default function App() {
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <div className="cyber-grid-bg" style={{ display: 'flex', width: '100vw', height: '100vh', color: '#ffffff', position: 'relative', overflow: 'hidden' }}>
         
+        {/* Dynamic Ambient Aura */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: `radial-gradient(circle at 50% 15%, ${getModelColor(selectedModel)}14 0%, transparent 65%)`,
+          opacity: 0.85,
+          pointerEvents: 'none',
+          zIndex: 0,
+          transition: 'background 1.2s ease-in-out'
+        }} />
+        
         {isMobile && isSidebarOpen && (
           <div
             onClick={() => setIsSidebarOpen(false)}
@@ -942,22 +953,23 @@ export default function App() {
                           </span>
                         </div>
                         {msg.role === 'model' && msg.content && !msg.isStreaming && (
-                          <button
-                            type="button"
-                            className={`lyaxis-copy-btn${copiedMsgId === msg.id ? ' copied' : ''}`}
-                            onClick={() => {
-                              navigator.clipboard.writeText(msg.content);
-                              setCopiedMsgId(msg.id);
-                              setTimeout(() => setCopiedMsgId(null), 2000);
-                            }}
-                            title="Copiar respuesta"
-                          >
-                            {copiedMsgId === msg.id ? <Check size={12} /> : <Copy size={12} />}
-                            <span>{copiedMsgId === msg.id ? 'Copiado' : ''}</span>
-                          </button>
+                          <div className="lyaxis-action-bar">
+                            <button
+                              type="button"
+                              title="Copiar mensaje"
+                              className={`lyaxis-action-btn${copiedMsgId === msg.id ? ' copied' : ''}`}
+                              onClick={() => {
+                                navigator.clipboard.writeText(msg.content);
+                                setCopiedMsgId(msg.id);
+                                setTimeout(() => setCopiedMsgId(null), 2000);
+                              }}
+                            >
+                              {copiedMsgId === msg.id ? <Check size={13} /> : <Copy size={13} />}
+                            </button>
+                          </div>
                         )}
                       </div>
-                      <div style={{ color: '#e4e4e7', overflowWrap: 'break-word' }}>
+                      <div className="markdown-content" style={{ opacity: msg.role === 'model' && msg.isStreaming ? 0.8 : 1 }}>
                         {!msg.content && msg.isStreaming ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 2px' }}>
                             <span className="lyaxis-loading-dot" />

@@ -923,3 +923,55 @@ textarea {
   pointer-events: none;
   user-select: none;
 }
+
+/* --- Floating Glassmorphic Action Bar --- */
+.lyaxis-msg-bubble {
+  position: relative;
+}
+
+.lyaxis-action-bar {
+  position: absolute;
+  top: -12px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  background: rgba(16, 16, 24, 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.lyaxis-msg-bubble:hover .lyaxis-action-bar {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.lyaxis-action-btn {
+  background: transparent;
+  border: none;
+  color: #a1a1aa;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.lyaxis-action-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.lyaxis-action-btn.copied {
+  color: #10b981;
+}
