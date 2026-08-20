@@ -520,17 +520,11 @@ def google_auth(req: GoogleAuthRequest):
 
 @app.get("/api/v1/conversations")
 def list_conversations(user_id: Optional[str] = None):
-    # Auto-cleanup empty conversations with 0 messages
-    try:
-        db.execute("DELETE FROM conversations WHERE id NOT IN (SELECT DISTINCT conversation_id FROM messages)")
-    except Exception:
-        pass
-
+    # Ya no borramos conversaciones vacías para no perderlas de la UI si fallan.
     if user_id and user_id.strip():
         return db.fetchall(
             "SELECT c.id, c.user_id, c.title, c.model, c.created_at, c.updated_at "
             "FROM conversations c WHERE c.user_id = ? "
-            "AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id) "
             "ORDER BY c.updated_at DESC",
             (user_id.strip(),)
         )

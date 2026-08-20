@@ -150,6 +150,7 @@ export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<ModelType>('speed');
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
 
   // Track last active conversation per model for workspace-per-model behavior
@@ -705,31 +706,93 @@ export default function App() {
                 </button>
               )}
 
-              {/* Selector de Motores — Dynamic */}
-              <div style={{ display: 'flex', backgroundColor: '#08080c', padding: '2px', borderRadius: '8px', border: '1px solid #181822', flexWrap: 'wrap', gap: '1px' }}>
-                {ALL_MODELS.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => switchModel(m)}
-                    style={{
+              {/* Selector de Motores — Custom Dropdown */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: isMobile ? '6px 10px' : '8px 14px',
+                    borderRadius: '10px',
+                    border: '1px solid #181822',
+                    backgroundColor: '#08080c',
+                    color: '#ffffff',
+                    fontSize: isMobile ? '11px' : '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: getModelColor(selectedModel) }}>
+                    {MODEL_ICONS[selectedModel]?.(14)}
+                  </div>
+                  {getModelLabel(selectedModel)}
+                  <ChevronDown size={14} style={{ color: '#71717a', transform: isModelDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                </button>
+
+                {isModelDropdownOpen && (
+                  <>
+                    {/* Invisible overlay to close dropdown when clicking outside */}
+                    <div 
+                      style={{ position: 'fixed', inset: 0, zIndex: 90 }} 
+                      onClick={() => setIsModelDropdownOpen(false)} 
+                    />
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      marginTop: '6px',
+                      width: '220px',
+                      backgroundColor: '#08080c',
+                      border: '1px solid #181822',
+                      borderRadius: '12px',
+                      padding: '6px',
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      padding: isMobile ? '5px 6px' : '6px 10px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      fontSize: isMobile ? '10px' : '11px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      backgroundColor: selectedModel === m ? getModelColor(m) : 'transparent',
-                      color: '#ffffff',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    {MODEL_ICONS[m]?.(12)} {getModelLabel(m)}
-                  </button>
-                ))}
+                      flexDirection: 'column',
+                      gap: '2px',
+                      zIndex: 100,
+                      boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)',
+                      animation: 'cyberTitleEntrance 0.2s ease-out forwards',
+                    }}>
+                      <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Modelos Lyaxis IA
+                      </div>
+                      {ALL_MODELS.map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => { switchModel(m); setIsModelDropdownOpen(false); }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            fontSize: '12px',
+                            fontWeight: selectedModel === m ? 700 : 500,
+                            cursor: 'pointer',
+                            backgroundColor: selectedModel === m ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
+                            color: selectedModel === m ? '#ffffff' : '#a1a1aa',
+                            transition: 'all 0.2s ease',
+                            textAlign: 'left',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = selectedModel === m ? 'rgba(255, 255, 255, 0.05)' : 'transparent'; }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: getModelColor(m) }}>
+                            {MODEL_ICONS[m]?.(14)}
+                          </div>
+                          {getModelLabel(m)}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
