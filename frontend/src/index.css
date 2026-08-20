@@ -768,3 +768,158 @@ textarea {
 .lyaxis-cyber-title {
   animation: cyberTitleEntrance 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* ====== AGGRESSIVE INVASIVE ANIMATIONS ====== */
+
+/* --- Chromatic Aberration Screen Flash on Model Switch --- */
+@keyframes chromaticFlash {
+  0% { opacity: 0; transform: scale(1.02); filter: blur(0px); }
+  15% { opacity: 0.6; transform: scale(1.05); filter: blur(0px); }
+  30% { opacity: 0.3; transform: scale(1.0); }
+  50% { opacity: 0.5; transform: scale(1.03); }
+  70% { opacity: 0.2; }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+.lyaxis-chromatic-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  mix-blend-mode: screen;
+  animation: chromaticFlash 0.45s ease-out forwards;
+}
+
+.lyaxis-chromatic-overlay::before,
+.lyaxis-chromatic-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.lyaxis-chromatic-overlay::before {
+  background: linear-gradient(135deg, rgba(0, 217, 255, 0.18) 0%, transparent 60%);
+  transform: translate(-3px, 0);
+  mix-blend-mode: screen;
+}
+
+.lyaxis-chromatic-overlay::after {
+  background: linear-gradient(315deg, rgba(239, 68, 68, 0.12) 0%, transparent 60%);
+  transform: translate(3px, 0);
+  mix-blend-mode: screen;
+}
+
+/* --- Digital Glitch Text --- */
+@keyframes glitchText {
+  0% { clip-path: inset(0 0 100% 0); transform: translate(0); }
+  10% { clip-path: inset(10% 0 80% 0); transform: translate(-2px, 1px); color: #00D9FF; }
+  20% { clip-path: inset(40% 0 40% 0); transform: translate(2px, -1px); color: #EF4444; }
+  30% { clip-path: inset(70% 0 10% 0); transform: translate(-1px, 0); }
+  40% { clip-path: inset(0 0 0 0); transform: translate(0); }
+  100% { clip-path: inset(0 0 0 0); transform: translate(0); }
+}
+
+.lyaxis-glitch-text {
+  position: relative;
+  display: inline-block;
+}
+
+.lyaxis-glitch-text::before {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  animation: glitchText 0.35s steps(1) forwards;
+  color: #00D9FF;
+  text-shadow: 2px 0 #EF4444, -2px 0 #00D9FF;
+  opacity: 0.7;
+}
+
+/* --- Pulsing Neon Ring around Active Model Button --- */
+@keyframes modelActiveRing {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 217, 255, 0), 0 0 12px rgba(0, 217, 255, 0.3); }
+  50% { box-shadow: 0 0 0 5px rgba(0, 217, 255, 0), 0 0 30px rgba(0, 217, 255, 0.7); }
+}
+
+/* --- Aggressive Typing Cursor (Wide beam) --- */
+@keyframes beamBlink {
+  0%, 49% { opacity: 1; width: 3px; box-shadow: 0 0 18px #00D9FF, 0 0 30px #00D9FF; }
+  50%, 100% { opacity: 0; width: 2px; box-shadow: none; }
+}
+
+.lyaxis-cursor-beam {
+  display: inline-block;
+  width: 3px;
+  height: 16px;
+  background: linear-gradient(180deg, #00D9FF, #2563FF);
+  margin-left: 3px;
+  vertical-align: middle;
+  border-radius: 1px;
+  animation: beamBlink 0.6s infinite;
+}
+
+/* --- Status Bar Animated Send Line --- */
+@keyframes sendSweep {
+  0% { transform: scaleX(0); transform-origin: left; }
+  50% { transform: scaleX(1); transform-origin: left; }
+  51% { transform-origin: right; }
+  100% { transform: scaleX(0); transform-origin: right; }
+}
+
+.lyaxis-send-progress {
+  height: 2px;
+  background: linear-gradient(90deg, #2563FF, #00D9FF, #7C3AED);
+  animation: sendSweep 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  border-radius: 2px;
+  box-shadow: 0 0 12px rgba(0, 217, 255, 0.8);
+}
+
+/* --- Power-On Flicker for New Messages --- */
+@keyframes powerFlicker {
+  0% { opacity: 0; filter: brightness(4); }
+  10% { opacity: 0.8; filter: brightness(2); }
+  20% { opacity: 0.4; filter: brightness(1); }
+  35% { opacity: 0.9; filter: brightness(1.5); }
+  50% { opacity: 0.6; filter: brightness(1); }
+  65% { opacity: 1; filter: brightness(1.1); }
+  80% { opacity: 0.95; filter: brightness(1); }
+  100% { opacity: 1; filter: brightness(1); }
+}
+
+.lyaxis-msg-bubble {
+  animation: powerFlicker 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* --- Particle Explode on Send --- */
+@keyframes particleExplode {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--tx, 30px), var(--ty, -30px)) scale(0); opacity: 0; }
+}
+
+.lyaxis-particle {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #00D9FF;
+  animation: particleExplode 0.6s ease-out forwards;
+  pointer-events: none;
+}
+
+/* --- Data Stream — sidebar background --- */
+@keyframes dataStreamFall {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 0.3; }
+  90% { opacity: 0.3; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+
+.lyaxis-data-stream-char {
+  position: absolute;
+  color: #00D9FF;
+  font-size: 10px;
+  font-family: monospace;
+  opacity: 0;
+  animation: dataStreamFall var(--dur, 4s) linear var(--delay, 0s) infinite;
+  pointer-events: none;
+  user-select: none;
+}

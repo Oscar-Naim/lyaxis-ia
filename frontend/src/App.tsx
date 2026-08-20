@@ -280,13 +280,16 @@ export default function App() {
   };
 
   const [isScanlineActive, setIsScanlineActive] = useState(false);
+  const [isChromaticActive, setIsChromaticActive] = useState(false);
 
   // Switch model and load last conversation for that model
   const switchModel = (newModel: ModelType) => {
     if (isStreaming || newModel === selectedModel) return;
     if (soundEnabled) playCyberClick();
     setIsScanlineActive(true);
+    setIsChromaticActive(true);
     setTimeout(() => setIsScanlineActive(false), 750);
+    setTimeout(() => setIsChromaticActive(false), 450);
 
     // Save current conversation for current model
     if (currentChatId) {
@@ -662,6 +665,15 @@ export default function App() {
               className="lyaxis-laser-scanline"
               style={{ '--scan-color': getModelColor(selectedModel) } as React.CSSProperties}
             />
+          )}
+          {isChromaticActive && (
+            <div className="lyaxis-chromatic-overlay" />
+          )}
+          {/* Streaming progress bar */}
+          {isStreaming && (
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
+              <div className="lyaxis-send-progress" />
+            </div>
           )}
           {/* Header */}
           <header style={{ minHeight: '58px', borderBottom: '1px solid #141418', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 12px' : '0 24px', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)', flexShrink: 0, gap: '8px' }}>

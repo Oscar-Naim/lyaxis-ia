@@ -56,23 +56,45 @@ export function useSSEStream({ onDone, onError }: UseSSEStreamOptions = {}) {
           }
         }
 
+        if (sanitizedMessages.length === 0) {
+          sanitizedMessages = [{ role: 'user', content: 'Hola', id: undefined }];
+        }
+
+        const tempMap: Record<string, number> = {
+          cortex: 0.3, phantom: 0.4, architect: 0.5, speed: 0.7, classic: 0.8, nexus: 0.9
+        };
+
         const payload = {
-          conversation_id: conversationId,
+          conversation_id: conversationId || null,
           user_id: userId || null,
           messages: sanitizedMessages,
-          model,
-          temperature: ({ cortex: 0.3, phantom: 0.4, architect: 0.5, speed: 0.7, classic: 0.8, nexus: 0.9 } as Record<string, number>)[model as string] ?? 0.7,
+          model: String(model || 'speed'),
+          temperature: tempMap[String(model)] ?? 0.7,
         };
 
         const response = await fetch(`${API_BASE}/api/v1/chat/stream`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'text/event-stream',
+          },
           body: JSON.stringify(payload),
           signal: abortControllerRef.current.signal,
         });
 
+        // If server error, try to read SSE body for friendly message, fallback gracefully
         if (!response.ok) {
-          throw new Error(`Error en el servidor: ${response.status}`);
+          let errMsg = `⚠️ Error del servidor (${response.status}). Intenta de nuevo.`;
+          try {
+            const errText = await response.text();
+            // Try to extract a token from SSE body
+            const match = errText.match(/"token"\s*:\s*"([^"]+)"/);
+            if (match) errMsg = match[1];
+          } catch { /* ignore */ }
+          accumulatedText = errMsg;
+          onToken(errMsg);
+          if (onDone) onDone(errMsg);
+          return;
         }
 
         if (!response.body) {
@@ -120,6 +142,8 @@ export function useSSEStream({ onDone, onError }: UseSSEStreamOptions = {}) {
       } catch (err: any) {
         if (err.name !== 'AbortError') {
           console.error('Error en streaming:', err);
+          const friendlyMsg = `⚠️ No se pudo conectar con LYAXIS IA. Verifica tu conexión e intenta de nuevo.`;
+          onToken(friendlyMsg);
           if (onError) onError(err);
         }
       } finally {
