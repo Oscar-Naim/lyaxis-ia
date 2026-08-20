@@ -17,7 +17,26 @@ from google.auth.transport import requests as google_requests
 
 load_dotenv()
 
+from fastapi.exceptions import RequestValidationError
+
 app = FastAPI(title="LYAXIS IA Production API", version="1.0.0")
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    print(f"Aviso de validación en {request.url}: {exc.errors()}")
+    if "chat/stream" in str(request.url):
+        async def err_generator():
+            yield f"data: {json.dumps({'token': '⚠️ Petición recibida con formato incompleto. Por favor intenta de nuevo.'})}\n\n"
+        return StreamingResponse(
+            err_generator(),
+            media_type="text/event-stream",
+            headers={"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "*", "Access-Control-Allow-Headers": "*"}
+        )
+    return JSONResponse(
+        status_code=400,
+        content={"detail": "Formato de datos no válido.", "errors": exc.errors()},
+        headers={"Access-Control-Allow-Origin": "*"}
+    )
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
