@@ -530,16 +530,16 @@ export default function App() {
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #141418' }}>
             <div
-              onClick={() => openInfoDrawer('manifesto')}
+              onClick={() => setView('landing')}
               style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
-              title="Ver Manifiesto y Filosofía de LYAXIS labs™"
+              title="Volver a la portada de inicio"
             >
-              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, #2563FF, #00D9FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(0, 217, 255, 0.4)' }}>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, #2563FF, #00D9FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(0, 217, 255, 0.3)' }}>
                 <Terminal size={18} color="#ffffff" />
               </div>
               <div>
                 <h1 style={{ fontSize: '15px', fontWeight: 700, margin: 0, letterSpacing: '0.5px' }}>LYAXIS IA</h1>
-                <span style={{ fontSize: '11px', color: '#00D9FF', fontWeight: 600 }}>LYAXIS labs™</span>
+                <span style={{ fontSize: '11px', color: '#71717a' }}>LYAXIS labs™</span>
               </div>
             </div>
             
@@ -547,16 +547,8 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => openInfoDrawer('manifesto')}
-                title="Manifiesto y Filosofía LYAXIS labs™"
-                style={{ background: 'none', border: '1px solid rgba(124, 58, 237, 0.25)', borderRadius: '8px', color: '#a78bfa', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: 'rgba(124, 58, 237, 0.08)' }}
-              >
-                <BookOpen size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setView('landing')}
-                title="Volver a la portada de inicio"
-                style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px' }}
+                title="Manifiesto, Filosofía y Legales de LYAXIS labs™"
+                style={{ background: 'none', border: '1px solid rgba(0, 217, 255, 0.25)', borderRadius: '8px', color: '#00D9FF', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: 'rgba(0, 217, 255, 0.08)' }}
               >
                 <Home size={17} />
               </button>
@@ -722,25 +714,6 @@ export default function App() {
                   <span>{isMobile ? 'Entrar' : 'Acceder'}</span>
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => openInfoDrawer('manifesto')}
-                title="Filosofía, Manifiesto y Legales (LYAXIS labs™)"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  backgroundColor: 'rgba(124, 58, 237, 0.08)',
-                  border: '1px solid rgba(124, 58, 237, 0.25)',
-                  color: '#a78bfa',
-                  padding: '6px 8px',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                <BookOpen size={14} color="#a78bfa" />
-              </button>
               <button
                 type="button"
                 onClick={() => {
