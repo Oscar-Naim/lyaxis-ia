@@ -584,6 +584,7 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
         yield f"data: {json.dumps({'token': '⚠️ Por favor configura tu GEMINI_API_KEY en las variables de entorno de Render.'})}\n\n"
         return
 
+    model_key = str(model_type or "speed").lower().strip()
     prompt_map = {
         "architect": ARCHITECT_SYSTEM_PROMPT,
         "cortex": CORTEX_SYSTEM_PROMPT,
@@ -591,7 +592,7 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
         "phantom": PHANTOM_SYSTEM_PROMPT,
         "nexus": NEXUS_SYSTEM_PROMPT,
     }
-    active_prompt = prompt_map.get(model_type, SYSTEM_PROMPT)
+    active_prompt = prompt_map.get(model_key, SYSTEM_PROMPT)
 
     user_msg = messages[-1] if messages and messages[-1].role == "user" else None
     
@@ -604,7 +605,7 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
             if not conv:
                 db.execute(
                     "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (conversation_id, user_id, title_text, model_type, now, now)
+                    (conversation_id, user_id, title_text, model_key, now, now)
                 )
             else:
                 new_title = title_text if conv.get("title") in ("Nueva conversación", None, "") else conv.get("title")
@@ -636,13 +637,12 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
         contents.append({"role": "user", "parts": [{"text": user_msg.content.strip()}]})
 
     full_response_text = ""
-    # Official Gemini models in order of failover
+    # Official Gemini models in order of failover — fast response first
     models_to_try = [
-        "gemini-3.6-flash",
+        "gemini-2.5-flash",
         "gemini-2.0-flash",
         "gemini-1.5-flash",
-        "gemini-3.5-flash",
-        "gemini-2.5-flash",
+        "gemini-2.5-pro",
         "gemini-1.5-pro"
     ]
     last_err = None
