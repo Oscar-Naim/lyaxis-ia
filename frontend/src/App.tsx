@@ -532,9 +532,9 @@ export default function App() {
             <div
               onClick={() => openInfoDrawer('manifesto')}
               style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
-              title="Manifiesto, Filosofía y Legales de LYAXIS labs™"
+              title="Ver Manifiesto y Filosofía de LYAXIS labs™"
             >
-              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, #2563FF, #00D9FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(0, 217, 255, 0.3)' }}>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, #2563FF, #00D9FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(0, 217, 255, 0.4)' }}>
                 <Terminal size={18} color="#ffffff" />
               </div>
               <div>
@@ -547,8 +547,16 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => openInfoDrawer('manifesto')}
-                title="Manifiesto, Filosofía y Legales (LYAXIS labs™)"
-                style={{ background: 'none', border: '1px solid rgba(0, 217, 255, 0.2)', borderRadius: '8px', color: '#00D9FF', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: 'rgba(0, 217, 255, 0.06)' }}
+                title="Manifiesto y Filosofía LYAXIS labs™"
+                style={{ background: 'none', border: '1px solid rgba(124, 58, 237, 0.25)', borderRadius: '8px', color: '#a78bfa', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: 'rgba(124, 58, 237, 0.08)' }}
+              >
+                <BookOpen size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setView('landing')}
+                title="Volver a la portada de inicio"
+                style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px' }}
               >
                 <Home size={17} />
               </button>
