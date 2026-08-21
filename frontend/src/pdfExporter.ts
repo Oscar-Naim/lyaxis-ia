@@ -253,7 +253,8 @@ function slideMarkdownToPdfHtml(markdownText: string, accentColor: string): stri
 export const exportSlidesToPDF = async (
   title: string,
   accentColor: string,
-  slides: Array<{ id: number; title: string; content: string; speakerNotes?: string }>
+  slides: Array<{ id: number; title: string; content: string; speakerNotes?: string }>,
+  presenterName?: string
 ) => {
   if (!slides || slides.length === 0) return;
 
@@ -276,15 +277,15 @@ export const exportSlidesToPDF = async (
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid ${accentColor}55; padding-bottom: 8px; margin-bottom: 12px;">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="background: ${accentColor}22; border: 1px solid ${accentColor}66; color: ${accentColor}; padding: 3px 8px; border-radius: 12px; font-size: 10px; font-weight: 800; letter-spacing: 0.8px;">
-                DIAPOSITIVA 0${idx + 1} DE 0${slides.length}
+                LÁMINA 0${idx + 1} DE 0${slides.length}
               </span>
-              <span style="font-size: 10px; color: ${accentColor}; font-weight: 700; letter-spacing: 1px;">LYAXIS CANVAS</span>
+              <span style="font-size: 10px; color: ${accentColor}; font-weight: 700; letter-spacing: 1px;">PRESENTACIÓN OFICIAL</span>
             </div>
             
             <!-- Status Pill Badge -->
             <div style="padding: 3px 10px; border-radius: 14px; background-color: rgba(0, 217, 255, 0.08); border: 1px solid rgba(0, 217, 255, 0.35); color: #00D9FF; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 5px; font-family: monospace;">
               <span style="width: 6px; height: 6px; border-radius: 50%; background-color: #00D9FF;"></span>
-              <span>System Online</span>
+              <span>Documento Listo</span>
             </div>
           </div>
           <h1 style="font-size: 20px; font-weight: 900; color: #ffffff; margin: 0 0 10px; line-height: 1.25; letter-spacing: -0.4px;">${slide.title}</h1>
@@ -303,9 +304,9 @@ export const exportSlidesToPDF = async (
         ` : ''}
 
         <!-- Slide Footer -->
-        <div style="margin-top: 6px; display: flex; justify-content: space-between; font-size: 9.5px; color: #71717a; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 6px; position: relative; z-index: 1; font-family: monospace;">
-          <span>Oscar Naim Ambrocio Aguirre | LYAXIS labs™ | Edición 2026</span>
-          <span style="color: ${accentColor}; font-weight: 700;">Create. Break. Rebuild.</span>
+        <div style="margin-top: 6px; display: flex; justify-content: space-between; font-size: 9.5px; color: #a1a1aa; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 6px; position: relative; z-index: 1; font-family: monospace;">
+          <span>${presenterName && presenterName.trim() ? presenterName : (title || 'Presentación Ejecutiva')}</span>
+          <span style="color: ${accentColor}; font-weight: 700;">Edición 2026 • Documento Oficial</span>
         </div>
       </div>
     `;

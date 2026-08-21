@@ -168,10 +168,28 @@ export const VisualSlideRenderer: React.FC<VisualSlideRendererProps> = ({
   }
 
   // 3. CAUSES VS CONSEQUENCES / 2-COLUMN SPLIT LAYOUT
-  if (layout === 'causes-effects' || (content.includes('### Causas') && content.includes('### Consecuencias'))) {
+  if (layout === 'causes-effects' || (content.includes('### Causas') && content.includes('### Consecuencias')) || content.toLowerCase().includes('causa:') || content.toLowerCase().includes('efecto:')) {
+    let causesText = '';
+    let effectsText = '';
+
     const parts = content.split(/(?=###\s*Consecuencias|###\s*Efectos)/i);
-    const causesText = parts[0] || '';
-    const effectsText = parts[1] || '';
+    if (parts.length > 1 && parts[1].trim()) {
+      causesText = parts[0] || '';
+      effectsText = parts[1] || '';
+    } else {
+      const bullets = parseMarkdownBulletPoints(content);
+      const causeBullets = bullets.filter(b => b.raw.toLowerCase().includes('causa:') || !b.raw.toLowerCase().includes('efecto:'));
+      const effectBullets = bullets.filter(b => b.raw.toLowerCase().includes('efecto:') || b.raw.toLowerCase().includes('impacto'));
+
+      if (effectBullets.length > 0) {
+        causesText = causeBullets.map(b => `- ${b.raw}`).join('\n');
+        effectsText = effectBullets.map(b => `- ${b.raw}`).join('\n');
+      } else {
+        const mid = Math.ceil(bullets.length / 2);
+        causesText = bullets.slice(0, mid).map(b => `- ${b.raw}`).join('\n');
+        effectsText = bullets.slice(mid).map(b => `- ${b.raw}`).join('\n');
+      }
+    }
 
     return (
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', width: '100%', height: '100%' }}>

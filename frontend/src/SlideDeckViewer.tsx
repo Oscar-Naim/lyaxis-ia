@@ -288,7 +288,7 @@ export const SlideDeckViewer: React.FC<SlideDeckViewerProps> = ({ rawContent, pr
         {/* Slide Top Accent Header */}
         <div>
           <div style={{ fontSize: '11px', fontWeight: 800, color: themeStyles.accent, textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '8px' }}>
-            LYAXIS CANVAS • SLIDE 0{currentIndex + 1}
+            LÁMINA 0{currentIndex + 1} DE 0{slides.length}
           </div>
           <h2 style={{ fontSize: isFullscreen ? '32px' : '22px', fontWeight: 900, color: themeStyles.titleColor, margin: '0 0 16px', letterSpacing: '-0.5px', lineHeight: '1.25' }}>
             {currentSlide.title}

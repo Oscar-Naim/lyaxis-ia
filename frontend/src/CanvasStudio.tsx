@@ -53,11 +53,13 @@ export const CanvasStudio: React.FC<CanvasStudioProps> = ({
   onUpdateSlide,
   onRegenerateSlide,
 }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showNotes, setShowNotes] = useState(false);
-  const [theme, setTheme] = useState<'cyber' | 'neon' | 'obsidian' | 'emerald' | 'rose'>('cyber');
-  const [promptInput, setPromptInput] = useState('');
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [showNotes, setShowNotes] = useState<boolean>(false);
+  const [theme, setTheme] = useState<'cyber' | 'neon' | 'emerald' | 'rose' | 'obsidian'>('cyber');
+  const [presenterName, setPresenterName] = useState<string>('Exposición / Trabajo Oficial');
+  
+  const [editingSlide, setEditingSlide] = useState<SlideData | null>(null);
   
   // Edit modal state
   const [isEditing, setIsEditing] = useState(false);
@@ -232,10 +234,30 @@ export const CanvasStudio: React.FC<CanvasStudioProps> = ({
             ))}
           </div>
 
+          {/* Presenter Name Input (Clean Delivery for School/Work) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#09090e', border: '1px solid #1c1c28', borderRadius: '8px', padding: '4px 10px' }}>
+            <span style={{ fontSize: '11px', color: '#71717a', fontWeight: 600 }}>👤 Expositor:</span>
+            <input
+              type="text"
+              value={presenterName}
+              onChange={(e) => setPresenterName(e.target.value)}
+              placeholder="Tu Nombre / Escuela / Empresa"
+              style={{
+                backgroundColor: 'transparent',
+                border: 'none',
+                color: '#ffffff',
+                fontSize: '11px',
+                fontWeight: 600,
+                outline: 'none',
+                width: '180px',
+              }}
+            />
+          </div>
+
           {/* Export PDF Button */}
           <button
             type="button"
-            onClick={() => exportSlidesToPDF(presentationTitle, activeTheme.accent, slides)}
+            onClick={() => exportSlidesToPDF(presentationTitle, activeTheme.accent, slides, presenterName)}
             disabled={slides.length === 0}
             style={{
               display: 'flex',
@@ -316,7 +338,7 @@ export const CanvasStudio: React.FC<CanvasStudioProps> = ({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${activeTheme.border}`, paddingBottom: '14px', marginBottom: '22px', zIndex: 1, position: 'relative' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontSize: '11px', fontWeight: 900, color: activeTheme.accent, letterSpacing: '1.4px', textTransform: 'uppercase' }}>
-                LYAXIS CANVAS • SLIDE 0{currentIndex + 1} DE 0{Math.max(slides.length, 1)}
+                LÁMINA 0{currentIndex + 1} DE 0{Math.max(slides.length, 1)}
               </span>
               {currentSlide.layout && (
                 <span style={{ fontSize: '10px', padding: '2px 9px', borderRadius: '12px', backgroundColor: `${activeTheme.accent}22`, border: `1px solid ${activeTheme.accent}55`, color: activeTheme.accent, fontWeight: 700, textTransform: 'uppercase' }}>
@@ -325,7 +347,7 @@ export const CanvasStudio: React.FC<CanvasStudioProps> = ({
               )}
             </div>
 
-            {/* Status Pill Badge (Matches User Screenshot 2) */}
+            {/* Status Pill Badge */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div
                 style={{
@@ -344,7 +366,7 @@ export const CanvasStudio: React.FC<CanvasStudioProps> = ({
                 }}
               >
                 <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#00D9FF', boxShadow: '0 0 8px #00D9FF' }} />
-                <span>System Online</span>
+                <span>Documento Oficial</span>
               </div>
             </div>
           </div>
@@ -432,13 +454,13 @@ export const CanvasStudio: React.FC<CanvasStudioProps> = ({
             )}
           </div>
 
-          {/* Bottom Stage Footer Bar (Matches User Screenshot 2 Footer) */}
+          {/* Bottom Stage Footer Bar (Clean & Professional for Delivery) */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${activeTheme.border}`, paddingTop: '14px', zIndex: 1, position: 'relative' }}>
-            <span style={{ fontSize: '11px', color: '#71717a', fontWeight: 600, fontFamily: 'monospace' }}>
-              Oscar Naim Ambrocio Aguirre | LYAXIS labs™ | Edición 2026
+            <span style={{ fontSize: '11px', color: '#a1a1aa', fontWeight: 600, fontFamily: 'monospace' }}>
+              {presenterName && presenterName.trim() ? presenterName : (presentationTitle || 'Presentación Oficial')}
             </span>
             <span style={{ fontSize: '11px', color: activeTheme.accent, fontWeight: 700, letterSpacing: '0.6px', fontFamily: 'monospace' }}>
-              Create. Break. Rebuild.
+              Edición 2026 • Entrega Final
             </span>
           </div>
         </div>
