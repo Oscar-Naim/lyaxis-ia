@@ -4,7 +4,8 @@ import remarkGfm from 'remark-gfm';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette, PanelLeft, PanelLeftClose, Hammer, GraduationCap, FileDown, Presentation } from 'lucide-react';
 import { exportChatToPDF } from './pdfExporter';
-import { SlideDeckViewer } from './SlideDeckViewer';
+import { SlideDeckViewer, parseSlides } from './SlideDeckViewer';
+import { CanvasStudio } from './CanvasStudio';
 
 type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'canvas';
 
@@ -966,8 +967,21 @@ export default function App() {
             </div>
           </header>
 
-          {/* Scrollable Messages Area */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px 12px' : '24px 16px', display: 'flex', flexDirection: 'column' }}>
+          {/* Main Area: Canvas Studio Workspace vs Standard Chat Messages */}
+          {selectedModel === 'canvas' ? (
+            <CanvasStudio
+              slides={(() => {
+                const lastModelMsg = [...messages].reverse().find(m => m.role === 'model')?.content || '';
+                return parseSlides(lastModelMsg);
+              })()}
+              presentationTitle={conversations.find(c => c.id === currentChatId)?.title || 'Experiencia Visual LYAXIS Canvas'}
+              isLoading={isStreaming}
+              onSendPrompt={(p) => handleSend(p)}
+            />
+          ) : (
+            <>
+              {/* Scrollable Messages Area */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px 12px' : '24px 16px', display: 'flex', flexDirection: 'column' }}>
             <div style={{ maxWidth: '860px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px', flex: 1 }}>
               {messages.length === 0 ? (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#71717a', gap: '14px', textAlign: 'center', minHeight: '50vh', padding: '0 12px' }}>
@@ -1148,6 +1162,8 @@ export default function App() {
               </div>
             </form>
           </div>
+          </>
+          )}
         </main>
 
         <AuthModal
