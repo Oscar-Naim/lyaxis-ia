@@ -190,6 +190,51 @@ export const exportChatToPDF = async (
   }
 };
 
+function slideMarkdownToPdfHtml(markdownText: string, accentColor: string): string {
+  if (!markdownText) return '';
+  let text = markdownText;
+  text = text.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
+
+  const lines = text.split('\n');
+  const resultLines: string[] = [];
+
+  for (let idx = 0; idx < lines.length; idx++) {
+    const line = lines[idx];
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    if (trimmed.startsWith('### ')) {
+      const h3Text = trimmed.replace(/^###\s*/, '');
+      resultLines.push(`<h3 style="font-size: 15px; font-weight: 800; color: ${accentColor}; margin: 10px 0 6px; letter-spacing: -0.2px;">${h3Text}</h3>`);
+    } else if (trimmed.startsWith('## ')) {
+      const h2Text = trimmed.replace(/^##\s*/, '');
+      resultLines.push(`<h2 style="font-size: 18px; font-weight: 900; color: #ffffff; margin: 12px 0 8px; border-bottom: 1px solid ${accentColor}44; padding-bottom: 4px;">${h2Text}</h2>`);
+    } else if (trimmed.startsWith('# ')) {
+      const h1Text = trimmed.replace(/^#\s*/, '');
+      resultLines.push(`<h1 style="font-size: 20px; font-weight: 900; color: #ffffff; margin: 14px 0 10px;">${h1Text}</h1>`);
+    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      const bulletText = trimmed.replace(/^[-*]\s*/, '');
+      const formattedBullet = bulletText
+        .replace(/\*\*(.*?)\*\*/g, `<strong style="color: #ffffff; font-weight: 800;">$1</strong>`)
+        .replace(/\*(.*?)\*/g, `<em>$1</em>`);
+
+      resultLines.push(`
+        <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; font-size: 12.5px; line-height: 1.5; color: #e2e8f0;">
+          <span style="color: ${accentColor}; font-weight: 900; font-size: 12px; line-height: 1.4;">✦</span>
+          <div>${formattedBullet}</div>
+        </div>
+      `);
+    } else {
+      const formattedText = trimmed
+        .replace(/\*\*(.*?)\*\*/g, `<strong style="color: #ffffff; font-weight: 800;">$1</strong>`)
+        .replace(/\*(.*?)\*/g, `<em>$1</em>`);
+      resultLines.push(`<p style="font-size: 12.5px; line-height: 1.5; color: #cbd5e1; margin: 4px 0;">${formattedText}</p>`);
+    }
+  }
+
+  return resultLines.join('\n');
+}
+
 export const exportSlidesToPDF = async (
   title: string,
   accentColor: string,
@@ -199,39 +244,45 @@ export const exportSlidesToPDF = async (
 
   const container = document.createElement('div');
   container.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+  container.style.backgroundColor = '#07070e';
 
   let htmlContent = '';
 
   slides.forEach((slide, idx) => {
-    const parsedBody = markdownToPdfHtml(slide.content);
+    const parsedBody = slideMarkdownToPdfHtml(slide.content, accentColor);
 
     htmlContent += `
-      <div style="width: 297mm; height: 195mm; padding: 25mm 30mm; box-sizing: border-box; background: #09090e; color: #ffffff; page-break-after: always; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
+      <div style="width: 297mm; height: 167.06mm; padding: 16mm 22mm; box-sizing: border-box; background: linear-gradient(135deg, #07070e 0%, #120a1f 100%); color: #ffffff; page-break-after: always; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
         <!-- Slide Header -->
         <div>
-          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid ${accentColor}; padding-bottom: 10px; margin-bottom: 16px;">
-            <span style="font-size: 11px; font-weight: 800; color: ${accentColor}; letter-spacing: 1px;">LYAXIS CANVAS • SLIDE 0${idx + 1} DE 0${slides.length}</span>
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid ${accentColor}55; padding-bottom: 8px; margin-bottom: 14px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="background: ${accentColor}22; border: 1px solid ${accentColor}66; color: ${accentColor}; padding: 3px 8px; border-radius: 12px; font-size: 10px; font-weight: 800; letter-spacing: 0.8px;">
+                DIAPOSITIVA 0${idx + 1} DE 0${slides.length}
+              </span>
+              <span style="font-size: 10px; color: ${accentColor}; font-weight: 700; letter-spacing: 1px;">LYAXIS CANVAS</span>
+            </div>
             <span style="font-size: 11px; color: #94a3b8; font-weight: 600;">${title}</span>
           </div>
-          <h1 style="font-size: 24px; font-weight: 900; color: #ffffff; margin: 0 0 16px; line-height: 1.2;">${slide.title}</h1>
+          <h1 style="font-size: 22px; font-weight: 900; color: #ffffff; margin: 0 0 12px; line-height: 1.25; letter-spacing: -0.4px;">${slide.title}</h1>
         </div>
 
         <!-- Slide Body Container -->
-        <div style="flex: 1; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; padding: 20px 24px; font-size: 13px; line-height: 1.6; color: #e2e8f0; overflow: hidden;">
+        <div style="flex: 1; background: rgba(255, 255, 255, 0.03); border: 1px solid ${accentColor}33; border-radius: 10px; padding: 16px 20px; font-size: 12.5px; line-height: 1.5; color: #e2e8f0; overflow: hidden; margin: 6px 0;">
           ${parsedBody}
         </div>
 
         <!-- Speaker Notes if present -->
         ${slide.speakerNotes ? `
-          <div style="margin-top: 10px; padding: 8px 12px; background: rgba(168, 85, 247, 0.15); border: 1px solid ${accentColor}; border-radius: 6px; font-size: 10px; color: #e2e8f0;">
-            <strong style="color: ${accentColor};">Nota del Orador:</strong> ${slide.speakerNotes}
+          <div style="margin-top: 6px; padding: 6px 12px; background: rgba(0, 0, 0, 0.8); border: 1px solid ${accentColor}; border-radius: 6px; font-size: 10px; color: #e2e8f0;">
+            <strong style="color: ${accentColor};">🗣️ Nota del Orador:</strong> ${slide.speakerNotes}
           </div>
         ` : ''}
 
         <!-- Slide Footer -->
-        <div style="margin-top: 12px; display: flex; justify-content: space-between; font-size: 9px; color: #64748b; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-          <span>LYAXIS IA • Presentación Oficial</span>
-          <span>Create. Break. Rebuild. • Oscar Naim Ambrocio Aguirre</span>
+        <div style="margin-top: 8px; display: flex; justify-content: space-between; font-size: 9px; color: #64748b; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 6px;">
+          <span>LYAXIS IA • Experiencia Visual Studio</span>
+          <span style="color: ${accentColor}; font-weight: 700;">Create. Break. Rebuild. • Oscar Naim Ambrocio Aguirre</span>
         </div>
       </div>
     `;
@@ -243,8 +294,8 @@ export const exportSlidesToPDF = async (
     margin: 0,
     filename: `LYAXIS_Canvas_${title.replace(/\s+/g, '_')}_${Date.now()}.pdf`,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, logging: false },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+    html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#07070e' },
+    jsPDF: { unit: 'mm', format: [297, 167.06], orientation: 'landscape' }
   };
 
   try {
