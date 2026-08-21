@@ -252,37 +252,45 @@ export const exportSlidesToPDF = async (
     const parsedBody = slideMarkdownToPdfHtml(slide.content, accentColor);
 
     htmlContent += `
-      <div style="width: 297mm; height: 167.06mm; padding: 16mm 22mm; box-sizing: border-box; background: linear-gradient(135deg, #07070e 0%, #120a1f 100%); color: #ffffff; page-break-after: always; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
+      <div style="width: 297mm; height: 167.06mm; padding: 14mm 20mm; box-sizing: border-box; background: linear-gradient(135deg, #07070e 0%, #120a1f 100%); color: #ffffff; page-break-after: always; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
+        <!-- Blueprint Grid Pattern -->
+        <div style="position: absolute; inset: 0; background-image: radial-gradient(circle, ${accentColor}18 1.2px, transparent 1.2px), linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px); background-size: 45px 45px; opacity: 0.6; pointer-events: none;"></div>
+
         <!-- Slide Header -->
-        <div>
-          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid ${accentColor}55; padding-bottom: 8px; margin-bottom: 14px;">
+        <div style="position: relative; z-index: 1;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid ${accentColor}55; padding-bottom: 8px; margin-bottom: 12px;">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="background: ${accentColor}22; border: 1px solid ${accentColor}66; color: ${accentColor}; padding: 3px 8px; border-radius: 12px; font-size: 10px; font-weight: 800; letter-spacing: 0.8px;">
                 DIAPOSITIVA 0${idx + 1} DE 0${slides.length}
               </span>
               <span style="font-size: 10px; color: ${accentColor}; font-weight: 700; letter-spacing: 1px;">LYAXIS CANVAS</span>
             </div>
-            <span style="font-size: 11px; color: #94a3b8; font-weight: 600;">${title}</span>
+            
+            <!-- Status Pill Badge -->
+            <div style="padding: 3px 10px; border-radius: 14px; background-color: rgba(0, 217, 255, 0.08); border: 1px solid rgba(0, 217, 255, 0.35); color: #00D9FF; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 5px; font-family: monospace;">
+              <span style="width: 6px; height: 6px; border-radius: 50%; background-color: #00D9FF;"></span>
+              <span>System Online</span>
+            </div>
           </div>
-          <h1 style="font-size: 22px; font-weight: 900; color: #ffffff; margin: 0 0 12px; line-height: 1.25; letter-spacing: -0.4px;">${slide.title}</h1>
+          <h1 style="font-size: 20px; font-weight: 900; color: #ffffff; margin: 0 0 10px; line-height: 1.25; letter-spacing: -0.4px;">${slide.title}</h1>
         </div>
 
         <!-- Slide Body Container -->
-        <div style="flex: 1; background: rgba(255, 255, 255, 0.03); border: 1px solid ${accentColor}33; border-radius: 10px; padding: 16px 20px; font-size: 12.5px; line-height: 1.5; color: #e2e8f0; overflow: hidden; margin: 6px 0;">
+        <div style="flex: 1; background: rgba(255, 255, 255, 0.03); border: 1px solid ${accentColor}33; border-radius: 10px; padding: 14px 18px; font-size: 12px; line-height: 1.5; color: #e2e8f0; overflow: hidden; margin: 4px 0; position: relative; z-index: 1;">
           ${parsedBody}
         </div>
 
         <!-- Speaker Notes if present -->
         ${slide.speakerNotes ? `
-          <div style="margin-top: 6px; padding: 6px 12px; background: rgba(0, 0, 0, 0.8); border: 1px solid ${accentColor}; border-radius: 6px; font-size: 10px; color: #e2e8f0;">
+          <div style="margin-top: 4px; padding: 6px 12px; background: rgba(0, 0, 0, 0.8); border: 1px solid ${accentColor}; border-radius: 6px; font-size: 9.5px; color: #e2e8f0; position: relative; z-index: 1;">
             <strong style="color: ${accentColor};">🗣️ Nota del Orador:</strong> ${slide.speakerNotes}
           </div>
         ` : ''}
 
         <!-- Slide Footer -->
-        <div style="margin-top: 8px; display: flex; justify-content: space-between; font-size: 9px; color: #64748b; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 6px;">
-          <span>LYAXIS IA • Experiencia Visual Studio</span>
-          <span style="color: ${accentColor}; font-weight: 700;">Create. Break. Rebuild. • Oscar Naim Ambrocio Aguirre</span>
+        <div style="margin-top: 6px; display: flex; justify-content: space-between; font-size: 9.5px; color: #71717a; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 6px; position: relative; z-index: 1; font-family: monospace;">
+          <span>Oscar Naim Ambrocio Aguirre | LYAXIS labs™ | Edición 2026</span>
+          <span style="color: ${accentColor}; font-weight: 700;">Create. Break. Rebuild.</span>
         </div>
       </div>
     `;

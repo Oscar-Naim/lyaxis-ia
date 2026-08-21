@@ -279,8 +279,8 @@ export const CanvasStudio: React.FC<CanvasStudioProps> = ({
             width: '100%',
             maxWidth: isFullscreen ? '100vw' : '960px',
             height: isFullscreen ? '100vh' : 'auto',
-            minHeight: isFullscreen ? '100vh' : '480px',
-            borderRadius: isFullscreen ? '0px' : '20px',
+            minHeight: isFullscreen ? '100vh' : '520px',
+            borderRadius: isFullscreen ? '0px' : '22px',
             overflow: 'hidden',
             border: `1px solid ${activeTheme.border}`,
             boxShadow: activeTheme.shadow,
@@ -288,93 +288,164 @@ export const CanvasStudio: React.FC<CanvasStudioProps> = ({
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            padding: isFullscreen ? '60px 90px' : '36px 42px',
+            padding: isFullscreen ? '60px 90px' : '38px 46px',
             boxSizing: 'border-box',
             transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
             position: 'relative',
           }}
         >
-          {/* Top Slide Meta */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${activeTheme.border}`, paddingBottom: '12px', marginBottom: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 900, color: activeTheme.accent, letterSpacing: '1.2px', textTransform: 'uppercase' }}>
+          {/* Cyber Blueprint Grid Background Overlay */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: `
+                radial-gradient(circle, ${activeTheme.accent}18 1.2px, transparent 1.2px),
+                linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px)
+              `,
+              backgroundSize: '50px 50px',
+              pointerEvents: 'none',
+              opacity: 0.65,
+              zIndex: 0,
+            }}
+          />
+
+          {/* Top Slide Header Banner */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${activeTheme.border}`, paddingBottom: '14px', marginBottom: '22px', zIndex: 1, position: 'relative' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 900, color: activeTheme.accent, letterSpacing: '1.4px', textTransform: 'uppercase' }}>
                 LYAXIS CANVAS • SLIDE 0{currentIndex + 1} DE 0{Math.max(slides.length, 1)}
               </span>
               {currentSlide.layout && (
-                <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '12px', backgroundColor: `${activeTheme.accent}22`, border: `1px solid ${activeTheme.accent}44`, color: activeTheme.accent, fontWeight: 700, textTransform: 'uppercase' }}>
+                <span style={{ fontSize: '10px', padding: '2px 9px', borderRadius: '12px', backgroundColor: `${activeTheme.accent}22`, border: `1px solid ${activeTheme.accent}55`, color: activeTheme.accent, fontWeight: 700, textTransform: 'uppercase' }}>
                   {currentSlide.layout}
                 </span>
               )}
             </div>
 
-            <div style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 600 }}>
-              {presentationTitle}
+            {/* Status Pill Badge (Matches User Screenshot 2) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  backgroundColor: 'rgba(0, 217, 255, 0.08)',
+                  border: '1px solid rgba(0, 217, 255, 0.35)',
+                  color: '#00D9FF',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontFamily: 'monospace',
+                  boxShadow: '0 0 14px rgba(0, 217, 255, 0.15)',
+                }}
+              >
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#00D9FF', boxShadow: '0 0 8px #00D9FF' }} />
+                <span>System Online</span>
+              </div>
             </div>
           </div>
 
-          {/* Slide Title Header */}
-          <div>
-            <h1 style={{ fontSize: isFullscreen ? '36px' : '26px', fontWeight: 900, color: activeTheme.titleColor, margin: '0 0 16px', letterSpacing: '-0.5px', lineHeight: '1.25' }}>
-              {currentSlide.title}
-            </h1>
+          {/* Slide Stage Body Content — Title Slide vs Content Slide */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: currentSlide.layout === 'title' || currentIndex === 0 ? 'center' : 'flex-start', zIndex: 1, position: 'relative' }}>
+            
+            {/* Title / Cover Slide Layout (Matches User Screenshots 2 & 3) */}
+            {(currentSlide.layout === 'title' || currentIndex === 0) ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '20px 0' }}>
+                {/* Central Emblem Badge */}
+                <div
+                  style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '16px',
+                    backgroundColor: `${activeTheme.accent}18`,
+                    border: `1.5px solid ${activeTheme.accent}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: '24px',
+                    boxShadow: `0 0 30px ${activeTheme.accent}35`,
+                  }}
+                >
+                  <Presentation size={32} color={activeTheme.accent} />
+                </div>
+
+                <h1 style={{ fontSize: isFullscreen ? '46px' : '34px', fontWeight: 900, color: '#ffffff', margin: '0 0 16px', letterSpacing: '-0.8px', lineHeight: '1.15', maxWidth: '820px' }}>
+                  {currentSlide.title}
+                </h1>
+
+                <div style={{ fontSize: isFullscreen ? '20px' : '16px', color: '#a1a1aa', maxWidth: '680px', lineHeight: '1.6', fontWeight: 500, margin: '0 0 20px' }}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentSlide.content}</ReactMarkdown>
+                </div>
+              </div>
+            ) : (
+              /* Content Slide Layout */
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <h2 style={{ fontSize: isFullscreen ? '32px' : '24px', fontWeight: 900, color: '#ffffff', margin: '0 0 16px', letterSpacing: '-0.5px', lineHeight: '1.25' }}>
+                  {currentSlide.title}
+                </h2>
+
+                <div
+                  style={{
+                    flex: 1,
+                    backgroundColor: activeTheme.boxBg,
+                    border: `1px solid ${activeTheme.border}`,
+                    borderRadius: '14px',
+                    padding: isFullscreen ? '30px 36px' : '22px 26px',
+                    margin: '4px 0 14px',
+                    fontSize: isFullscreen ? '16.5px' : '14px',
+                    lineHeight: '1.7',
+                    color: '#e4e4e7',
+                    overflowY: 'auto',
+                    boxShadow: `inset 0 0 20px rgba(0,0,0,0.5)`,
+                  }}
+                >
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      table({ children, ...props }) {
+                        return (
+                          <div className="lyaxis-markdown-table-wrapper">
+                            <table {...props}>{children}</table>
+                          </div>
+                        );
+                      },
+                    }}
+                  >
+                    {currentSlide.content}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            )}
+
+            {/* Speaker Notes Overlay */}
+            {showNotes && currentSlide.speakerNotes && (
+              <div
+                style={{
+                  marginTop: '12px',
+                  padding: '12px 18px',
+                  borderRadius: '10px',
+                  backgroundColor: 'rgba(0, 0, 0, 0.92)',
+                  border: `1px solid ${activeTheme.accent}`,
+                  fontSize: '12px',
+                  color: '#e2e8f0',
+                  boxShadow: `0 4px 20px rgba(0,0,0,0.9)`,
+                }}
+              >
+                <strong style={{ color: activeTheme.accent, display: 'block', marginBottom: '4px' }}>🗣️ Nota del Orador:</strong>
+                {currentSlide.speakerNotes}
+              </div>
+            )}
           </div>
 
-          {/* Slide Main Body Content */}
-          <div
-            style={{
-              flex: 1,
-              backgroundColor: activeTheme.boxBg,
-              border: `1px solid ${activeTheme.border}`,
-              borderRadius: '14px',
-              padding: isFullscreen ? '32px 38px' : '24px 28px',
-              margin: '8px 0 16px',
-              fontSize: isFullscreen ? '17px' : '14.5px',
-              lineHeight: '1.7',
-              color: '#e4e4e7',
-              overflowY: 'auto',
-            }}
-          >
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                table({ children, ...props }) {
-                  return (
-                    <div className="lyaxis-markdown-table-wrapper">
-                      <table {...props}>{children}</table>
-                    </div>
-                  );
-                },
-              }}
-            >
-              {currentSlide.content}
-            </ReactMarkdown>
-          </div>
-
-          {/* Speaker Notes Overlay */}
-          {showNotes && currentSlide.speakerNotes && (
-            <div
-              style={{
-                marginBottom: '16px',
-                padding: '12px 18px',
-                borderRadius: '10px',
-                backgroundColor: 'rgba(0, 0, 0, 0.9)',
-                border: `1px solid ${activeTheme.accent}`,
-                fontSize: '12px',
-                color: '#e2e8f0',
-                boxShadow: `0 4px 20px rgba(0,0,0,0.8)`,
-              }}
-            >
-              <strong style={{ color: activeTheme.accent, display: 'block', marginBottom: '4px' }}>🗣️ Nota del Orador:</strong>
-              {currentSlide.speakerNotes}
-            </div>
-          )}
-
-          {/* Bottom Stage Footer Bar */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${activeTheme.border}`, paddingTop: '14px' }}>
-            <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>
-              LYAXIS IA • Experiencia Visual Interactiva
+          {/* Bottom Stage Footer Bar (Matches User Screenshot 2 Footer) */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${activeTheme.border}`, paddingTop: '14px', zIndex: 1, position: 'relative' }}>
+            <span style={{ fontSize: '11px', color: '#71717a', fontWeight: 600, fontFamily: 'monospace' }}>
+              Oscar Naim Ambrocio Aguirre | LYAXIS labs™ | Edición 2026
             </span>
-            <span style={{ fontSize: '10px', color: activeTheme.accent, fontWeight: 700, letterSpacing: '0.5px' }}>
+            <span style={{ fontSize: '11px', color: activeTheme.accent, fontWeight: 700, letterSpacing: '0.6px', fontFamily: 'monospace' }}>
               Create. Break. Rebuild.
             </span>
           </div>
