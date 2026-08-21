@@ -46,6 +46,9 @@ En lugar de tener una IA genérica que lo haga todo a medias, LYAXIS divide su "
 8. **🎓 Magister (Teal/Cian Pedagógico):** 
    - *Rol:* Copiloto pedagógico y especialista en planeación docente.
    - *Uso:* Diseña planeaciones didácticas SEP, proyectos de la Nueva Escuela Mexicana (NEM), secuencias didácticas por momentos, rúbricas de evaluación formativa y ajustes razonables para Preescolar, Primaria, Secundaria y Preparatoria.
+9. **🎨 Canvas (Violeta Eléctrico):** 
+   - *Rol:* Diseñador visual de presentaciones y Slide Decks.
+   - *Uso:* Transforma temas complejos en láminas e infografías interactivas 16:9 estilo Canva, con visor de diapositivas en vivo (navegación ◀ ▶, modo pantalla completa, notas del orador y exportación descargable a PDF).
 
 ---
 

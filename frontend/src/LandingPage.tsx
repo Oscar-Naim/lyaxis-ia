@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, Clock, MessageCircle, Crosshair, Waypoints, Hammer, GraduationCap } from 'lucide-react';
+import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, Clock, MessageCircle, Crosshair, Waypoints, Hammer, GraduationCap, Presentation } from 'lucide-react';
 
 interface LandingPageProps {
   onEnterChat: () => void;
@@ -260,6 +260,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAut
             <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Magister</h3>
             <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
               Copiloto pedagógico. Diseña planeaciones didácticas SEP, proyectos NEM y rúbricas para todos los niveles educativos.
+            </p>
+          </div>
+
+          {/* Motor 9: Canvas */}
+          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#8B5CF622', border: '1px solid #8B5CF655', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Presentation size={18} color="#8B5CF6" />
+            </div>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Canvas</h3>
+            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
+              Diseñador visual. Crea presentaciones interactivas en vivo, láminas estilo Canva y diapositivas descargables en PDF.
             </p>
           </div>
 
