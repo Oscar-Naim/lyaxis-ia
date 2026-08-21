@@ -39,11 +39,21 @@ export function useSSEStream({ onDone, onError }: UseSSEStreamOptions = {}) {
       try {
         let sanitizedMessages = messages
           .filter((m) => m && m.content && String(m.content).trim() && !String(m.content).startsWith('⚠️') && !String(m.content).startsWith('❌'))
-          .map((m) => ({
-            id: m.id || undefined,
-            role: (m.role === 'model' || m.role === 'assistant') ? 'model' : 'user',
-            content: String(m.content).trim(),
-          }));
+          .map((m, idx, arr) => {
+            const role = (m.role === 'model' || m.role === 'assistant') ? 'model' : 'user';
+            let content = String(m.content).trim();
+
+            // If canvas model, append strict slide directive to last user message if not already present
+            if (model === 'canvas' && role === 'user' && idx === arr.length - 1 && !content.includes('<slide')) {
+              content = `[REGLA CANVAS: Genera OBLIGATORIAMENTE de 5 a 8 diapositivas envueltas en <slide title="..." layout="title|context|timeline|characters|causes-effects|summary">. NO saludes, NO charles, NO entregues código HTML/CSS, comienza inmediatamente con <slide].\n\n${content}`;
+            }
+
+            return {
+              id: m.id || undefined,
+              role,
+              content,
+            };
+          });
 
         if (sanitizedMessages.length === 0 && messages.length > 0) {
           const last = messages[messages.length - 1];

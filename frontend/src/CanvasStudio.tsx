@@ -572,7 +572,7 @@ export const CanvasStudio: React.FC<CanvasStudioProps> = ({
           {[
             'Explícame la Revolución Francesa en 6 láminas',
             'Diseña un Slide Deck estilo Pitch Deck para una Startup',
-            'Presentación interactiva sobre Inteligencia Artificial',
+            'Experiencia visual sobre Inteligencia Artificial',
             'Exposición sobre la Revolución Industrial y sus causas',
           ].map((sug, i) => (
             <button
