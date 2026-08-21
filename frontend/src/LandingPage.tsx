@@ -263,16 +263,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAut
             </p>
           </div>
 
-          {/* Motor 9: Canvas */}
-          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#8B5CF622', border: '1px solid #8B5CF655', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Presentation size={18} color="#8B5CF6" />
-            </div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Canvas</h3>
-            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
-              Diseñador visual. Crea presentaciones interactivas en vivo, láminas estilo Canva y diapositivas descargables en PDF.
-            </p>
-          </div>
 
           {/* Honestidad */}
           <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>

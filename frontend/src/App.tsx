@@ -4,12 +4,10 @@ import remarkGfm from 'remark-gfm';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette, PanelLeft, PanelLeftClose, Hammer, GraduationCap, FileDown, Presentation } from 'lucide-react';
 import { exportChatToPDF } from './pdfExporter';
-import { SlideDeckViewer, parseSlides } from './SlideDeckViewer';
-import { CanvasStudio } from './CanvasStudio';
 
-type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'canvas';
+type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister';
 
-const ALL_MODELS: ModelType[] = ['speed', 'cortex', 'architect', 'classic', 'phantom', 'nexus', 'forge', 'magister', 'canvas'];
+const ALL_MODELS: ModelType[] = ['speed', 'cortex', 'architect', 'classic', 'phantom', 'nexus', 'forge', 'magister'];
 
 const MODEL_META: Record<ModelType, { label: string; color: string; description: string }> = {
   speed: { label: 'Speed', color: '#2563FF', description: 'Asistente de desarrollo ágil y streaming ultrarrápido de LYAXIS labs.' },
@@ -20,7 +18,6 @@ const MODEL_META: Record<ModelType, { label: string; color: string; description:
   nexus: { label: 'Nexus', color: '#EC4899', description: 'Sintetizador creativo. Conecta ideas de dominios imposibles.' },
   forge: { label: 'Forge', color: '#F97316', description: 'Constructor práctico. Convierte ideas vagas en proyectos reales y concretos.' },
   magister: { label: 'Magister', color: '#06B6D4', description: 'Copiloto pedagógico y arquitecto de planeaciones docente SEP para todos los niveles.' },
-  canvas: { label: 'Canvas', color: '#8B5CF6', description: 'Diseñador visual de presentaciones interactivas, diapositivas estilo Canva y Slide Decks.' },
 };
 
 const MODEL_PROMPTS: Record<ModelType, { icon: React.ReactNode; bg: string; border: string; text: string }[]> = {
@@ -71,12 +68,6 @@ const MODEL_PROMPTS: Record<ModelType, { icon: React.ReactNode; bg: string; bord
     { icon: <BookOpen size={16} color="#22d3ee" />, bg: 'rgba(34, 211, 238, 0.12)', border: 'rgba(34, 211, 238, 0.25)', text: 'Diseña un proyecto STEAM de Indagación para Secundaria sobre Energías Renovables' },
     { icon: <Sparkles size={16} color="#06B6D4" />, bg: 'rgba(6, 182, 212, 0.12)', border: 'rgba(6, 182, 212, 0.25)', text: 'Genera una rúbrica analítica de evaluación formativa para Preescolar en expresión artística' },
     { icon: <Compass size={16} color="#67e8f9" />, bg: 'rgba(103, 232, 249, 0.12)', border: 'rgba(103, 232, 249, 0.25)', text: 'Estructura una secuencia didáctica de 5 sesiones de historia para Preparatoria' },
-  ],
-  canvas: [
-    { icon: <Presentation size={16} color="#8B5CF6" />, bg: 'rgba(139, 92, 246, 0.12)', border: 'rgba(139, 92, 246, 0.25)', text: 'Crea una presentación de 6 diapositivas sobre Inteligencia Artificial en la educación' },
-    { icon: <Sparkles size={16} color="#c084fc" />, bg: 'rgba(192, 132, 252, 0.12)', border: 'rgba(192, 132, 252, 0.25)', text: 'Diseña un Slide Deck estilo Pitch Deck para una startup de tecnología' },
-    { icon: <BookOpen size={16} color="#8B5CF6" />, bg: 'rgba(139, 92, 246, 0.12)', border: 'rgba(139, 92, 246, 0.25)', text: 'Hazme una exposición interactiva para Secundaria sobre la fotosíntesis' },
-    { icon: <Palette size={16} color="#a855f7" />, bg: 'rgba(168, 85, 247, 0.12)', border: 'rgba(168, 85, 247, 0.25)', text: 'Genera diapositivas para una clase de historia sobre la Revolución Mexicana' },
   ],
 };
 import type { Message, Conversation, User } from './types';
@@ -550,7 +541,6 @@ export default function App() {
     nexus: (s) => <Waypoints size={s} color="#EC4899" />,
     forge: (s) => <Hammer size={s} color="#F97316" />,
     magister: (s) => <GraduationCap size={s} color="#06B6D4" />,
-    canvas: (s) => <Presentation size={s} color="#8B5CF6" />,
   };
 
   const getModelIcon = (modelKey: ModelType) => MODEL_ICONS[modelKey]?.(14) || <Sparkles size={14} color="#2563FF" />;
@@ -967,21 +957,8 @@ export default function App() {
             </div>
           </header>
 
-          {/* Main Area: Canvas Studio Workspace vs Standard Chat Messages */}
-          {selectedModel === 'canvas' ? (
-            <CanvasStudio
-              slides={(() => {
-                const lastModelMsg = [...messages].reverse().find(m => m.role === 'model')?.content || '';
-                return parseSlides(lastModelMsg);
-              })()}
-              presentationTitle={conversations.find(c => c.id === currentChatId)?.title || 'Experiencia Visual LYAXIS Canvas'}
-              isLoading={isStreaming}
-              onSendPrompt={(p) => handleSend(p)}
-            />
-          ) : (
-            <>
-              {/* Scrollable Messages Area */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px 12px' : '24px 16px', display: 'flex', flexDirection: 'column' }}>
+          {/* Main Area: Standard Chat Messages */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px 12px' : '24px 16px', display: 'flex', flexDirection: 'column' }}>
             <div style={{ maxWidth: '860px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px', flex: 1 }}>
               {messages.length === 0 ? (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#71717a', gap: '14px', textAlign: 'center', minHeight: '50vh', padding: '0 12px' }}>
@@ -1162,8 +1139,6 @@ export default function App() {
               </div>
             </form>
           </div>
-          </>
-          )}
         </main>
 
         <AuthModal
