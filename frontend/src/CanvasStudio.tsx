@@ -25,6 +25,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { exportSlidesToPDF } from './pdfExporter';
+import { VisualSlideRenderer } from './VisualSlideRenderer';
 
 export interface SlideData {
   id: number;
@@ -390,32 +391,23 @@ export const CanvasStudio: React.FC<CanvasStudioProps> = ({
                 <div
                   style={{
                     flex: 1,
-                    backgroundColor: activeTheme.boxBg,
-                    border: `1px solid ${activeTheme.border}`,
+                    backgroundColor: 'transparent',
                     borderRadius: '14px',
-                    padding: isFullscreen ? '30px 36px' : '22px 26px',
+                    padding: isFullscreen ? '12px 16px' : '8px 4px',
                     margin: '4px 0 14px',
                     fontSize: isFullscreen ? '16.5px' : '14px',
                     lineHeight: '1.7',
                     color: '#e4e4e7',
                     overflowY: 'auto',
-                    boxShadow: `inset 0 0 20px rgba(0,0,0,0.5)`,
                   }}
                 >
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      table({ children, ...props }) {
-                        return (
-                          <div className="lyaxis-markdown-table-wrapper">
-                            <table {...props}>{children}</table>
-                          </div>
-                        );
-                      },
-                    }}
-                  >
-                    {currentSlide.content}
-                  </ReactMarkdown>
+                  <VisualSlideRenderer
+                    content={currentSlide.content}
+                    layout={currentSlide.layout}
+                    accentColor={activeTheme.accent}
+                    boxBg={activeTheme.boxBg}
+                    borderColor={activeTheme.border}
+                  />
                 </div>
               </div>
             )}

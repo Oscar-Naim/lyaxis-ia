@@ -197,6 +197,7 @@ function slideMarkdownToPdfHtml(markdownText: string, accentColor: string): stri
 
   const lines = text.split('\n');
   const resultLines: string[] = [];
+  let cardCount = 1;
 
   for (let idx = 0; idx < lines.length; idx++) {
     const line = lines[idx];
@@ -205,7 +206,7 @@ function slideMarkdownToPdfHtml(markdownText: string, accentColor: string): stri
 
     if (trimmed.startsWith('### ')) {
       const h3Text = trimmed.replace(/^###\s*/, '');
-      resultLines.push(`<h3 style="font-size: 15px; font-weight: 800; color: ${accentColor}; margin: 10px 0 6px; letter-spacing: -0.2px;">${h3Text}</h3>`);
+      resultLines.push(`<h3 style="font-size: 15px; font-weight: 800; color: ${accentColor}; margin: 10px 0 8px; letter-spacing: -0.2px;">${h3Text}</h3>`);
     } else if (trimmed.startsWith('## ')) {
       const h2Text = trimmed.replace(/^##\s*/, '');
       resultLines.push(`<h2 style="font-size: 18px; font-weight: 900; color: #ffffff; margin: 12px 0 8px; border-bottom: 1px solid ${accentColor}44; padding-bottom: 4px;">${h2Text}</h2>`);
@@ -214,16 +215,30 @@ function slideMarkdownToPdfHtml(markdownText: string, accentColor: string): stri
       resultLines.push(`<h1 style="font-size: 20px; font-weight: 900; color: #ffffff; margin: 14px 0 10px;">${h1Text}</h1>`);
     } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
       const bulletText = trimmed.replace(/^[-*]\s*/, '');
-      const formattedBullet = bulletText
-        .replace(/\*\*(.*?)\*\*/g, `<strong style="color: #ffffff; font-weight: 800;">$1</strong>`)
-        .replace(/\*(.*?)\*/g, `<em>$1</em>`);
+      const boldMatch = /^\*\*(.*?)\*\*:\s*(.*)$/.exec(bulletText) || /^\*\*(.*?)\*\*\s*(.*)$/.exec(bulletText);
 
-      resultLines.push(`
-        <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; font-size: 12.5px; line-height: 1.5; color: #e2e8f0;">
-          <span style="color: ${accentColor}; font-weight: 900; font-size: 12px; line-height: 1.4;">✦</span>
-          <div>${formattedBullet}</div>
-        </div>
-      `);
+      if (boldMatch) {
+        resultLines.push(`
+          <div style="padding: 10px 14px; border-radius: 10px; background-color: rgba(255, 255, 255, 0.035); border: 1px solid ${accentColor}44; margin-bottom: 8px; display: flex; flex-direction: column; gap: 4px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 9.5px; font-weight: 900; color: ${accentColor}; background: ${accentColor}22; border: 1px solid ${accentColor}55; padding: 2px 7px; border-radius: 8px; font-family: monospace;">0${cardCount++}</span>
+              <strong style="color: #ffffff; font-size: 13px; font-weight: 800;">${boldMatch[1]}</strong>
+            </div>
+            <div style="font-size: 12px; color: #cbd5e1; line-height: 1.45; padding-left: 2px;">${boldMatch[2]}</div>
+          </div>
+        `);
+      } else {
+        const formattedBullet = bulletText
+          .replace(/\*\*(.*?)\*\*/g, `<strong style="color: #ffffff; font-weight: 800;">$1</strong>`)
+          .replace(/\*(.*?)\*/g, `<em>$1</em>`);
+
+        resultLines.push(`
+          <div style="padding: 10px 14px; border-radius: 10px; background-color: rgba(255, 255, 255, 0.035); border: 1px solid ${accentColor}44; margin-bottom: 8px; display: flex; align-items: flex-start; gap: 8px;">
+            <span style="color: ${accentColor}; font-weight: 900; font-size: 12px; line-height: 1.4;">✦</span>
+            <div style="font-size: 12px; color: #cbd5e1; line-height: 1.45;">${formattedBullet}</div>
+          </div>
+        `);
+      }
     } else {
       const formattedText = trimmed
         .replace(/\*\*(.*?)\*\*/g, `<strong style="color: #ffffff; font-weight: 800;">$1</strong>`)

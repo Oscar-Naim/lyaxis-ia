@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Presentation, Download, Sparkles, MessageSquare, Palette, RefreshCw } from 'lucide-react';
 import { exportSlidesToPDF } from './pdfExporter';
+import { VisualSlideRenderer } from './VisualSlideRenderer';
 
 export interface SlideData {
   id: number;
@@ -298,31 +299,23 @@ export const SlideDeckViewer: React.FC<SlideDeckViewerProps> = ({ rawContent, pr
         <div
           style={{
             flex: 1,
-            backgroundColor: themeStyles.boxBg,
-            border: `1px solid ${themeStyles.border}`,
+            backgroundColor: 'transparent',
             borderRadius: '12px',
-            padding: isFullscreen ? '28px 32px' : '20px 22px',
-            margin: '12px 0',
+            padding: isFullscreen ? '12px 16px' : '6px 2px',
+            margin: '8px 0',
             fontSize: isFullscreen ? '16px' : '14px',
             lineHeight: '1.65',
             color: '#e4e4e7',
             overflowY: 'auto',
           }}
         >
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              table({ children, ...props }) {
-                return (
-                  <div className="lyaxis-markdown-table-wrapper">
-                    <table {...props}>{children}</table>
-                  </div>
-                );
-              },
-            }}
-          >
-            {currentSlide.content}
-          </ReactMarkdown>
+          <VisualSlideRenderer
+            content={currentSlide.content}
+            layout={currentSlide.layout}
+            accentColor={themeStyles.accent}
+            boxBg={themeStyles.boxBg}
+            borderColor={themeStyles.border}
+          />
         </div>
 
         {/* Optional Speaker Notes Overlay */}
