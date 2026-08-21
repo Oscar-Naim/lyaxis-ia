@@ -18,6 +18,23 @@ interface SlideDeckViewerProps {
   presentationTitle?: string;
 }
 
+const cleanSlideText = (text: string): string => {
+  if (!text) return '';
+  let cleaned = text;
+  
+  // Strip code block markers ```html or ```
+  cleaned = cleaned.replace(/```(?:html|css|javascript|js)?/gi, '').replace(/```/g, '');
+  
+  // Strip DOCTYPE and document head/style tags
+  cleaned = cleaned.replace(/<!DOCTYPE[^>]*>/gi, '');
+  cleaned = cleaned.replace(/<html[^>]*>|<\/html>/gi, '');
+  cleaned = cleaned.replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '');
+  cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+  cleaned = cleaned.replace(/<body[^>]*>|<\/body>/gi, '');
+
+  return cleaned.trim();
+};
+
 export const parseSlides = (rawText: string): SlideData[] => {
   if (!rawText || !rawText.trim()) return [];
 
@@ -28,9 +45,9 @@ export const parseSlides = (rawText: string): SlideData[] => {
   let idCounter = 1;
 
   while ((match = slideRegex.exec(rawText)) !== null) {
-    const title = match[1] || `Diapositiva ${idCounter}`;
+    let title = match[1] || `Diapositiva ${idCounter}`;
     const layout = match[2] || 'bullets';
-    let body = match[3] || '';
+    let body = cleanSlideText(match[3] || '');
     
     let speakerNotes = '';
     // Extract speaker notes if any
@@ -38,6 +55,15 @@ export const parseSlides = (rawText: string): SlideData[] => {
     if (noteMatch) {
       speakerNotes = noteMatch[1].trim();
       body = body.replace(noteMatch[0], '').trim();
+    }
+
+    // Extract real title if body has a header and title was generic
+    if ((title.startsWith('Diapositiva') || !title) && body) {
+      const headerMatch = /^#+\s*(.*)$/m.exec(body);
+      if (headerMatch && headerMatch[1]) {
+        title = headerMatch[1].trim();
+        body = body.replace(headerMatch[0], '').trim();
+      }
     }
 
     slides.push({
@@ -51,7 +77,8 @@ export const parseSlides = (rawText: string): SlideData[] => {
 
   // Fallback: If no <slide> tags were found, attempt to split by Markdown section headers or horizonal rules
   if (slides.length === 0) {
-    const rawSections = rawText.split(/(?=\n# |\n## |\n--- slide ---|\n---)/i);
+    const sanitizedText = cleanSlideText(rawText);
+    const rawSections = sanitizedText.split(/(?=\n# |\n## |\n--- slide ---|\n---)/i);
     let counter = 1;
 
     for (let sec of rawSections) {
