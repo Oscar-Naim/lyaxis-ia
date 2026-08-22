@@ -963,36 +963,172 @@ export default function App() {
           <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px 12px' : '24px 16px', display: 'flex', flexDirection: 'column' }}>
             <div style={{ maxWidth: '860px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px', flex: 1 }}>
               {messages.length === 0 ? (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#71717a', gap: '14px', textAlign: 'center', minHeight: '50vh', padding: '0 12px' }}>
-                  <div className="lyaxis-empty-state-orb" style={{ width: '48px', height: '48px', borderRadius: '14px', background: `linear-gradient(135deg, ${getModelColor(selectedModel)}, #00D9FF)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 24px ${getModelColor(selectedModel)}44` }}>
-                    {MODEL_ICONS[selectedModel]?.(24)}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#71717a', gap: '20px', textAlign: 'center', minHeight: '60vh', padding: '16px 12px', animation: 'fadeIn 0.3s ease-out' }}>
+                  
+                  {/* Model Quick Switcher Pills */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap', maxWidth: '720px', marginBottom: '4px' }}>
+                    {ALL_MODELS.map((m) => {
+                      const isSelected = selectedModel === m;
+                      const modelColor = getModelColor(m);
+                      return (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => switchModel(m)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 12px',
+                            borderRadius: '20px',
+                            fontSize: '11.5px',
+                            fontWeight: isSelected ? 700 : 500,
+                            cursor: 'pointer',
+                            backgroundColor: isSelected ? `${modelColor}22` : 'rgba(255, 255, 255, 0.03)',
+                            border: isSelected ? `1px solid ${modelColor}` : '1px solid rgba(255, 255, 255, 0.08)',
+                            color: isSelected ? '#ffffff' : '#a1a1aa',
+                            boxShadow: isSelected ? `0 0 16px ${modelColor}44` : 'none',
+                            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                          }}
+                        >
+                          <span style={{ color: modelColor, display: 'flex', alignItems: 'center' }}>
+                            {MODEL_ICONS[m]?.(12)}
+                          </span>
+                          {getModelLabel(m)}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
-                    LYAXIS {getModelLabel(selectedModel)}
-                  </h2>
-                  <p style={{ fontSize: '13.5px', maxWidth: '480px', margin: 0, lineHeight: '1.5', color: '#a1a1aa' }}>
-                    {MODEL_META[selectedModel]?.description}
-                  </p>
 
-                  {/* Suggested Prompts — Dynamic per Model */}
-                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px', width: '100%', maxWidth: '580px', marginTop: '20px' }}>
+                  {/* Main Central Emblem */}
+                  <div
+                    style={{
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {/* Glowing Aura Ring */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        width: '96px',
+                        height: '96px',
+                        borderRadius: '30px',
+                        background: `radial-gradient(circle, ${getModelColor(selectedModel)}55 0%, transparent 70%)`,
+                        filter: 'blur(16px)',
+                        animation: 'lyaxisPulse 2.5s infinite ease-in-out',
+                      }}
+                    />
+                    <div
+                      className="lyaxis-empty-state-orb"
+                      style={{
+                        width: '64px',
+                        height: '64px',
+                        borderRadius: '20px',
+                        background: `linear-gradient(135deg, ${getModelColor(selectedModel)}, #00D9FF)`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: `0 0 35px ${getModelColor(selectedModel)}66, 0 0 15px rgba(0, 217, 255, 0.4)`,
+                        border: '1px solid rgba(255, 255, 255, 0.25)',
+                        position: 'relative',
+                        zIndex: 1,
+                      }}
+                    >
+                      {MODEL_ICONS[selectedModel]?.(32)}
+                    </div>
+                  </div>
+
+                  {/* Title & Description */}
+                  <div>
+                    <h2
+                      style={{
+                        fontSize: '24px',
+                        fontWeight: 800,
+                        color: '#ffffff',
+                        margin: '0 0 6px 0',
+                        letterSpacing: '-0.4px',
+                        background: 'linear-gradient(180deg, #FFFFFF 0%, #CBD5E1 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                      }}
+                    >
+                      LYAXIS {getModelLabel(selectedModel)}
+                    </h2>
+                    <p style={{ fontSize: '13.5px', maxWidth: '520px', margin: '0 auto', lineHeight: '1.55', color: '#a1a1aa' }}>
+                      {MODEL_META[selectedModel]?.description}
+                    </p>
+                  </div>
+
+                  {/* High-Tech Capability Pills */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#00D9FF', backgroundColor: 'rgba(0, 217, 255, 0.08)', border: '1px solid rgba(0, 217, 255, 0.2)', padding: '4px 10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Zap size={11} /> Streaming ~14ms
+                    </span>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: getModelColor(selectedModel), backgroundColor: `${getModelColor(selectedModel)}14`, border: `1px solid ${getModelColor(selectedModel)}33`, padding: '4px 10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Shield size={11} /> Encriptación AES-256
+                    </span>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#a78bfa', backgroundColor: 'rgba(167, 139, 250, 0.08)', border: '1px solid rgba(167, 139, 250, 0.2)', padding: '4px 10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Cpu size={11} /> Motor Gemini 3.6-Flash
+                    </span>
+                  </div>
+
+                  {/* Suggested Prompt Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px', width: '100%', maxWidth: '640px', marginTop: '10px' }}>
                     {(MODEL_PROMPTS[selectedModel] || []).map((prompt, i) => (
                       <button
                         key={`${selectedModel}-${i}`}
                         type="button"
                         className="lyaxis-prompt-card"
                         onClick={() => handleSend(prompt.text)}
+                        style={{
+                          backgroundColor: 'rgba(8, 8, 14, 0.75)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          borderRadius: '14px',
+                          padding: '14px 16px',
+                        }}
                       >
                         <div
                           className="prompt-icon"
-                          style={{ backgroundColor: prompt.bg, border: `1px solid ${prompt.border}` }}
+                          style={{ backgroundColor: prompt.bg, border: `1px solid ${prompt.border}`, borderRadius: '10px' }}
                         >
                           {prompt.icon}
                         </div>
-                        <span className="prompt-text">{prompt.text}</span>
+                        <div style={{ flex: 1, textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                          <span className="prompt-text" style={{ fontSize: '12.5px', lineHeight: '1.45', display: 'block' }}>{prompt.text}</span>
+                        </div>
+                        <ChevronRight size={14} color="#52525b" style={{ flexShrink: 0, marginTop: '2px' }} />
                       </button>
                     ))}
                   </div>
+
+                  {/* Telemetry Ticker Strip */}
+                  <div
+                    style={{
+                      marginTop: '14px',
+                      padding: '6px 14px',
+                      borderRadius: '20px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      fontSize: '10.5px',
+                      color: '#52525b',
+                    }}
+                  >
+                    <span style={{ color: '#10B981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10B981', boxShadow: '0 0 8px #10B981', display: 'inline-block' }} />
+                      SISTEMA ACTIVO
+                    </span>
+                    <span>•</span>
+                    <span>LATENCIA: ~14ms</span>
+                    <span>•</span>
+                    <span>MOTOR: {selectedModel.toUpperCase()}</span>
+                  </div>
+
                 </div>
               ) : (
                 messages.map((msg, msgIndex) => {
