@@ -588,6 +588,13 @@ export default function App() {
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <LandingPage
           onEnterChat={() => setView('chat')}
+          onEnterChatWithModel={(model, promptText) => {
+            switchModel(model);
+            setView('chat');
+            if (promptText) {
+              setTimeout(() => handleSend(promptText), 100);
+            }
+          }}
           onOpenAuth={() => setIsAuthOpen(true)}
           onOpenInfo={openInfoDrawer}
         />

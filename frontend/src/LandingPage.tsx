@@ -1,57 +1,215 @@
-import React, { useState, useEffect } from 'react';
-import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, Clock, MessageCircle, Crosshair, Waypoints, Hammer, GraduationCap } from 'lucide-react';
+import React, { useState } from 'react';
+import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, MessageCircle, Crosshair, Waypoints, Hammer, GraduationCap, Zap, Cpu, Activity, Send, Layers } from 'lucide-react';
+
+type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister';
 
 interface LandingPageProps {
   onEnterChat: () => void;
+  onEnterChatWithModel?: (model: ModelType, promptText?: string) => void;
   onOpenAuth: () => void;
   onOpenInfo?: (tab?: 'manifesto' | 'ecosystem' | 'security' | 'terms') => void;
 }
 
-const TARGET_DATE = new Date('2026-10-17T00:00:00').getTime();
+export const LandingPage: React.FC<LandingPageProps> = ({
+  onEnterChat,
+  onEnterChatWithModel,
+  onOpenAuth,
+  onOpenInfo,
+}) => {
+  const [quickInput, setQuickInput] = useState('');
+  const [selectedQuickModel, setSelectedQuickModel] = useState<ModelType>('speed');
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAuth, onOpenInfo }) => {
-  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  const engines = [
+    {
+      id: 'speed' as ModelType,
+      name: 'LYAXIS Speed',
+      version: 'v2.5 Live',
+      color: '#2563FF',
+      icon: <Sparkles size={20} color="#2563FF" />,
+      tps: '145 t/s',
+      latency: '~12ms',
+      desc: 'Motor ultrarrápido optimizado para código en streaming instantáneo y desarrollo ágil.',
+      prompt: 'Crea un hook de React para infinite scroll con IntersectionObserver',
+      badge: 'Ultrarrápido',
+    },
+    {
+      id: 'cortex' as ModelType,
+      name: 'LYAXIS Cortex Pro',
+      version: 'v3.0 Deep',
+      color: '#7C3AED',
+      icon: <Brain size={20} color="#7C3AED" />,
+      tps: '95 t/s',
+      latency: '~24ms',
+      desc: 'Motor de razonamiento profundo para arquitecturas complejas, algoritmos y auditoría analítica.',
+      prompt: 'Analiza la complejidad temporal y optimiza este algoritmo de ordenamiento',
+      badge: 'Razonamiento',
+    },
+    {
+      id: 'architect' as ModelType,
+      name: 'LYAXIS Architect',
+      version: 'v2.8 Master',
+      color: '#10B981',
+      icon: <Compass size={20} color="#10B981" />,
+      tps: '110 t/s',
+      latency: '~18ms',
+      desc: 'Diseñador de System Prompts estructurados, mentoría técnica paso a paso y patrones.',
+      prompt: 'Diseña un System Prompt para un agente de soporte técnico en producción',
+      badge: 'Arquitectura',
+    },
+    {
+      id: 'classic' as ModelType,
+      name: 'LYAXIS Classic',
+      version: 'v2.4 Daily',
+      color: '#F59E0B',
+      icon: <MessageCircle size={20} color="#F59E0B" />,
+      tps: '135 t/s',
+      latency: '~14ms',
+      desc: 'Compañero inteligente para uso diario. Conversación fluida, asistencia general y redacción.',
+      prompt: 'Dame un plan de estudio estructurado para aprender Rust en 30 días',
+      badge: 'Uso Diario',
+    },
+    {
+      id: 'phantom' as ModelType,
+      name: 'LYAXIS Phantom',
+      version: 'v2.9 Audit',
+      color: '#EF4444',
+      icon: <Crosshair size={20} color="#EF4444" />,
+      tps: '120 t/s',
+      latency: '~16ms',
+      desc: 'Deconstructor y auditor ofensivo. Encuentra vulnerabilidades, fallas y puntos de quiebre.',
+      prompt: '¿Por qué este script causa fugas de memoria en producción y cómo arreglarlo?',
+      badge: 'Auditoría',
+    },
+    {
+      id: 'nexus' as ModelType,
+      name: 'LYAXIS Nexus',
+      version: 'v2.6 Synth',
+      color: '#EC4899',
+      icon: <Waypoints size={20} color="#EC4899" />,
+      tps: '105 t/s',
+      latency: '~20ms',
+      desc: 'Sintetizador creativo. Conecta dominios multidisciplinarios para generar innovación.',
+      prompt: 'Combina principios de teoría de juegos con diseño de experiencia de usuario',
+      badge: 'Creatividad',
+    },
+    {
+      id: 'forge' as ModelType,
+      name: 'LYAXIS Forge',
+      version: 'v2.7 Build',
+      color: '#F97316',
+      icon: <Hammer size={20} color="#F97316" />,
+      tps: '130 t/s',
+      latency: '~15ms',
+      desc: 'Constructor práctico de proyectos. Aterriza ideas abstractas en esquemas de MVPs reales.',
+      prompt: 'Convierte esta idea de aplicación en una arquitectura de MVP con tech stack recomendado',
+      badge: 'Constructor',
+    },
+    {
+      id: 'magister' as ModelType,
+      name: 'LYAXIS Magister',
+      version: 'v3.1 SEP',
+      color: '#06B6D4',
+      icon: <GraduationCap size={20} color="#06B6D4" />,
+      tps: '125 t/s',
+      latency: '~17ms',
+      desc: 'Copiloto pedagógico. Planeaciones docentes SEP, proyectos NEM y rúbricas didácticas.',
+      prompt: 'Diseña un proyecto NEM por metodología ABP para secundaria sobre ciencia y tecnología',
+      badge: 'Docencia SEP',
+    },
+  ];
 
-  useEffect(() => {
-    const calculateTime = () => {
-      const now = new Date().getTime();
-      const difference = TARGET_DATE - now;
+  const handleLaunchModel = (modelId: ModelType, promptText?: string) => {
+    if (onEnterChatWithModel) {
+      onEnterChatWithModel(modelId, promptText);
+    } else {
+      onEnterChat();
+    }
+  };
 
-      if (difference > 0) {
-        const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
-        const minutes = Math.floor((difference / (1000 * 60)) % 60);
-        const seconds = Math.floor((difference / 1000) % 60);
-        setTimeLeft({ days, hours, minutes, seconds });
-      }
-    };
-
-    calculateTime();
-    const interval = setInterval(calculateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
+  const handleQuickSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickInput.trim()) {
+      onEnterChat();
+      return;
+    }
+    handleLaunchModel(selectedQuickModel, quickInput.trim());
+  };
 
   return (
-    <div style={{ width: '100%', minHeight: '100vh', overflowY: 'auto', overflowX: 'hidden', backgroundColor: '#000000', color: '#ffffff', display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{
+        width: '100%',
+        minHeight: '100vh',
+        backgroundColor: '#030307',
+        color: '#ffffff',
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative',
+        overflowX: 'hidden',
+      }}
+    >
+      {/* Background Cybernetic Grid & Glowing Orbs */}
+      <div
+        className="cyber-grid-bg"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 0,
+          opacity: 0.6,
+        }}
+      />
+
       {/* Navbar */}
-      <nav style={{ minHeight: '65px', borderBottom: '1px solid #121216', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', backgroundColor: '#000000', position: 'sticky', top: 0, zIndex: 50, flexShrink: 0 }}>
+      <nav
+        style={{
+          minHeight: '64px',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '12px 24px',
+          backgroundColor: 'rgba(3, 3, 7, 0.95)',
+          backdropFilter: 'blur(12px)',
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+          flexShrink: 0,
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ width: '34px', height: '34px', borderRadius: '10px', background: 'linear-gradient(135deg, #2563FF, #00D9FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(0, 217, 255, 0.35)' }}>
+          <div
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, #2563FF, #00D9FF)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 0 20px rgba(0, 217, 255, 0.4)',
+            }}
+          >
             <Terminal size={18} color="#ffffff" />
           </div>
           <div>
-            <span style={{ fontSize: '15px', fontWeight: 700, letterSpacing: '0.5px' }}>LYAXIS labs™</span>
-            <span style={{ display: 'block', fontSize: '9.5px', color: '#71717a' }}>Create. Break. Rebuild.</span>
+            <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '0.5px', color: '#ffffff' }}>
+              LYAXIS IA
+            </span>
+            <span style={{ display: 'block', fontSize: '10px', color: '#00D9FF', fontWeight: 600 }}>
+              PORTAL DE COMANDO & IA MULTI-MOTOR
+            </span>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {onOpenInfo && (
             <button
+              type="button"
               onClick={() => onOpenInfo('manifesto')}
               style={{
-                backgroundColor: 'rgba(124, 58, 237, 0.1)',
-                border: '1px solid rgba(124, 58, 237, 0.3)',
+                backgroundColor: 'rgba(124, 58, 237, 0.12)',
+                border: '1px solid rgba(124, 58, 237, 0.35)',
                 color: '#a78bfa',
                 padding: '7px 14px',
                 borderRadius: '8px',
@@ -66,10 +224,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAut
           )}
 
           <button
+            type="button"
             onClick={onOpenAuth}
             style={{
-              backgroundColor: '#0a0a0e',
-              border: '1px solid #1c1c24',
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
               color: '#ffffff',
               padding: '7px 14px',
               borderRadius: '8px',
@@ -82,6 +241,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAut
           </button>
 
           <button
+            type="button"
             onClick={onEnterChat}
             style={{
               display: 'flex',
@@ -90,227 +250,333 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAut
               backgroundColor: '#2563FF',
               color: '#ffffff',
               border: 'none',
-              padding: '7px 14px',
+              padding: '7px 16px',
               borderRadius: '8px',
               fontSize: '12px',
-              fontWeight: 600,
+              fontWeight: 700,
               cursor: 'pointer',
-              boxShadow: '0 0 16px rgba(37, 99, 255, 0.45)',
+              boxShadow: '0 0 20px rgba(37, 99, 255, 0.5)',
             }}
           >
-            <span>Iniciar IA</span>
-            <ArrowRight size={13} />
+            <span>ENTRAR A LA IA</span>
+            <ArrowRight size={14} />
           </button>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section style={{ maxWidth: '1050px', margin: '0 auto', padding: '50px 18px 30px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '20px', backgroundColor: '#07070a', border: '1px solid #1c1c24', marginBottom: '18px', fontSize: '11px', color: '#00D9FF' }}>
-          <Sparkles size={13} />
-          <span>Fase Beta 1.0 • Conteo al 17 de Octubre</span>
+      {/* Hero Interactive Terminal & Launchpad */}
+      <section
+        style={{
+          maxWidth: '1100px',
+          margin: '0 auto',
+          padding: '40px 20px 20px',
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
+        {/* Status Badge */}
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '6px 14px',
+            borderRadius: '20px',
+            backgroundColor: 'rgba(0, 217, 255, 0.08)',
+            border: '1px solid rgba(0, 217, 255, 0.25)',
+            marginBottom: '20px',
+            fontSize: '11.5px',
+            color: '#00D9FF',
+            fontWeight: 700,
+          }}
+        >
+          <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981', boxShadow: '0 0 10px #10B981' }} />
+          CENTRO DE INTELIGENCIA • 8 MOTORES IA OPERATIVOS
         </div>
 
-        <h1 style={{ fontSize: 'clamp(28px, 6.5vw, 48px)', fontWeight: 800, lineHeight: '1.2', margin: '0 0 16px', letterSpacing: '-0.5px' }}>
-          Diseñamos la primera impresión <br />
-          <span style={{ background: 'linear-gradient(135deg, #2563FF, #00D9FF, #7C3AED)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            digital y técnica de tus ideas.
+        <h1
+          style={{
+            fontSize: 'clamp(32px, 5.5vw, 54px)',
+            fontWeight: 900,
+            lineHeight: 1.15,
+            margin: '0 0 16px',
+            letterSpacing: '-0.8px',
+          }}
+        >
+          Selecciona tu Motor de IA y <br />
+          <span
+            style={{
+              background: 'linear-gradient(135deg, #00D9FF 0%, #2563FF 50%, #7C3AED 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            Ejecuta Código, Razonamiento o Arquitectura.
           </span>
         </h1>
 
-        <p style={{ fontSize: 'clamp(14px, 3.8vw, 16.5px)', color: '#a1a1aa', maxWidth: '640px', lineHeight: '1.55', margin: '0 0 28px' }}>
-          Un laboratorio de experimentación e inteligencia artificial creado para transformar el caos en código limpio, interfaces funcionales y honestidad radical.
+        <p style={{ fontSize: '15px', color: '#94a3b8', maxWidth: '660px', lineHeight: 1.6, margin: '0 0 32px' }}>
+          Haz clic en cualquier motor para entrar directamente al entorno de trabajo o escribe tu solicitud inicial en la terminal interactiva a continuación.
         </p>
 
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '40px' }}>
-          <button
-            onClick={onEnterChat}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              backgroundColor: '#2563FF',
-              color: '#ffffff',
-              border: 'none',
-              padding: '12px 24px',
-              borderRadius: '10px',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              boxShadow: '0 0 24px rgba(37, 99, 255, 0.55)',
-            }}
-          >
-            <Terminal size={17} />
-            <span>Abrir Laboratorio de IA</span>
-            <ArrowRight size={15} />
-          </button>
-        </div>
+        {/* Interactive Quick Terminal Playground */}
+        <div
+          style={{
+            width: '100%',
+            maxWidth: '740px',
+            backgroundColor: '#0a0b12',
+            border: '1px solid rgba(0, 217, 255, 0.3)',
+            borderRadius: '16px',
+            padding: '20px',
+            boxShadow: '0 0 40px rgba(0, 217, 255, 0.15), 0 20px 50px rgba(0,0,0,0.8)',
+            marginBottom: '40px',
+            position: 'relative',
+          }}
+        >
+          {/* Terminal Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Terminal size={15} color="#00D9FF" />
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#ffffff', letterSpacing: '0.5px' }}>
+                TERMINAL DE LANZAMIENTO RÁPIDO
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {engines.map(eng => (
+                <button
+                  key={eng.id}
+                  type="button"
+                  onClick={() => setSelectedQuickModel(eng.id)}
+                  style={{
+                    width: '10px',
+                    height: '10px',
+                    borderRadius: '50%',
+                    backgroundColor: eng.color,
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    opacity: selectedQuickModel === eng.id ? 1 : 0.4,
+                    boxShadow: selectedQuickModel === eng.id ? `0 0 10px ${eng.color}` : 'none',
+                  }}
+                  title={eng.name}
+                />
+              ))}
+            </div>
+          </div>
 
-        {/* Contador Responsivo */}
-        <div style={{ width: '100%', maxWidth: '580px', padding: '18px', borderRadius: '16px', backgroundColor: '#050508', border: '1px solid #181822', marginBottom: '50px', boxShadow: '0 10px 40px rgba(0,0,0,0.9)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#71717a', fontSize: '12px', marginBottom: '12px' }}>
-            <Clock size={14} color="#00D9FF" />
-            <span>Lanzamiento Oficial Beta • 17 de Octubre de 2026</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-            {[
-              { label: 'Días', value: timeLeft.days },
-              { label: 'Horas', value: timeLeft.hours },
-              { label: 'Minutos', value: timeLeft.minutes },
-              { label: 'Segundos', value: timeLeft.seconds },
-            ].map((item, i) => (
-              <div key={i} style={{ padding: '10px 6px', borderRadius: '10px', backgroundColor: '#0a0a0f', border: '1px solid #1c1c26' }}>
-                <span style={{ fontSize: 'clamp(18px, 4.5vw, 26px)', fontWeight: 800, color: '#ffffff', display: 'block', fontFamily: 'monospace' }}>
-                  {item.value < 10 ? `0${item.value}` : item.value}
-                </span>
-                <span style={{ fontSize: '9.5px', color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{item.label}</span>
-              </div>
-            ))}
-          </div>
+          <form onSubmit={handleQuickSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* Model Selector Selector Tabs in Terminal */}
+            <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px' }}>
+              {engines.map(eng => (
+                <button
+                  key={eng.id}
+                  type="button"
+                  onClick={() => setSelectedQuickModel(eng.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    fontWeight: selectedQuickModel === eng.id ? 700 : 500,
+                    cursor: 'pointer',
+                    backgroundColor: selectedQuickModel === eng.id ? `${eng.color}22` : 'rgba(255, 255, 255, 0.03)',
+                    border: selectedQuickModel === eng.id ? `1px solid ${eng.color}` : '1px solid rgba(255, 255, 255, 0.06)',
+                    color: selectedQuickModel === eng.id ? '#ffffff' : '#94a3b8',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {eng.name.replace('LYAXIS ', '')}
+                </button>
+              ))}
+            </div>
+
+            {/* Input Box */}
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <input
+                type="text"
+                value={quickInput}
+                onChange={(e) => setQuickInput(e.target.value)}
+                placeholder={`Escribe lo que deseas generar con LYAXIS ${engines.find(e => e.id === selectedQuickModel)?.name}...`}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#050508',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '10px',
+                  padding: '12px 16px',
+                  color: '#ffffff',
+                  fontSize: '13.5px',
+                  outline: 'none',
+                }}
+              />
+              <button
+                type="submit"
+                style={{
+                  backgroundColor: engines.find(e => e.id === selectedQuickModel)?.color || '#2563FF',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  padding: '12px 20px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: `0 0 16px ${engines.find(e => e.id === selectedQuickModel)?.color}44`,
+                  flexShrink: 0,
+                }}
+              >
+                <span>Lanzar</span>
+                <Send size={14} />
+              </button>
+            </div>
+          </form>
         </div>
       </section>
 
-      {/* Los 6 Motores Oficiales de LYAXIS */}
-      <section style={{ maxWidth: '1050px', margin: '0 auto', padding: '0 18px 60px', width: '100%', boxSizing: 'border-box', flexShrink: 0 }}>
-        <h2 style={{ fontSize: '20px', fontWeight: 700, textAlign: 'center', marginBottom: '24px', color: '#e4e4e7' }}>
-          Arquitectura y Motores de LYAXIS IA
-        </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-          {/* Motor 1: Speed */}
-          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#2563FF22', border: '1px solid #2563FF55', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Sparkles size={18} color="#2563FF" />
-            </div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Speed</h3>
-            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
-              Motor ultrarrápido optimizado para streaming instantáneo en milisegundos y desarrollo ágil.
-            </p>
+      {/* Interactive Engines Grid Section */}
+      <section style={{ maxWidth: '1100px', margin: '0 auto', padding: '0 20px 60px', width: '100%', boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+          <div>
+            <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+              Panel de Motores Especializados
+            </h2>
+            <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+              Haz clic en cualquier tarjeta para iniciar una sesión directa en ese modelo
+            </span>
           </div>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: '#00D9FF', backgroundColor: 'rgba(0,217,255,0.08)', border: '1px solid rgba(0,217,255,0.2)', padding: '4px 12px', borderRadius: '12px' }}>
+            8 PERSONALIDADES
+          </span>
+        </div>
 
-          {/* Motor 2: Cortex */}
-          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#7C3AED22', border: '1px solid #7C3AED55', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Brain size={18} color="#7C3AED" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+          {engines.map((eng) => (
+            <div
+              key={eng.id}
+              onClick={() => handleLaunchModel(eng.id)}
+              style={{
+                padding: '20px',
+                borderRadius: '16px',
+                backgroundColor: '#07070e',
+                border: `1px solid ${eng.color}33`,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: '14px',
+                cursor: 'pointer',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                position: 'relative',
+                overflow: 'hidden',
+                boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.borderColor = eng.color;
+                e.currentTarget.style.boxShadow = `0 12px 35px ${eng.color}25, 0 0 15px ${eng.color}15`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.borderColor = `${eng.color}33`;
+                e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.6)';
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <div
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '12px',
+                      backgroundColor: `${eng.color}18`,
+                      border: `1px solid ${eng.color}44`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {eng.icon}
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      color: eng.color,
+                      backgroundColor: `${eng.color}18`,
+                      border: `1px solid ${eng.color}44`,
+                      padding: '3px 8px',
+                      borderRadius: '8px',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {eng.badge}
+                  </span>
+                </div>
+
+                <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#ffffff', margin: '0 0 6px 0' }}>
+                  {eng.name}
+                </h3>
+                <p style={{ fontSize: '12.5px', color: '#94a3b8', lineHeight: 1.5, margin: 0 }}>
+                  {eng.desc}
+                </p>
+              </div>
+
+              {/* Engine Metrics Bar */}
+              <div
+                style={{
+                  paddingTop: '12px',
+                  borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontSize: '11px',
+                  color: '#64748b',
+                }}
+              >
+                <span>⚡ {eng.tps} • {eng.latency}</span>
+                <span style={{ color: eng.color, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  Iniciar <ArrowRight size={12} />
+                </span>
+              </div>
             </div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Cortex Pro</h3>
-            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
-              Motor de razonamiento profundo para arquitecturas de sistemas, algoritmos y depuración analítica.
-            </p>
-          </div>
-
-          {/* Motor 3: Architect */}
-          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#10B98122', border: '1px solid #10B98155', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Compass size={18} color="#10B981" />
-            </div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Architect</h3>
-            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
-              Arquitecto de System Prompts estructurados para producción y mentoría técnica paso a paso.
-            </p>
-          </div>
-
-          {/* Motor 4: Classic */}
-          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#F59E0B22', border: '1px solid #F59E0B55', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <MessageCircle size={18} color="#F59E0B" />
-            </div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Classic</h3>
-            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
-              Tu compañero inteligente de uso diario. Conversación natural, versátil y amigable para cualquier tarea.
-            </p>
-          </div>
-
-          {/* Motor 5: Phantom */}
-          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#EF444422', border: '1px solid #EF444455', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Crosshair size={18} color="#EF4444" />
-            </div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Phantom</h3>
-            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
-              El deconstructor. Encarna el "Break" — encuentra fallas, vulnerabilidades y puntos de fracaso.
-            </p>
-          </div>
-
-          {/* Motor 6: Nexus */}
-          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#EC489922', border: '1px solid #EC489955', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Waypoints size={18} color="#EC4899" />
-            </div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Nexus</h3>
-            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
-              Sintetizador creativo. Conecta ideas de dominios completamente diferentes para soluciones únicas.
-            </p>
-          </div>
-
-          {/* Motor 7: Forge */}
-          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#F9731622', border: '1px solid #F9731655', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Hammer size={18} color="#F97316" />
-            </div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Forge</h3>
-            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
-              Constructor práctico. Convierte ideas vagas en estructuras de proyectos, MVPs y planes concretos.
-            </p>
-          </div>
-
-          {/* Motor 8: Magister */}
-          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#06B6D422', border: '1px solid #06B6D455', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <GraduationCap size={18} color="#06B6D4" />
-            </div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>LYAXIS Magister</h3>
-            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
-              Copiloto pedagógico. Diseña planeaciones didácticas SEP, proyectos NEM y rúbricas para todos los niveles educativos.
-            </p>
-          </div>
-
-
-          {/* Honestidad */}
-          <div style={{ padding: '22px', borderRadius: '14px', backgroundColor: '#06060a', border: '1px solid #181822', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#00D9FF22', border: '1px solid #00D9FF55', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ShieldCheck size={18} color="#00D9FF" />
-            </div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Honestidad Radical</h3>
-            <p style={{ fontSize: '13.5px', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
-              Cero alucinaciones forzadas ni relleno corporativo. Precisión técnica y código determinista.
-            </p>
-          </div>
+          ))}
         </div>
       </section>
 
       {/* Footer */}
-      <footer style={{ marginTop: 'auto', borderTop: '1px solid #121216', padding: '30px 18px 40px', backgroundColor: '#000000', textAlign: 'center', flexShrink: 0 }}>
-        <p style={{ fontSize: '13px', color: '#71717a', maxWidth: '520px', margin: '0 auto 10px', fontStyle: 'italic' }}>
-          "El error no es una falla fatal, sino información valiosa para la siguiente iteración."
-        </p>
-        <div style={{ fontSize: '11.5px', color: '#a1a1aa', fontWeight: 600, marginBottom: '14px' }}>
-          Oscar Naim Ambrocio Aguirre — Fundador de LYAXIS labs™
+      <footer
+        style={{
+          marginTop: 'auto',
+          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+          padding: '24px 20px',
+          backgroundColor: '#020205',
+          textAlign: 'center',
+        }}
+      >
+        <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px' }}>
+          Oscar Naim Ambrocio Aguirre — Fundador de LYAXIS labs™ • Create. Break. Rebuild.
         </div>
-
-        {/* Footer Navigation Links */}
         {onOpenInfo && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '18px', flexWrap: 'wrap', fontSize: '12px', color: '#00D9FF', margin: '14px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', fontSize: '12px', color: '#00D9FF' }}>
             <button type="button" onClick={() => onOpenInfo('manifesto')} style={{ background: 'none', border: 'none', color: '#00D9FF', cursor: 'pointer', fontWeight: 600 }}>
-              Manifiesto & Filosofía
-            </button>
-            <span>•</span>
-            <button type="button" onClick={() => onOpenInfo('ecosystem')} style={{ background: 'none', border: 'none', color: '#00D9FF', cursor: 'pointer', fontWeight: 600 }}>
-              Ecosistema Modular
+              Manifiesto
             </button>
             <span>•</span>
             <button type="button" onClick={() => onOpenInfo('security')} style={{ background: 'none', border: 'none', color: '#00D9FF', cursor: 'pointer', fontWeight: 600 }}>
-              Seguridad & Privacidad
+              Seguridad
             </button>
             <span>•</span>
             <button type="button" onClick={() => onOpenInfo('terms')} style={{ background: 'none', border: 'none', color: '#00D9FF', cursor: 'pointer', fontWeight: 600 }}>
-              Términos de Servicio
+              Términos
             </button>
           </div>
         )}
-
-        <div style={{ marginTop: '10px', fontSize: '10.5px', color: '#52525b' }}>
-          © 2026 LYAXIS labs. Create. Break. Rebuild.
-        </div>
       </footer>
     </div>
   );
