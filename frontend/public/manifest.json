@@ -1,0 +1,31 @@
+{
+  "name": "LYAXIS IA - Multi-Model AI Engine",
+  "short_name": "LYAXIS IA",
+  "description": "Plataforma de Inteligencia Artificial multicapa Cyber-Premium con 9 personalidades especializadas.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#050505",
+  "theme_color": "#00f0ff",
+  "categories": ["productivity", "utilities", "ai"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

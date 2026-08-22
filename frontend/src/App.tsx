@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette, PanelLeft, PanelLeftClose, Hammer, GraduationCap, FileDown, Presentation } from 'lucide-react';
 import { exportChatToPDF } from './pdfExporter';
+import { InstallPwaPrompt } from './InstallPwaPrompt';
 
 type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister';
 
@@ -1166,6 +1167,8 @@ export default function App() {
           onClose={() => setIsInfoDrawerOpen(false)}
           initialTab={infoDrawerTab}
         />
+
+        <InstallPwaPrompt />
       </div>
     </GoogleOAuthProvider>
   );
