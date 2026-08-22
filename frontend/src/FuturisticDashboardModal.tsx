@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Activity, Cpu, ShieldCheck, Zap, Radio, BarChart3, Sliders, RefreshCw, Sparkles, CheckCircle2, Terminal } from 'lucide-react';
+import { X, Activity, Cpu, ShieldCheck, Zap, Radio, BarChart3, Sliders, RefreshCw, CheckCircle2 } from 'lucide-react';
 
 interface FuturisticDashboardModalProps {
   isOpen: boolean;

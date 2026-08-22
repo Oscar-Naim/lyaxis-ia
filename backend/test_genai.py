@@ -19,7 +19,7 @@ async def test():
     print("Test 1: Config as dict with string system_instruction")
     try:
         res = await client.aio.models.generate_content_stream(
-            model="gemini-1.5-flash",
+            model="gemini-3.6-flash",
             contents=contents_types,
             config={
                 "system_instruction": "You are a helpful assistant.",
@@ -35,7 +35,7 @@ async def test():
     print("\nTest 2: Config as types.GenerateContentConfig")
     try:
         res = await client.aio.models.generate_content_stream(
-            model="gemini-1.5-flash",
+            model="gemini-3.6-flash",
             contents=contents_types,
             config=types.GenerateContentConfig(
                 system_instruction="You are a helpful assistant.",
@@ -51,7 +51,7 @@ async def test():
     print("\nTest 3: Using old dict contents and old dict config")
     try:
         res = await client.aio.models.generate_content_stream(
-            model="gemini-1.5-flash",
+            model="gemini-3.6-flash",
             contents=[{"role": "user", "parts": [{"text": "Hello"}]}],
             config={
                 "system_instruction": "You are a helpful assistant.",

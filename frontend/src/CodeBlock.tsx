@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/atom-one-dark.css';
-import { Code2, Copy, Check } from 'lucide-react';
+import { Copy, Check } from 'lucide-react';
 
 interface CodeBlockProps {
   language?: any;

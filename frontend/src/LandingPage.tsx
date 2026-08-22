@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, Clock, MessageCircle, Crosshair, Waypoints, Hammer, GraduationCap, Presentation } from 'lucide-react';
+import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, Clock, MessageCircle, Crosshair, Waypoints, Hammer, GraduationCap } from 'lucide-react';
 
 interface LandingPageProps {
   onEnterChat: () => void;
@@ -7,14 +7,15 @@ interface LandingPageProps {
   onOpenInfo?: (tab?: 'manifesto' | 'ecosystem' | 'security' | 'terms') => void;
 }
 
+const TARGET_DATE = new Date('2026-10-17T00:00:00').getTime();
+
 export const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat, onOpenAuth, onOpenInfo }) => {
-  const targetDate = new Date('2026-10-17T00:00:00').getTime();
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
 
   useEffect(() => {
     const calculateTime = () => {
       const now = new Date().getTime();
-      const difference = targetDate - now;
+      const difference = TARGET_DATE - now;
 
       if (difference > 0) {
         const days = Math.floor(difference / (1000 * 60 * 60 * 24));
