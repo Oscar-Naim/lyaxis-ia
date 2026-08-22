@@ -165,11 +165,34 @@ export default function App() {
 
   const activeUserId = user?.id || guestId;
 
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem('lyaxis_conversations');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('lyaxis_conversations', JSON.stringify(conversations));
+    } catch (e) {}
+  }, [conversations]);
+
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<ModelType>('speed');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+
+  useEffect(() => {
+    if (currentChatId && messages.length > 0) {
+      try {
+        localStorage.setItem(`lyaxis_msgs_${currentChatId}`, JSON.stringify(messages));
+      } catch (e) {}
+    }
+  }, [currentChatId, messages]);
 
   // Track last active conversation per model for workspace-per-model behavior
   const [lastChatPerModel, setLastChatPerModel] = useState<Partial<Record<ModelType, string | null>>>(() => {
@@ -259,9 +282,15 @@ export default function App() {
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        setConversations(data);
-        if (data.length > 0 && !currentChatId) {
-          selectConversation(data[0]);
+        if (Array.isArray(data) && data.length > 0) {
+          setConversations((prev) => {
+            const map = new Map<string, Conversation>();
+            data.forEach((c: Conversation) => map.set(c.id, c));
+            prev.forEach((c: Conversation) => {
+              if (!map.has(c.id)) map.set(c.id, c);
+            });
+            return Array.from(map.values());
+          });
         }
       }
     } catch (e) {
@@ -271,10 +300,17 @@ export default function App() {
 
   const loadMessages = async (chatId: string) => {
     try {
+      const saved = localStorage.getItem(`lyaxis_msgs_${chatId}`);
+      if (saved) {
+        setMessages(JSON.parse(saved));
+      }
       const res = await fetch(`${API_BASE}/api/v1/conversations/${chatId}/messages`);
       if (res.ok) {
         const data = await res.json();
-        setMessages(data);
+        if (Array.isArray(data) && data.length > 0) {
+          setMessages(data);
+          localStorage.setItem(`lyaxis_msgs_${chatId}`, JSON.stringify(data));
+        }
       }
     } catch (e) {
       console.warn("Aviso cargando mensajes:", e);
@@ -675,7 +711,9 @@ export default function App() {
 
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <span style={{ fontSize: '11px', color: '#52525b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Historial</span>
+              <span style={{ fontSize: '11px', color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
+                Historial {conversations.length > 0 && `(${conversations.length})`}
+              </span>
               {conversations.length > 0 && (
                 <button
                   type="button"
@@ -687,34 +725,48 @@ export default function App() {
                 </button>
               )}
             </div>
-            {conversations.map((chat) => (
-              <div
-                key={chat.id}
-                onClick={() => selectConversation(chat)}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  backgroundColor: currentChatId === chat.id ? `${getModelColor(chat.model)}22` : 'transparent',
-                  border: currentChatId === chat.id ? `1px solid ${getModelColor(chat.model)}55` : '1px solid transparent',
-                  color: currentChatId === chat.id ? '#ffffff' : '#a1a1aa',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                  {getModelIcon(chat.model)}
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.title}</span>
-                </div>
-                <Trash2
-                  size={14}
-                  color="#52525b"
-                  onClick={(e) => deleteConversation(chat.id, e)}
-                />
+
+            {conversations.length === 0 ? (
+              <div style={{ padding: '16px 12px', textAlign: 'center', backgroundColor: '#07070a', border: '1px dashed rgba(255, 255, 255, 0.08)', borderRadius: '10px', marginTop: '4px' }}>
+                <MessageCircle size={20} color="#00D9FF" style={{ margin: '0 auto 8px', display: 'block', opacity: 0.8 }} />
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#d4d4d8', display: 'block', marginBottom: '4px' }}>
+                  Sin historial guardado
+                </span>
+                <span style={{ fontSize: '11px', color: '#71717a', lineHeight: '1.4', display: 'block' }}>
+                  Cada chat que inicies se guardará automáticamente aquí.
+                </span>
               </div>
-            ))}
+            ) : (
+              conversations.map((chat) => (
+                <div
+                  key={chat.id}
+                  onClick={() => selectConversation(chat)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    backgroundColor: currentChatId === chat.id ? `${getModelColor(chat.model)}22` : 'transparent',
+                    border: currentChatId === chat.id ? `1px solid ${getModelColor(chat.model)}55` : '1px solid transparent',
+                    color: currentChatId === chat.id ? '#ffffff' : '#a1a1aa',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                    {getModelIcon(chat.model)}
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.title}</span>
+                  </div>
+                  <Trash2
+                    size={14}
+                    color="#52525b"
+                    onClick={(e) => deleteConversation(chat.id, e)}
+                  />
+                </div>
+              ))
+            )}
           </div>
 
           <div style={{ paddingTop: '12px', borderTop: '1px solid #141418', fontSize: '11px', color: '#52525b', textAlign: 'center' }}>
