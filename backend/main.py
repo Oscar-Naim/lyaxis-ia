@@ -804,26 +804,32 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
 
     # --- 2. Primary Provider: NVIDIA NIM (OpenAI-compatible) ---
     if nvidia_keys:
+        # Mapeo especializado por dominio y máxima velocidad
         nvidia_model_map = {
-            "speed": "meta/llama-3.1-8b-instruct",
-            "cortex": "meta/llama-3.1-70b-instruct",
-            "architect": "meta/llama-3.1-70b-instruct",
-            "classic": "meta/llama-3.1-8b-instruct",
-            "phantom": "meta/llama-3.1-70b-instruct",
-            "nexus": "meta/llama-3.1-70b-instruct",
-            "forge": "meta/llama-3.1-70b-instruct",
-            "magister": "meta/llama-3.1-70b-instruct",
+            "speed": "meta/llama-3.1-8b-instruct",                   # Ultra-rápido (~0.3s) desarrollo ágil & chat instantáneo
+            "cortex": "meta/llama-3.1-70b-instruct",                  # Razonamiento profundo, algoritmos y sistemas distribuidos
+            "architect": "nvidia/llama-3.3-nemotron-super-49b-v1",   # Nemotron Super 49B: Ingeniería de prompts & pedagogía técnica
+            "classic": "meta/llama-3.1-8b-instruct",                  # Conversación cotidiana ágil y versátil
+            "phantom": "meta/llama-3.1-70b-instruct",                 # Deconstructor & auditor implacable de código y vulnerabilidades
+            "nexus": "meta/llama-3.2-11b-vision-instruct",            # Síntesis creativa transversal y conexiones multidominio
+            "forge": "nvidia/nemotron-3.5-lightning-30b-a3b",        # Nemotron Lightning 30B MoE: Constructor de MVPs y proyectos
+            "magister": "meta/llama-3.1-70b-instruct",                # Copiloto pedagógico senior, planeaciones SEP y rúbricas
         }
+
+        fallback_map = {
+            "speed": ["nvidia/nemotron-mini-4b-instruct", "meta/llama-3.2-11b-vision-instruct", "meta/llama-3.1-70b-instruct"],
+            "cortex": ["nvidia/llama-3.3-nemotron-super-49b-v1", "nvidia/nemotron-3.5-lightning-30b-a3b", "meta/llama-3.1-8b-instruct"],
+            "architect": ["meta/llama-3.1-70b-instruct", "nvidia/nemotron-3.5-lightning-30b-a3b", "meta/llama-3.1-8b-instruct"],
+            "classic": ["meta/llama-3.2-11b-vision-instruct", "nvidia/nemotron-mini-4b-instruct", "meta/llama-3.1-70b-instruct"],
+            "phantom": ["nvidia/llama-3.3-nemotron-super-49b-v1", "nvidia/nemotron-3.5-lightning-30b-a3b", "meta/llama-3.1-8b-instruct"],
+            "nexus": ["google/diffusiongemma-26b-a4b-it", "nvidia/llama-3.3-nemotron-super-49b-v1", "meta/llama-3.1-70b-instruct"],
+            "forge": ["meta/llama-3.1-70b-instruct", "nvidia/llama-3.3-nemotron-super-49b-v1", "meta/llama-3.1-8b-instruct"],
+            "magister": ["nvidia/llama-3.3-nemotron-super-49b-v1", "meta/llama-3.2-11b-vision-instruct", "meta/llama-3.1-8b-instruct"],
+        }
+
         primary_model = nvidia_model_map.get(model_key, "meta/llama-3.1-70b-instruct")
-        candidate_models = [
-            primary_model,
-            "meta/llama-3.1-70b-instruct",
-            "meta/llama-3.1-8b-instruct",
-            "meta/llama-3.2-11b-vision-instruct",
-            "meta/llama-3.2-3b-instruct",
-            "nvidia/llama-3.3-nemotron-super-49b-v1",
-            "nvidia/nemotron-mini-4b-instruct"
-        ]
+        fallbacks = fallback_map.get(model_key, ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct"])
+        candidate_models = [primary_model] + fallbacks + ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/nemotron-mini-4b-instruct"]
         # Preserve order while deduplicating
         models_to_try = list(dict.fromkeys(candidate_models))
 
