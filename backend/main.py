@@ -739,6 +739,14 @@ def _get_active_keys() -> List[str]:
         clean_keys.append(DEFAULT_ACCESS_KEY)
     return clean_keys
 
+GLOBAL_SPANISH_RULE = """
+<language_rule>
+OBLIGACIÓN ESTRICTA DE IDIOMA:
+Debes responder SIEMPRE y de forma OBLIGATORIA en IDIOMA ESPAÑOL (español neutro, claro, fluido y profesional). 
+Todas las secciones, títulos, explicaciones, desgloses, viñetas, nombres de pasos y comentarios de código deben redactarse 100% en español, a menos que el usuario solicite explícitamente en su mensaje que le respondas o traduzcas a otro idioma.
+</language_rule>
+"""
+
 async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "speed"):
     nvidia_keys = _get_active_keys()
 
@@ -756,7 +764,7 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         "forge": FORGE_SYSTEM_PROMPT,
         "magister": MAGISTER_SYSTEM_PROMPT,
     }
-    active_prompt = prompt_map.get(model_key, SYSTEM_PROMPT)
+    active_prompt = (prompt_map.get(model_key, SYSTEM_PROMPT)).strip() + "\n" + GLOBAL_SPANISH_RULE
 
     user_msg = messages[-1] if messages and messages[-1].role == "user" else None
     
