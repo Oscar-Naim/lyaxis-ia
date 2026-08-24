@@ -241,8 +241,20 @@ if db.use_postgres:
     except Exception as e:
         print(f"Postgres tables init: {e}")
 
-# --- Cached Gemini Client (avoids per-request import + instantiation) ---
+# --- Cached NVIDIA & GenAI Clients ---
+_nvidia_client = None
 _genai_client = None
+
+def _get_nvidia_client(api_key: Optional[str] = None):
+    global _nvidia_client
+    key = api_key or os.getenv("NVIDIA_API_KEY")
+    if key and "TuClaveAqui" not in key:
+        from openai import AsyncOpenAI
+        return AsyncOpenAI(
+            base_url="https://integrate.api.nvidia.com/v1",
+            api_key=key.strip()
+        )
+    return None
 
 def _get_genai_client():
     global _genai_client
@@ -731,15 +743,18 @@ def _get_genai_client_for_key(api_key: str):
         from google import genai
         return genai.Client(api_key=api_key)
     except Exception as e:
-        print(f"Error instanciando cliente para clave {api_key[:8]}: {e}")
+        print(f"Error instanciando cliente Gemini: {e}")
         return None
 
-async def generate_gemini_stream(conversation_id: Optional[str], user_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "speed"):
-    raw_keys = os.getenv("GEMINI_API_KEY", "")
-    api_keys = [k.strip() for k in raw_keys.split(",") if k.strip() and "TuClaveAqui" not in k]
+async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "speed"):
+    raw_nvidia_keys = os.getenv("NVIDIA_API_KEY", "")
+    nvidia_keys = [k.strip() for k in raw_nvidia_keys.split(",") if k.strip() and "TuClaveAqui" not in k]
+    
+    raw_gemini_keys = os.getenv("GEMINI_API_KEY", "")
+    gemini_keys = [k.strip() for k in raw_gemini_keys.split(",") if k.strip() and "TuClaveAqui" not in k]
 
-    if not api_keys:
-        yield f"data: {json.dumps({'token': '⚠️ Por favor configura tu GEMINI_API_KEY en las variables de entorno de Render.'})}\n\n"
+    if not nvidia_keys and not gemini_keys:
+        yield f"data: {json.dumps({'token': '⚠️ Por favor configura tu NVIDIA_API_KEY o GEMINI_API_KEY en las variables de entorno.'})}\n\n"
         return
 
     model_key = str(model_type or "speed").lower().strip()
@@ -756,7 +771,7 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
 
     user_msg = messages[-1] if messages and messages[-1].role == "user" else None
     
-    # 1. Persist user message (synchronous — SQLite writes are <1ms)
+    # 1. Persist user message to DB
     if conversation_id and user_msg:
         try:
             now = datetime.now(timezone.utc).isoformat()
@@ -784,84 +799,151 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
         except Exception as err_db:
             print(f"Aviso DB mensaje: {err_db}")
 
-    from google.genai import types
-    contents = []
-    for msg in messages:
-        if not msg.content or not msg.content.strip():
-            continue
-        if msg.content.startswith('⚠️') or msg.content.startswith('❌'):
-            continue
-        role = "user" if msg.role == "user" else "model"
-        contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg.content.strip())]))
-
-    if not contents and user_msg and user_msg.content:
-        contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_msg.content.strip())]))
-
     full_response_text = ""
-    # Official Gemini models
-    models_to_try = [
-        "gemini-3.7-flash",
-        "gemini-3.6-flash",
-        "gemini-3.5-flash",
-        "gemini-2.5-flash",
-        "gemini-flash-latest"
-    ]
     last_err = None
 
-    # Rotate through all available API keys in pool, and for each key try all models
-    for key_idx, current_key in enumerate(api_keys):
-        client = _get_genai_client_for_key(current_key)
-        if not client:
-            continue
+    # --- 2. Primary Provider: NVIDIA NIM (OpenAI-compatible) ---
+    if nvidia_keys:
+        nvidia_model_map = {
+            "speed": "meta/llama-3.1-8b-instruct",
+            "cortex": "meta/llama-3.1-70b-instruct",
+            "architect": "meta/llama-3.1-70b-instruct",
+            "classic": "meta/llama-3.1-8b-instruct",
+            "phantom": "meta/llama-3.1-70b-instruct",
+            "nexus": "meta/llama-3.1-70b-instruct",
+            "forge": "meta/llama-3.1-70b-instruct",
+            "magister": "meta/llama-3.1-70b-instruct",
+        }
+        primary_model = nvidia_model_map.get(model_key, "meta/llama-3.1-70b-instruct")
+        candidate_models = [
+            primary_model,
+            "meta/llama-3.1-70b-instruct",
+            "meta/llama-3.1-8b-instruct",
+            "meta/llama-3.2-11b-vision-instruct",
+            "meta/llama-3.2-3b-instruct",
+            "nvidia/llama-3.3-nemotron-super-49b-v1",
+            "nvidia/nemotron-mini-4b-instruct"
+        ]
+        # Preserve order while deduplicating
+        models_to_try = list(dict.fromkeys(candidate_models))
 
-        for model_name in models_to_try:
-            try:
-                response = await client.aio.models.generate_content_stream(
-                    model=model_name,
-                    contents=contents,
-                    config={
-                        "system_instruction": active_prompt,
-                        "temperature": temperature
-                    },
-                )
-
-                async for chunk in response:
-                    chunk_text = ""
-                    try:
-                        if hasattr(chunk, "text") and chunk.text is not None:
-                            chunk_text = str(chunk.text)
-                        elif hasattr(chunk, "candidates") and chunk.candidates:
-                            parts = chunk.candidates[0].content.parts
-                            chunk_text = "".join([str(p.text) for p in parts if hasattr(p, "text") and p.text is not None])
-                    except Exception:
-                        pass
-
-                    if chunk_text:
-                        full_response_text += chunk_text
-                        yield f"data: {json.dumps({'token': chunk_text})}\n\n"
-                
-                if full_response_text:
-                    last_err = None
-                    break
-
-            except Exception as err_model:
-                last_err = err_model
-                print(f"Clave #{key_idx + 1} con modelo {model_name} no disponible ({err_model}). Probando siguiente...")
+        # Format messages for OpenAI standard API
+        oai_messages = [{"role": "system", "content": active_prompt}]
+        for msg in messages:
+            if not msg.content or not msg.content.strip():
                 continue
+            if msg.content.startswith('⚠️') or msg.content.startswith('❌'):
+                continue
+            role = "assistant" if str(msg.role).lower() in ("model", "assistant") else "user"
+            oai_messages.append({"role": role, "content": msg.content.strip()})
 
-        if full_response_text:
-            break
+        if len(oai_messages) == 1 and user_msg and user_msg.content:
+            oai_messages.append({"role": "user", "content": user_msg.content.strip()})
 
+        from openai import AsyncOpenAI
+        for key_idx, current_key in enumerate(nvidia_keys):
+            client = AsyncOpenAI(
+                base_url="https://integrate.api.nvidia.com/v1",
+                api_key=current_key
+            )
+
+            for model_name in models_to_try:
+                try:
+                    stream = await client.chat.completions.create(
+                        model=model_name,
+                        messages=oai_messages,
+                        temperature=temperature,
+                        stream=True,
+                        timeout=45.0
+                    )
+
+                    try:
+                        async for chunk in stream:
+                            if chunk.choices and chunk.choices[0].delta.content:
+                                token = chunk.choices[0].delta.content
+                                full_response_text += token
+                                yield f"data: {json.dumps({'token': token})}\n\n"
+                    finally:
+                        try:
+                            await stream.close()
+                        except Exception:
+                            pass
+                        try:
+                            await client.close()
+                        except Exception:
+                            pass
+
+                    if full_response_text:
+                        last_err = None
+                        break
+                except Exception as err_m:
+                    last_err = err_m
+                    print(f"NVIDIA #{key_idx+1} ({model_name}) no disponible: {err_m}. Probando fallback...")
+                    continue
+
+            if full_response_text:
+                break
+
+    # --- 3. Secondary Provider Fallback: Gemini SDK ---
+    if not full_response_text and gemini_keys:
+        try:
+            from google.genai import types
+            contents = []
+            for msg in messages:
+                if not msg.content or not msg.content.strip():
+                    continue
+                if msg.content.startswith('⚠️') or msg.content.startswith('❌'):
+                    continue
+                role = "user" if msg.role == "user" else "model"
+                contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg.content.strip())]))
+
+            if not contents and user_msg and user_msg.content:
+                contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_msg.content.strip())]))
+
+            gemini_models = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest"]
+            for g_key in gemini_keys:
+                g_client = _get_genai_client_for_key(g_key)
+                if not g_client:
+                    continue
+                for g_model in gemini_models:
+                    try:
+                        response = await g_client.aio.models.generate_content_stream(
+                            model=g_model,
+                            contents=contents,
+                            config={"system_instruction": active_prompt, "temperature": temperature}
+                        )
+                        async for chunk in response:
+                            chunk_text = ""
+                            if hasattr(chunk, "text") and chunk.text is not None:
+                                chunk_text = str(chunk.text)
+                            elif hasattr(chunk, "candidates") and chunk.candidates:
+                                parts = chunk.candidates[0].content.parts
+                                chunk_text = "".join([str(p.text) for p in parts if hasattr(p, "text") and p.text is not None])
+                            if chunk_text:
+                                full_response_text += chunk_text
+                                yield f"data: {json.dumps({'token': chunk_text})}\n\n"
+                        if full_response_text:
+                            last_err = None
+                            break
+                    except Exception as g_err:
+                        last_err = g_err
+                        continue
+                if full_response_text:
+                    break
+        except Exception as e_gen:
+            print(f"Fallback Gemini error: {e_gen}")
+
+    # Handle final errors if generation yielded nothing
     if not full_response_text and last_err:
         err_msg = str(last_err)
         if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "QUOTA" in err_msg:
-            friendly_err = "⚠️ Límite de cuota alcanzado temporalmente en la API. Por favor espera 30 segundos e intentalo de nuevo."
+            friendly_err = "⚠️ Límite de cuota alcanzado temporalmente en el servicio de IA. Por favor espera unos segundos e inténtalo de nuevo."
         else:
             friendly_err = f"⚠️ Error del servicio de IA: {err_msg}"
         yield f"data: {json.dumps({'token': friendly_err})}\n\n"
         return
 
-    # Save response to DB (synchronous — reliable)
+    # Save final assistant response to DB
     if conversation_id and full_response_text:
         try:
             mid = str(uuid.uuid4())
@@ -872,7 +954,7 @@ async def generate_gemini_stream(conversation_id: Optional[str], user_id: Option
             )
             db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
         except Exception as err_db2:
-            print(f"Aviso guardando respuesta: {err_db2}")
+            print(f"Aviso guardando respuesta en DB: {err_db2}")
 
 @app.post("/api/v1/chat/stream")
 async def chat_stream_endpoint(request: Request):
@@ -913,7 +995,7 @@ async def chat_stream_endpoint(request: Request):
     if not messages:
         messages = [ChatMessage(role="user", content="Hola")]
 
-    generator = generate_gemini_stream(
+    generator = generate_ai_stream(
         conversation_id=conversation_id,
         user_id=user_id,
         messages=messages,
