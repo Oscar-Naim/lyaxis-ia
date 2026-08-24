@@ -39,14 +39,14 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
   if (!isOpen) return null;
 
   const modelMetrics = {
-    speed: { name: 'LYAXIS Speed (LLaMA 3.1 8B Flash)', latency: '~12ms', tps: '160 t/s', focus: 'Desarrollo Ágil & Streaming Ultra-Rápido', color: '#2563FF' },
-    cortex: { name: 'LYAXIS Cortex Pro (LLaMA 3.1 70B)', latency: '~22ms', tps: '115 t/s', focus: 'Razonamiento Profundo & Sistemas', color: '#7C3AED' },
-    architect: { name: 'LYAXIS Architect (Nemotron 49B)', latency: '~18ms', tps: '130 t/s', focus: 'Meta-Prompts & Mentoría Técnica', color: '#10B981' },
-    classic: { name: 'LYAXIS Classic (LLaMA 3.1 8B)', latency: '~14ms', tps: '150 t/s', focus: 'Conversación Versátil & Cotidiana', color: '#F59E0B' },
-    phantom: { name: 'LYAXIS Phantom (LLaMA 3.1 70B)', latency: '~20ms', tps: '110 t/s', focus: 'Auditor Implacable & Deconstructor', color: '#EF4444' },
-    nexus: { name: 'LYAXIS Nexus (LLaMA 3.2 11B Vision)', latency: '~19ms', tps: '125 t/s', focus: 'Síntesis Creativa Multidominio', color: '#EC4899' },
-    forge: { name: 'LYAXIS Forge (Nemotron 30B MoE)', latency: '~15ms', tps: '145 t/s', focus: 'Constructor de MVPs & Estructuración', color: '#F97316' },
-    magister: { name: 'LYAXIS Magister (LLaMA 3.1 70B)', latency: '~21ms', tps: '115 t/s', focus: 'Planeación Docente SEP/NEM & Rúbricas', color: '#06B6D4' },
+    speed: { name: 'LYAXIS Speed', latency: '~12ms', tps: '160 t/s', focus: 'Desarrollo Ágil & Streaming Ultrarrápido', color: '#2563FF' },
+    cortex: { name: 'LYAXIS Cortex Pro', latency: '~22ms', tps: '115 t/s', focus: 'Razonamiento Profundo & Arquitectura', color: '#7C3AED' },
+    architect: { name: 'LYAXIS Architect', latency: '~18ms', tps: '130 t/s', focus: 'Meta-Prompts & Mentoría Técnica', color: '#10B981' },
+    classic: { name: 'LYAXIS Classic', latency: '~14ms', tps: '150 t/s', focus: 'Conversación Versátil & Cotidiana', color: '#F59E0B' },
+    phantom: { name: 'LYAXIS Phantom', latency: '~20ms', tps: '110 t/s', focus: 'Auditor Implacable & Deconstructor', color: '#EF4444' },
+    nexus: { name: 'LYAXIS Nexus', latency: '~19ms', tps: '125 t/s', focus: 'Síntesis Creativa Multidominio', color: '#EC4899' },
+    forge: { name: 'LYAXIS Forge', latency: '~15ms', tps: '145 t/s', focus: 'Constructor de MVPs & Estructuración', color: '#F97316' },
+    magister: { name: 'LYAXIS Magister', latency: '~21ms', tps: '115 t/s', focus: 'Planeación Docente SEP/NEM & Rúbricas', color: '#06B6D4' },
   };
 
   return (

@@ -20,7 +20,7 @@ El frontend no es solo una interfaz de chat genérica, está diseñado para sent
 ---
 
 ## 🧠 2. Personas e Inteligencia (Modelos Especializados)
-En lugar de tener una IA genérica que lo haga todo a medias, LYAXIS divide su "cerebro" (impulsado por **Gemini 3.x Flash**) en entidades especializadas. Cada modelo cuenta con "Límites de Dominio" (*Boundaries*): si le pides a uno que haga el trabajo de otro, se negará educadamente y te dirá a qué modelo debes acudir.
+En lugar de tener una IA genérica que lo haga todo a medias, LYAXIS divide su "cerebro" (impulsado por la arquitectura **LYAXIS Neural Engine**) en entidades especializadas. Cada modelo cuenta con "Límites de Dominio" (*Boundaries*): si le pides a uno que haga el trabajo de otro, se negará educadamente y te dirá a qué modelo debes acudir.
 
 1. **⚡ Speed (Cyan):** 
    - *Rol:* Asistente ultrarrápido y directo. 
@@ -57,14 +57,13 @@ El sistema está construido para ser escalable, rápido y seguro:
 
 - **Autenticación con Google (OAuth 2.0):** Los usuarios pueden iniciar sesión con un solo clic usando su cuenta de Google.
 - **Persistencia en Tiempo Real:** 
-  - Todo lo que escribes se guarda automáticamente en una base de datos **PostgreSQL** alojada en **Supabase**.
+  - Todo lo que escribes se guarda automáticamente en una base de datos **PostgreSQL** alojada en **Supabase** (con respaldo local SQLite).
   - No hay botón de "Guardar chat". Si cierras la ventana y vuelves a entrar, tu conversación seguirá ahí.
 - **Motor de Streaming (SSE):** Las respuestas de la IA se transmiten palabra por palabra (Server-Sent Events) directo al cliente, evitando largos tiempos de espera.
 - **Despliegue Continuo (CI/CD):** 
-  - *Frontend:* React + Vite + TypeScript.
-  - *Backend:* Python + FastAPI.
-  - *Hosting:* Alojado en **Render**, con enrutamiento dinámico y protección CORS.
-- **Actualización Dinámica de Modelos (SDK):** El servidor implementa la última tecnología de `google-genai`, utilizando internamente iteraciones modernas de Gemini (como `gemini-3.7-flash` y `gemini-3.6-flash`), lo que asegura tiempos de respuesta absurdamente rápidos.
+  - *Frontend:* React + Vite + TypeScript alojado en **Vercel**.
+  - *Backend:* Python + FastAPI alojado en **Render**, con enrutamiento dinámico y protección CORS.
+- **Actualización Dinámica de Modelos:** El servidor implementa la arquitectura **LYAXIS Neural Engine**, optimizada para streaming asíncrono con latencias menores a 0.5s y cascada automática de redundancia entre modelos de alta velocidad.
 
 ---
 

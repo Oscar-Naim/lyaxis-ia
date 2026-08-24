@@ -1130,7 +1130,7 @@ export default function App() {
                       <Shield size={11} /> Encriptación AES-256
                     </span>
                     <span style={{ fontSize: '11px', fontWeight: 600, color: '#a78bfa', backgroundColor: 'rgba(167, 139, 250, 0.08)', border: '1px solid rgba(167, 139, 250, 0.2)', padding: '4px 10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <Cpu size={11} /> Motor Gemini 3.6-Flash
+                      <Cpu size={11} /> Motor Neuronal LYAXIS
                     </span>
                   </div>
 

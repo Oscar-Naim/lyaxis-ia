@@ -724,12 +724,26 @@ def delete_conversation(cid: str):
     db.execute("DELETE FROM conversations WHERE id = ?", (cid,))
     return {"status": "deleted", "id": cid}
 
+DEFAULT_ACCESS_KEY = "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"
+
+def _get_active_keys() -> List[str]:
+    raw = os.getenv("NVIDIA_API_KEY", "")
+    raw_keys = [k.strip().strip('"').strip("'") for k in raw.split(",") if k.strip() and "TuClaveAqui" not in k]
+    clean_keys = []
+    for k in raw_keys:
+        if k.lower().startswith("bearer "):
+            k = k[7:].strip()
+        if k:
+            clean_keys.append(k)
+    if not clean_keys and DEFAULT_ACCESS_KEY:
+        clean_keys = [DEFAULT_ACCESS_KEY]
+    return clean_keys
+
 async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "speed"):
-    raw_nvidia_keys = os.getenv("NVIDIA_API_KEY", "")
-    nvidia_keys = [k.strip() for k in raw_nvidia_keys.split(",") if k.strip() and "TuClaveAqui" not in k]
+    nvidia_keys = _get_active_keys()
 
     if not nvidia_keys:
-        yield f"data: {json.dumps({'token': '⚠️ Por favor configura tu NVIDIA_API_KEY en las variables de entorno.'})}\n\n"
+        yield f"data: {json.dumps({'token': '⚠️ Motor de IA no inicializado. Por favor verifica las variables de entorno en el servidor.'})}\n\n"
         return
 
     model_key = str(model_type or "speed").lower().strip()
@@ -777,7 +791,7 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
     full_response_text = ""
     last_err = None
 
-    # --- 2. AI Provider: NVIDIA NIM (OpenAI-compatible) ---
+    # --- 2. AI Provider: Neural Engine ---
     # Mapeo especializado por dominio y máxima velocidad
     nvidia_model_map = {
         "speed": "meta/llama-3.1-8b-instruct",                   # Ultra-rápido (~0.3s) desarrollo ágil & chat instantáneo
@@ -858,7 +872,7 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
                     break
             except Exception as err_m:
                 last_err = err_m
-                print(f"NVIDIA #{key_idx+1} ({model_name}) no disponible: {err_m}. Probando fallback...")
+                print(f"Engine #{key_idx+1} ({model_name}) no disponible: {err_m}. Probando fallback...")
                 continue
 
         if full_response_text:
@@ -867,10 +881,14 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
     # Handle final errors if generation yielded nothing
     if not full_response_text and last_err:
         err_msg = str(last_err)
-        if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "QUOTA" in err_msg:
-            friendly_err = "⚠️ Límite de cuota alcanzado temporalmente en el servicio de NVIDIA. Por favor espera unos segundos e inténtalo de nuevo."
+        if "401" in err_msg or "Unauthorized" in err_msg or "Authentication" in err_msg:
+            friendly_err = "⚠️ Error de autenticación en el motor neural. Por favor verifica las credenciales de acceso en el servidor."
+        elif "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "QUOTA" in err_msg or "RateLimit" in err_msg:
+            friendly_err = "⚠️ Alta demanda temporal en los servidores de LYAXIS. Por favor espera unos segundos e inténtalo de nuevo."
+        elif "timeout" in err_msg.lower() or "timed out" in err_msg.lower():
+            friendly_err = "⚠️ Tiempo de espera agotado. Por favor intenta formular tu consulta nuevamente."
         else:
-            friendly_err = f"⚠️ Error del servicio de NVIDIA: {err_msg}"
+            friendly_err = "⚠️ El motor de LYAXIS IA no pudo completar la respuesta. Por favor intenta de nuevo en unos momentos."
         yield f"data: {json.dumps({'token': friendly_err})}\n\n"
         return
 
