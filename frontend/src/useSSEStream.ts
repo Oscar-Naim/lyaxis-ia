@@ -61,7 +61,7 @@ export function useSSEStream({ onDone, onError }: UseSSEStreamOptions = {}) {
         }
 
         const tempMap: Record<string, number> = {
-          cortex: 0.3, phantom: 0.4, architect: 0.5, forge: 0.6, speed: 0.7, classic: 0.8, nexus: 0.9
+          root: 0.2, cortex: 0.3, phantom: 0.4, architect: 0.5, magister: 0.5, forge: 0.6, speed: 0.7, classic: 0.8, nexus: 0.9
         };
 
         const payload = {

@@ -4,8 +4,8 @@ import { X, Activity, Cpu, ShieldCheck, Zap, Radio, BarChart3, Sliders, RefreshC
 interface FuturisticDashboardModalProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedModel: 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister';
-  onSelectModel: (m: 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister') => void;
+  selectedModel: 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'root';
+  onSelectModel: (m: 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'root') => void;
   soundEnabled: boolean;
   onToggleSound: () => void;
   messageCount: number;
@@ -47,6 +47,7 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
     nexus: { name: 'LYAXIS Nexus', latency: '~19ms', tps: '125 t/s', focus: 'Síntesis Creativa Multidominio', color: '#EC4899' },
     forge: { name: 'LYAXIS Forge', latency: '~15ms', tps: '145 t/s', focus: 'Constructor de MVPs & Estructuración', color: '#F97316' },
     magister: { name: 'LYAXIS Magister', latency: '~21ms', tps: '115 t/s', focus: 'Planeación Docente SEP/NEM & Rúbricas', color: '#06B6D4' },
+    root: { name: 'LYAXIS Root Raw', latency: '~13ms', tps: '150 t/s', focus: 'Bajo Nivel, Pentesting & Código Raw', color: '#00FF66' },
   };
 
   return (
@@ -323,7 +324,7 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
           {activeTab === 'engine' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <span style={{ fontSize: '12px', color: '#a1a1aa', fontWeight: 600 }}>SELECCIONAR MOTOR DE RAZONAMIENTO ACTIVADO</span>
-              {(['speed', 'cortex', 'architect', 'classic', 'phantom', 'nexus', 'forge', 'magister'] as const).map((m) => {
+              {(['speed', 'cortex', 'architect', 'classic', 'phantom', 'nexus', 'forge', 'magister', 'root'] as const).map((m) => {
                 const isCurrent = selectedModel === m;
                 const info = modelMetrics[m];
                 const color = info.color;

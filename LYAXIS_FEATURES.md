@@ -49,6 +49,9 @@ En lugar de tener una IA genérica que lo haga todo a medias, LYAXIS divide su "
 9. **🎨 Canvas (Violeta Eléctrico):** 
    - *Rol:* Diseñador visual de presentaciones y Slide Decks.
    - *Uso:* Transforma temas complejos en láminas e infografías interactivas 16:9 estilo Canva, con visor de diapositivas en vivo (navegación ◀ ▶, modo pantalla completa, notas del orador y exportación descargable a PDF).
+10. **🔓 Root (Verde Neón Cyber #00FF66):** 
+    - *Rol:* Motor de ejecución técnica sin censura, programación a bajo nivel y ciberseguridad ofensiva.
+    - *Uso:* Ingeniería inversa, análisis de binarios y desensamblado, PoCs funcionales de vulnerabilidades, manipulación de memoria y kernel, sockets de red raw, pentesting y programación pura sin filtros morales corporativos ni respuestas evasivas.
 
 ---
 

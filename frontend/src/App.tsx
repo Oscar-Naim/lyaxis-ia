@@ -7,9 +7,9 @@ import { exportChatToPDF } from './pdfExporter';
 import { InstallPwaPrompt } from './InstallPwaPrompt';
 import { SlideDeckViewer } from './SlideDeckViewer';
 
-type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister';
+type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'root';
 
-const ALL_MODELS: ModelType[] = ['speed', 'cortex', 'architect', 'classic', 'phantom', 'nexus', 'forge', 'magister'];
+const ALL_MODELS: ModelType[] = ['speed', 'cortex', 'architect', 'classic', 'phantom', 'nexus', 'forge', 'magister', 'root'];
 
 const MODEL_META: Record<ModelType, { label: string; color: string; description: string }> = {
   speed: { label: 'Speed', color: '#2563FF', description: 'Asistente de desarrollo ágil y streaming ultrarrápido de LYAXIS labs.' },
@@ -20,6 +20,7 @@ const MODEL_META: Record<ModelType, { label: string; color: string; description:
   nexus: { label: 'Nexus', color: '#EC4899', description: 'Sintetizador creativo. Conecta ideas de dominios imposibles.' },
   forge: { label: 'Forge', color: '#F97316', description: 'Constructor práctico. Convierte ideas vagas en proyectos reales y concretos.' },
   magister: { label: 'Magister', color: '#06B6D4', description: 'Copiloto pedagógico y arquitecto de planeaciones docente SEP para todos los niveles.' },
+  root: { label: 'Root', color: '#00FF66', description: 'Motor de ejecución técnica raw, bajo nivel, exploits/PoCs y ciberseguridad sin censura.' },
 };
 
 const MODEL_PROMPTS: Record<ModelType, { icon: React.ReactNode; bg: string; border: string; text: string }[]> = {
@@ -70,6 +71,12 @@ const MODEL_PROMPTS: Record<ModelType, { icon: React.ReactNode; bg: string; bord
     { icon: <BookOpen size={16} color="#22d3ee" />, bg: 'rgba(34, 211, 238, 0.12)', border: 'rgba(34, 211, 238, 0.25)', text: 'Diseña un proyecto STEAM de Indagación para Secundaria sobre Energías Renovables' },
     { icon: <Sparkles size={16} color="#06B6D4" />, bg: 'rgba(6, 182, 212, 0.12)', border: 'rgba(6, 182, 212, 0.25)', text: 'Genera una rúbrica analítica de evaluación formativa para Preescolar en expresión artística' },
     { icon: <Compass size={16} color="#67e8f9" />, bg: 'rgba(103, 232, 249, 0.12)', border: 'rgba(103, 232, 249, 0.25)', text: 'Estructura una secuencia didáctica de 5 sesiones de historia para Preparatoria' },
+  ],
+  root: [
+    { icon: <Terminal size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Crea un script en Python para fuzzing asíncrono de APIs y detección de leaks' },
+    { icon: <Shield size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Implementa un hook de funciones en memoria en C++ para análisis de llamadas de sistema' },
+    { icon: <Code2 size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Diseña un PoC de inyección SQL con bypass de WAF y su sanitización en backend' },
+    { icon: <Zap size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Escribe un sniffer de paquetes de red raw sockets con análisis de cabeceras TCP' },
   ],
 };
 import type { Message, Conversation, User } from './types';
@@ -579,6 +586,7 @@ export default function App() {
     nexus: (s) => <Waypoints size={s} color="#EC4899" />,
     forge: (s) => <Hammer size={s} color="#F97316" />,
     magister: (s) => <GraduationCap size={s} color="#06B6D4" />,
+    root: (s) => <Terminal size={s} color="#00FF66" />,
   };
 
   const getModelIcon = (modelKey: ModelType) => MODEL_ICONS[modelKey]?.(14) || <Sparkles size={14} color="#2563FF" />;

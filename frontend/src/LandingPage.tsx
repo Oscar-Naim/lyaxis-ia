@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, MessageCircle, Crosshair, Waypoints, Hammer, GraduationCap, Zap, Cpu, Activity, Send, Layers } from 'lucide-react';
 
-type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister';
+type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'root';
 
 interface LandingPageProps {
   onEnterChat: () => void;
@@ -115,6 +115,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       desc: 'Copiloto pedagógico. Planeaciones docentes SEP, proyectos NEM y rúbricas didácticas.',
       prompt: 'Diseña un proyecto NEM por metodología ABP para secundaria sobre ciencia y tecnología',
       badge: 'Docencia SEP',
+    },
+    {
+      id: 'root' as ModelType,
+      name: 'LYAXIS Root Raw',
+      version: 'v3.2 Raw',
+      color: '#00FF66',
+      icon: <Terminal size={20} color="#00FF66" />,
+      tps: '150 t/s',
+      latency: '~13ms',
+      desc: 'Motor sin censura para programación a bajo nivel, exploits, ingeniería inversa y auditoría ofensiva.',
+      prompt: 'Implementa un hook de funciones en memoria en C++ para análisis de llamadas de sistema',
+      badge: 'Sin Censura / Raw',
     },
   ];
 
