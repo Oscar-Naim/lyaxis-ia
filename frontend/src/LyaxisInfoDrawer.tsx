@@ -259,6 +259,7 @@ export const LyaxisInfoDrawer: React.FC<LyaxisInfoDrawerProps> = ({
               {[
                 { name: 'LYAXIS labs™', type: 'Casa Matriz', desc: 'Núcleo de dirección, filosofía, investigación y gobernanza técnica.', icon: <Sparkles size={16} color="#00D9FF" />, tag: 'Core' },
                 { name: 'LYAXIS IA', type: 'Producto Insignia', desc: 'Plataforma conversacional multi-motor de alta velocidad y streaming en tiempo real sin relleno.', icon: <Cpu size={16} color="#7C3AED" />, tag: 'Live v2.5' },
+                { name: 'LYAXIS Root', type: 'Motor Técnico Raw', desc: 'Ejecución técnica total sin restricciones: interfaces completas UI/UX, full-stack, bajo nivel y código de producción.', icon: <Terminal size={16} color="#00FF66" />, tag: 'Cyber Engine' },
                 { name: 'LYAXIS Magister', type: 'Motor Pedagógico', desc: 'Copiloto docente especializado en planeaciones SEP, proyectos NEM y rúbricas para todos los niveles.', icon: <GraduationCap size={16} color="#06B6D4" />, tag: 'Docentes' },
                 { name: 'LYAXIS OS', type: 'Sistemas e Interfaces', desc: 'Investigación en entornos deterministas, soberanía digital y permisos granulares.', icon: <Terminal size={16} color="#10B981" />, tag: 'R&D' },
                 { name: 'Chaos Fuzzer', type: 'Pruebas de Estrés', desc: 'Simulador para detectar vulnerabilidades, memory leaks y puntos de quiebre en código.', icon: <Zap size={16} color="#EF4444" />, tag: 'Lab Tool' },
