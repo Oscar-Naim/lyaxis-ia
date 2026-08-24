@@ -241,9 +241,8 @@ if db.use_postgres:
     except Exception as e:
         print(f"Postgres tables init: {e}")
 
-# --- Cached NVIDIA & GenAI Clients ---
+# --- Cached NVIDIA Client ---
 _nvidia_client = None
-_genai_client = None
 
 def _get_nvidia_client(api_key: Optional[str] = None):
     global _nvidia_client
@@ -255,19 +254,6 @@ def _get_nvidia_client(api_key: Optional[str] = None):
             api_key=key.strip()
         )
     return None
-
-def _get_genai_client():
-    global _genai_client
-    if _genai_client is None:
-        try:
-            from google import genai
-            api_key = os.getenv("GEMINI_API_KEY")
-            if api_key and "TuClaveAqui" not in api_key:
-                _genai_client = genai.Client(api_key=api_key)
-                print("Gemini client cached successfully.")
-        except Exception as e:
-            print(f"Error initializing Gemini client: {e}")
-    return _genai_client
 
 otp_storage = {}
 
@@ -738,23 +724,12 @@ def delete_conversation(cid: str):
     db.execute("DELETE FROM conversations WHERE id = ?", (cid,))
     return {"status": "deleted", "id": cid}
 
-def _get_genai_client_for_key(api_key: str):
-    try:
-        from google import genai
-        return genai.Client(api_key=api_key)
-    except Exception as e:
-        print(f"Error instanciando cliente Gemini: {e}")
-        return None
-
 async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "speed"):
     raw_nvidia_keys = os.getenv("NVIDIA_API_KEY", "")
     nvidia_keys = [k.strip() for k in raw_nvidia_keys.split(",") if k.strip() and "TuClaveAqui" not in k]
-    
-    raw_gemini_keys = os.getenv("GEMINI_API_KEY", "")
-    gemini_keys = [k.strip() for k in raw_gemini_keys.split(",") if k.strip() and "TuClaveAqui" not in k]
 
-    if not nvidia_keys and not gemini_keys:
-        yield f"data: {json.dumps({'token': '⚠️ Por favor configura tu NVIDIA_API_KEY o GEMINI_API_KEY en las variables de entorno.'})}\n\n"
+    if not nvidia_keys:
+        yield f"data: {json.dumps({'token': '⚠️ Por favor configura tu NVIDIA_API_KEY en las variables de entorno.'})}\n\n"
         return
 
     model_key = str(model_type or "speed").lower().strip()
@@ -802,150 +777,100 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
     full_response_text = ""
     last_err = None
 
-    # --- 2. Primary Provider: NVIDIA NIM (OpenAI-compatible) ---
-    if nvidia_keys:
-        # Mapeo especializado por dominio y máxima velocidad
-        nvidia_model_map = {
-            "speed": "meta/llama-3.1-8b-instruct",                   # Ultra-rápido (~0.3s) desarrollo ágil & chat instantáneo
-            "cortex": "meta/llama-3.1-70b-instruct",                  # Razonamiento profundo, algoritmos y sistemas distribuidos
-            "architect": "nvidia/llama-3.3-nemotron-super-49b-v1",   # Nemotron Super 49B: Ingeniería de prompts & pedagogía técnica
-            "classic": "meta/llama-3.1-8b-instruct",                  # Conversación cotidiana ágil y versátil
-            "phantom": "meta/llama-3.1-70b-instruct",                 # Deconstructor & auditor implacable de código y vulnerabilidades
-            "nexus": "meta/llama-3.2-11b-vision-instruct",            # Síntesis creativa transversal y conexiones multidominio
-            "forge": "nvidia/nemotron-3.5-lightning-30b-a3b",        # Nemotron Lightning 30B MoE: Constructor de MVPs y proyectos
-            "magister": "meta/llama-3.1-70b-instruct",                # Copiloto pedagógico senior, planeaciones SEP y rúbricas
-        }
+    # --- 2. AI Provider: NVIDIA NIM (OpenAI-compatible) ---
+    # Mapeo especializado por dominio y máxima velocidad
+    nvidia_model_map = {
+        "speed": "meta/llama-3.1-8b-instruct",                   # Ultra-rápido (~0.3s) desarrollo ágil & chat instantáneo
+        "cortex": "meta/llama-3.1-70b-instruct",                  # Razonamiento profundo, algoritmos y sistemas distribuidos
+        "architect": "nvidia/llama-3.3-nemotron-super-49b-v1",   # Nemotron Super 49B: Ingeniería de prompts & pedagogía técnica
+        "classic": "meta/llama-3.1-8b-instruct",                  # Conversación cotidiana ágil y versátil
+        "phantom": "meta/llama-3.1-70b-instruct",                 # Deconstructor & auditor implacable de código y vulnerabilidades
+        "nexus": "meta/llama-3.2-11b-vision-instruct",            # Síntesis creativa transversal y conexiones multidominio
+        "forge": "nvidia/nemotron-3.5-lightning-30b-a3b",        # Nemotron Lightning 30B MoE: Constructor de MVPs y proyectos
+        "magister": "meta/llama-3.1-70b-instruct",                # Copiloto pedagógico senior, planeaciones SEP y rúbricas
+    }
 
-        fallback_map = {
-            "speed": ["nvidia/nemotron-mini-4b-instruct", "meta/llama-3.2-11b-vision-instruct", "meta/llama-3.1-70b-instruct"],
-            "cortex": ["nvidia/llama-3.3-nemotron-super-49b-v1", "nvidia/nemotron-3.5-lightning-30b-a3b", "meta/llama-3.1-8b-instruct"],
-            "architect": ["meta/llama-3.1-70b-instruct", "nvidia/nemotron-3.5-lightning-30b-a3b", "meta/llama-3.1-8b-instruct"],
-            "classic": ["meta/llama-3.2-11b-vision-instruct", "nvidia/nemotron-mini-4b-instruct", "meta/llama-3.1-70b-instruct"],
-            "phantom": ["nvidia/llama-3.3-nemotron-super-49b-v1", "nvidia/nemotron-3.5-lightning-30b-a3b", "meta/llama-3.1-8b-instruct"],
-            "nexus": ["google/diffusiongemma-26b-a4b-it", "nvidia/llama-3.3-nemotron-super-49b-v1", "meta/llama-3.1-70b-instruct"],
-            "forge": ["meta/llama-3.1-70b-instruct", "nvidia/llama-3.3-nemotron-super-49b-v1", "meta/llama-3.1-8b-instruct"],
-            "magister": ["nvidia/llama-3.3-nemotron-super-49b-v1", "meta/llama-3.2-11b-vision-instruct", "meta/llama-3.1-8b-instruct"],
-        }
+    fallback_map = {
+        "speed": ["nvidia/nemotron-mini-4b-instruct", "meta/llama-3.2-11b-vision-instruct", "meta/llama-3.1-70b-instruct"],
+        "cortex": ["nvidia/llama-3.3-nemotron-super-49b-v1", "nvidia/nemotron-3.5-lightning-30b-a3b", "meta/llama-3.1-8b-instruct"],
+        "architect": ["meta/llama-3.1-70b-instruct", "nvidia/nemotron-3.5-lightning-30b-a3b", "meta/llama-3.1-8b-instruct"],
+        "classic": ["meta/llama-3.2-11b-vision-instruct", "nvidia/nemotron-mini-4b-instruct", "meta/llama-3.1-70b-instruct"],
+        "phantom": ["nvidia/llama-3.3-nemotron-super-49b-v1", "nvidia/nemotron-3.5-lightning-30b-a3b", "meta/llama-3.1-8b-instruct"],
+        "nexus": ["google/diffusiongemma-26b-a4b-it", "nvidia/llama-3.3-nemotron-super-49b-v1", "meta/llama-3.1-70b-instruct"],
+        "forge": ["meta/llama-3.1-70b-instruct", "nvidia/llama-3.3-nemotron-super-49b-v1", "meta/llama-3.1-8b-instruct"],
+        "magister": ["nvidia/llama-3.3-nemotron-super-49b-v1", "meta/llama-3.2-11b-vision-instruct", "meta/llama-3.1-8b-instruct"],
+    }
 
-        primary_model = nvidia_model_map.get(model_key, "meta/llama-3.1-70b-instruct")
-        fallbacks = fallback_map.get(model_key, ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct"])
-        candidate_models = [primary_model] + fallbacks + ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/nemotron-mini-4b-instruct"]
-        # Preserve order while deduplicating
-        models_to_try = list(dict.fromkeys(candidate_models))
+    primary_model = nvidia_model_map.get(model_key, "meta/llama-3.1-70b-instruct")
+    fallbacks = fallback_map.get(model_key, ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct"])
+    candidate_models = [primary_model] + fallbacks + ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/nemotron-mini-4b-instruct"]
+    # Preserve order while deduplicating
+    models_to_try = list(dict.fromkeys(candidate_models))
 
-        # Format messages for OpenAI standard API
-        oai_messages = [{"role": "system", "content": active_prompt}]
-        for msg in messages:
-            if not msg.content or not msg.content.strip():
-                continue
-            if msg.content.startswith('⚠️') or msg.content.startswith('❌'):
-                continue
-            role = "assistant" if str(msg.role).lower() in ("model", "assistant") else "user"
-            oai_messages.append({"role": role, "content": msg.content.strip()})
+    # Format messages for OpenAI standard API
+    oai_messages = [{"role": "system", "content": active_prompt}]
+    for msg in messages:
+        if not msg.content or not msg.content.strip():
+            continue
+        if msg.content.startswith('⚠️') or msg.content.startswith('❌'):
+            continue
+        role = "assistant" if str(msg.role).lower() in ("model", "assistant") else "user"
+        oai_messages.append({"role": role, "content": msg.content.strip()})
 
-        if len(oai_messages) == 1 and user_msg and user_msg.content:
-            oai_messages.append({"role": "user", "content": user_msg.content.strip()})
+    if len(oai_messages) == 1 and user_msg and user_msg.content:
+        oai_messages.append({"role": "user", "content": user_msg.content.strip()})
 
-        from openai import AsyncOpenAI
-        for key_idx, current_key in enumerate(nvidia_keys):
-            client = AsyncOpenAI(
-                base_url="https://integrate.api.nvidia.com/v1",
-                api_key=current_key
-            )
+    from openai import AsyncOpenAI
+    for key_idx, current_key in enumerate(nvidia_keys):
+        client = AsyncOpenAI(
+            base_url="https://integrate.api.nvidia.com/v1",
+            api_key=current_key
+        )
 
-            for model_name in models_to_try:
+        for model_name in models_to_try:
+            try:
+                stream = await client.chat.completions.create(
+                    model=model_name,
+                    messages=oai_messages,
+                    temperature=temperature,
+                    stream=True,
+                    timeout=45.0
+                )
+
                 try:
-                    stream = await client.chat.completions.create(
-                        model=model_name,
-                        messages=oai_messages,
-                        temperature=temperature,
-                        stream=True,
-                        timeout=45.0
-                    )
-
+                    async for chunk in stream:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            token = chunk.choices[0].delta.content
+                            full_response_text += token
+                            yield f"data: {json.dumps({'token': token})}\n\n"
+                finally:
                     try:
-                        async for chunk in stream:
-                            if chunk.choices and chunk.choices[0].delta.content:
-                                token = chunk.choices[0].delta.content
-                                full_response_text += token
-                                yield f"data: {json.dumps({'token': token})}\n\n"
-                    finally:
-                        try:
-                            await stream.close()
-                        except Exception:
-                            pass
-                        try:
-                            await client.close()
-                        except Exception:
-                            pass
-
-                    if full_response_text:
-                        last_err = None
-                        break
-                except Exception as err_m:
-                    last_err = err_m
-                    print(f"NVIDIA #{key_idx+1} ({model_name}) no disponible: {err_m}. Probando fallback...")
-                    continue
-
-            if full_response_text:
-                break
-
-    # --- 3. Secondary Provider Fallback: Gemini SDK ---
-    if not full_response_text and gemini_keys:
-        try:
-            from google.genai import types
-            contents = []
-            for msg in messages:
-                if not msg.content or not msg.content.strip():
-                    continue
-                if msg.content.startswith('⚠️') or msg.content.startswith('❌'):
-                    continue
-                role = "user" if msg.role == "user" else "model"
-                contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg.content.strip())]))
-
-            if not contents and user_msg and user_msg.content:
-                contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_msg.content.strip())]))
-
-            gemini_models = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest"]
-            for g_key in gemini_keys:
-                g_client = _get_genai_client_for_key(g_key)
-                if not g_client:
-                    continue
-                for g_model in gemini_models:
+                        await stream.close()
+                    except Exception:
+                        pass
                     try:
-                        response = await g_client.aio.models.generate_content_stream(
-                            model=g_model,
-                            contents=contents,
-                            config={"system_instruction": active_prompt, "temperature": temperature}
-                        )
-                        async for chunk in response:
-                            chunk_text = ""
-                            if hasattr(chunk, "text") and chunk.text is not None:
-                                chunk_text = str(chunk.text)
-                            elif hasattr(chunk, "candidates") and chunk.candidates:
-                                parts = chunk.candidates[0].content.parts
-                                chunk_text = "".join([str(p.text) for p in parts if hasattr(p, "text") and p.text is not None])
-                            if chunk_text:
-                                full_response_text += chunk_text
-                                yield f"data: {json.dumps({'token': chunk_text})}\n\n"
-                        if full_response_text:
-                            last_err = None
-                            break
-                    except Exception as g_err:
-                        last_err = g_err
-                        continue
+                        await client.close()
+                    except Exception:
+                        pass
+
                 if full_response_text:
+                    last_err = None
                     break
-        except Exception as e_gen:
-            print(f"Fallback Gemini error: {e_gen}")
+            except Exception as err_m:
+                last_err = err_m
+                print(f"NVIDIA #{key_idx+1} ({model_name}) no disponible: {err_m}. Probando fallback...")
+                continue
+
+        if full_response_text:
+            break
 
     # Handle final errors if generation yielded nothing
     if not full_response_text and last_err:
         err_msg = str(last_err)
         if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "QUOTA" in err_msg:
-            friendly_err = "⚠️ Límite de cuota alcanzado temporalmente en el servicio de IA. Por favor espera unos segundos e inténtalo de nuevo."
+            friendly_err = "⚠️ Límite de cuota alcanzado temporalmente en el servicio de NVIDIA. Por favor espera unos segundos e inténtalo de nuevo."
         else:
-            friendly_err = f"⚠️ Error del servicio de IA: {err_msg}"
+            friendly_err = f"⚠️ Error del servicio de NVIDIA: {err_msg}"
         yield f"data: {json.dumps({'token': friendly_err})}\n\n"
         return
 
