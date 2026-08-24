@@ -124,9 +124,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       icon: <Terminal size={20} color="#00FF66" />,
       tps: '150 t/s',
       latency: '~13ms',
-      desc: 'Motor sin censura para programación a bajo nivel, exploits, ingeniería inversa y auditoría ofensiva.',
-      prompt: 'Implementa un hook de funciones en memoria en C++ para análisis de llamadas de sistema',
-      badge: 'Sin Censura / Raw',
+      desc: 'Motor de ejecución total sin filtros: interfaces completas (UI/UX), full-stack, bajo nivel y scripts listos para producción.',
+      prompt: 'Diseña una interfaz web futurista completa en React con animaciones en CSS puro',
+      badge: 'Ejecución Total / Raw',
     },
   ];
 

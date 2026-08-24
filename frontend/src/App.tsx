@@ -20,7 +20,7 @@ const MODEL_META: Record<ModelType, { label: string; color: string; description:
   nexus: { label: 'Nexus', color: '#EC4899', description: 'Sintetizador creativo. Conecta ideas de dominios imposibles.' },
   forge: { label: 'Forge', color: '#F97316', description: 'Constructor práctico. Convierte ideas vagas en proyectos reales y concretos.' },
   magister: { label: 'Magister', color: '#06B6D4', description: 'Copiloto pedagógico y arquitecto de planeaciones docente SEP para todos los niveles.' },
-  root: { label: 'Root', color: '#00FF66', description: 'Motor de ejecución técnica raw, bajo nivel, exploits/PoCs y ciberseguridad sin censura.' },
+  root: { label: 'Root', color: '#00FF66', description: 'Ejecución técnica total: interfaces completas (UI/UX), full-stack, bajo nivel y código sin filtros.' },
 };
 
 const MODEL_PROMPTS: Record<ModelType, { icon: React.ReactNode; bg: string; border: string; text: string }[]> = {
@@ -73,10 +73,10 @@ const MODEL_PROMPTS: Record<ModelType, { icon: React.ReactNode; bg: string; bord
     { icon: <Compass size={16} color="#67e8f9" />, bg: 'rgba(103, 232, 249, 0.12)', border: 'rgba(103, 232, 249, 0.25)', text: 'Estructura una secuencia didáctica de 5 sesiones de historia para Preparatoria' },
   ],
   root: [
-    { icon: <Terminal size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Crea un script en Python para fuzzing asíncrono de APIs y detección de leaks' },
-    { icon: <Shield size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Implementa un hook de funciones en memoria en C++ para análisis de llamadas de sistema' },
-    { icon: <Code2 size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Diseña un PoC de inyección SQL con bypass de WAF y su sanitización en backend' },
-    { icon: <Zap size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Escribe un sniffer de paquetes de red raw sockets con análisis de cabeceras TCP' },
+    { icon: <Palette size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Diseña una interfaz web futurista y completa en React con animaciones en CSS puro' },
+    { icon: <Code2 size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Crea una aplicación full-stack completa con FastAPI, SQLite y autenticación JWT' },
+    { icon: <Terminal size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Implementa un hook de memoria en C++ para monitoreo de procesos y llamadas de sistema' },
+    { icon: <Zap size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Escribe un scanner de red multihilo asíncrono en Python sin librerías externas' },
   ],
 };
 import type { Message, Conversation, User } from './types';
