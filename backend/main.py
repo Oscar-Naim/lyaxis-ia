@@ -733,10 +733,10 @@ def _get_active_keys() -> List[str]:
     for k in raw_keys:
         if k.lower().startswith("bearer "):
             k = k[7:].strip()
-        if k:
+        if k and k not in clean_keys:
             clean_keys.append(k)
-    if not clean_keys and DEFAULT_ACCESS_KEY:
-        clean_keys = [DEFAULT_ACCESS_KEY]
+    if DEFAULT_ACCESS_KEY not in clean_keys:
+        clean_keys.append(DEFAULT_ACCESS_KEY)
     return clean_keys
 
 async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "speed"):
@@ -840,15 +840,18 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
             base_url="https://integrate.api.nvidia.com/v1",
             api_key=current_key
         )
+        key_invalid = False
 
         for model_name in models_to_try:
+            if key_invalid:
+                break
             try:
                 stream = await client.chat.completions.create(
                     model=model_name,
                     messages=oai_messages,
                     temperature=temperature,
                     stream=True,
-                    timeout=45.0
+                    timeout=35.0
                 )
 
                 try:
@@ -872,6 +875,11 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
                     break
             except Exception as err_m:
                 last_err = err_m
+                err_str = str(err_m)
+                if "401" in err_str or "Unauthorized" in err_str or "Authentication" in err_str:
+                    print(f"Key #{key_idx+1} no autorizada (401). Saltando a siguiente clave...")
+                    key_invalid = True
+                    break
                 print(f"Engine #{key_idx+1} ({model_name}) no disponible: {err_m}. Probando fallback...")
                 continue
 
