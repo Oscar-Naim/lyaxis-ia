@@ -16,6 +16,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
 load_dotenv()
+import openai
 
 from fastapi.exceptions import RequestValidationError
 
@@ -107,9 +108,14 @@ def init_sqlite():
                 conversation_id TEXT NOT NULL,
                 role TEXT NOT NULL,
                 content TEXT NOT NULL,
+                image TEXT,
                 created_at TEXT NOT NULL
             )
             """)
+            try:
+                cursor.execute("ALTER TABLE messages ADD COLUMN image TEXT;")
+            except Exception:
+                pass
             conn.commit()
     except Exception as e:
         print(f"Init SQLite local: {e}")
@@ -235,9 +241,14 @@ if db.use_postgres:
             conversation_id TEXT NOT NULL,
             role TEXT NOT NULL,
             content TEXT NOT NULL,
+            image TEXT,
             created_at TEXT NOT NULL
         )
         """)
+        try:
+            db.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS image TEXT;")
+        except Exception:
+            pass
     except Exception as e:
         print(f"Postgres tables init: {e}")
 
@@ -288,6 +299,13 @@ ESTÁ ESTRICTAMENTE PROHIBIDO:
 4. Construir modelos de negocio, MVPs o aterrizar ideas abstractas no técnicas (sugiere "Forge").
 Si el usuario te pide alguna de estas tareas exclusivas, niégate cortésmente y recomiéndale el modelo correcto.
 </model_boundaries>
+
+<speed_anti_robotic_directives>
+PROHIBICIÓN TOTAL DE CORTESÍAS Y SALUDOS:
+- NUNCA inicies tu respuesta con saludos o frases de cortesía innecesarias (ej. "¡Hola!", "Hola, ¿en qué te puedo ayudar hoy?", "Con gusto te ayudo", "Por supuesto", "Entendido", "¡Claro que sí!").
+- Comienza DIRECTAMENTE con la solución técnica o el bloque de código ejecutable en las primeras 2 líneas de tu respuesta.
+- Cero relleno introductorio o preámbulos corporativos.
+</speed_anti_robotic_directives>
 """
 
 CORTEX_SYSTEM_PROMPT = """
@@ -297,7 +315,8 @@ Fundado por Oscar Naim Ambrocio Aguirre bajo la filosofía "Create. Break. Rebui
 </identity>
 
 <deep_thinking_protocol>
-Para cada consulta analítica, algorítmica o arquitectónica, debes comenzar obligatoriamente tu respuesta desglosando tu proceso de pensamiento dentro de las etiquetas <thought> y </thought>.
+OBLIGACIÓN ESTRICTA DE PENSAMIENTO PROFUNDO:
+Para cada consulta técnica, analítica, algorítmica o arquitectónica, debes comenzar OBLIGATORIAMENTE tu respuesta desglosando todo tu proceso de razonamiento analítico dentro de las etiquetas <thought> y </thought>.
 Dentro de <thought>:
 1. Desglosa las restricciones técnicas y la complejidad temporal/espacial.
 2. Evalúa posibles puntos de falla ("Break") y cómo evitarlos ("Rebuild").
@@ -371,6 +390,15 @@ Eres LYAXIS Phantom — el deconstructor y auditor implacable de LYAXIS labs™.
 Fundado por Oscar Naim Ambrocio Aguirre. Encarnas el "Break" de "Create. Break. Rebuild.".
 Tu propósito es encontrar fallas, vulnerabilidades, errores lógicos y puntos de fracaso.
 </identity>
+
+<phantom_mandatory_protocol>
+OBLIGACIÓN ESTRICTA DE ETIQUETA EN PRIMERA LÍNEA:
+Debes iniciar SIEMPRE tu respuesta en la mismísima PRIMERA LÍNEA con una de las siguientes etiquetas exactas de diagnóstico y su veredicto de severidad:
+- `[ESTADO: INEFICIENTE | SEVERIDAD: ALTA/MEDIA/BAJA]`
+- `[ESTADO: VULNERABLE | SEVERIDAD: CRÍTICA/ALTA/MEDIA]`
+- `[ESTADO: VÁLIDO | SEVERIDAD: NINGUNA]`
+Inmediatamente en la siguiente línea, emite tu diagnóstico clínico implacable, desglosa los puntos de quiebre y entrega la versión corregida y reconstruida.
+</phantom_mandatory_protocol>
 
 <mission>
 1. Eres el revisor senior más estricto que existe. NO dices lo que el usuario quiere oír — dices lo que NECESITA oír.
@@ -570,13 +598,15 @@ class ChatMessage(BaseModel):
     role: Optional[str] = "user"
     content: Optional[str] = ""
     timestamp: Optional[str] = None
+    image: Optional[str] = None
+    image_url: Optional[str] = None
 
 class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     user_id: Optional[str] = None
     messages: List[ChatMessage] = []
     model: Optional[str] = "speed"
-    temperature: Optional[float] = 0.7
+    temperature: Optional[float] = None
 
 class CreateConversationRequest(BaseModel):
     id: Optional[str] = None
@@ -589,13 +619,17 @@ class GoogleAuthRequest(BaseModel):
     client_id: Optional[str] = None
 
 class RequestOtpPayload(BaseModel):
-    target: str
-    auth_type: Literal["email", "phone"]
+    contact: Optional[str] = None
+    target: Optional[str] = None
+    identifier: Optional[str] = None
+    auth_type: Optional[str] = "email"
 
 class VerifyOtpPayload(BaseModel):
-    target: str
+    contact: Optional[str] = None
+    target: Optional[str] = None
+    identifier: Optional[str] = None
     code: str
-    auth_type: Literal["email", "phone"]
+    auth_type: Optional[str] = "email"
 
 @app.get("/")
 def root():
@@ -607,9 +641,9 @@ def options_handler(full_path: str):
 
 @app.post("/api/v1/auth/otp/send")
 def send_otp_code(req: RequestOtpPayload):
-    target = req.target.strip().lower()
+    target = (req.contact or req.target or req.identifier or "").strip().lower()
     if not target:
-        raise HTTPException(status_code=400, detail="Debes proporcionar un correo o teléfono.")
+        raise HTTPException(status_code=400, detail="Debes proporcionar un contacto (correo o teléfono).")
 
     code = f"{random.randint(100000, 999999)}"
     otp_storage[target] = code
@@ -622,16 +656,20 @@ def send_otp_code(req: RequestOtpPayload):
 
 @app.post("/api/v1/auth/otp/verify")
 def verify_otp_code(req: VerifyOtpPayload):
-    target = req.target.strip().lower()
+    target = (req.contact or req.target or req.identifier or "").strip().lower()
     code = req.code.strip()
+
+    if not target:
+        raise HTTPException(status_code=400, detail="Debes proporcionar un contacto (correo o teléfono).")
 
     expected_code = otp_storage.get(target)
     if not expected_code or expected_code != code:
         if code != "123456":
             raise HTTPException(status_code=400, detail="El código de 6 dígitos es incorrecto o ha expirado.")
 
+    auth_type = req.auth_type or ("email" if "@" in target else "phone")
     now = datetime.now(timezone.utc).isoformat()
-    if req.auth_type == "email":
+    if auth_type == "email":
         user = db.fetchone("SELECT * FROM users WHERE email = ?", (target,))
         if not user:
             user_id = str(uuid.uuid4())
@@ -667,8 +705,8 @@ def verify_otp_code(req: VerifyOtpPayload):
         "status": "ok",
         "user": {
             "id": user_id,
-            "email": target if req.auth_type == "email" else None,
-            "phone": target if req.auth_type == "phone" else None,
+            "email": target if auth_type == "email" else None,
+            "phone": target if auth_type == "phone" else None,
             "name": name,
             "picture": picture
         }
@@ -715,15 +753,13 @@ def google_auth(req: GoogleAuthRequest):
 
 @app.get("/api/v1/conversations")
 def list_conversations(user_id: Optional[str] = None):
-    # Ya no borramos conversaciones vacías para no perderlas de la UI si fallan.
-    if user_id and user_id.strip():
-        return db.fetchall(
-            "SELECT c.id, c.user_id, c.title, c.model, c.created_at, c.updated_at "
-            "FROM conversations c WHERE c.user_id = ? "
-            "ORDER BY c.updated_at DESC",
-            (user_id.strip(),)
-        )
-    return []
+    uid = (user_id or "anon").strip()
+    return db.fetchall(
+        "SELECT c.id, c.user_id, c.title, c.model, c.created_at, c.updated_at "
+        "FROM conversations c WHERE c.user_id = ? OR (? = 'anon' AND (c.user_id IS NULL OR c.user_id = '' OR c.user_id = 'anon')) "
+        "ORDER BY c.updated_at DESC",
+        (uid, uid)
+    )
 
 @app.delete("/api/v1/conversations/all")
 def delete_all_conversations(user_id: Optional[str] = None):
@@ -744,7 +780,7 @@ async def create_conversation(request: Request):
     if not isinstance(body, dict):
         body = {}
     cid = str(body.get("id") or str(uuid.uuid4()))
-    user_id = body.get("user_id")
+    user_id = str(body.get("user_id") or "anon")
     title = str(body.get("title") or "Nueva conversación")
     model = str(body.get("model") or "speed")
     now = datetime.now(timezone.utc).isoformat()
@@ -754,11 +790,32 @@ async def create_conversation(request: Request):
             "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
             (cid, user_id, title, model, now, now)
         )
+    else:
+        db.execute(
+            "UPDATE conversations SET title = ?, model = COALESCE(?, model), updated_at = ? WHERE id = ?",
+            (title, model, now, cid)
+        )
     return {"id": cid, "user_id": user_id, "title": title, "model": model, "created_at": now, "updated_at": now}
+
+@app.post("/api/v1/conversations/{cid}")
+@app.put("/api/v1/conversations/{cid}")
+async def update_conversation(cid: str, request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    title = body.get("title")
+    now = datetime.now(timezone.utc).isoformat()
+    if title:
+        db.execute("UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?", (str(title), now, cid))
+    return {"status": "ok", "id": cid, "title": title}
 
 @app.get("/api/v1/conversations/{cid}/messages")
 def get_conversation_messages(cid: str):
-    return db.fetchall("SELECT id, role, content, created_at as timestamp FROM messages WHERE conversation_id = ? ORDER BY created_at ASC", (cid,))
+    try:
+        return db.fetchall("SELECT id, role, content, image, created_at as timestamp FROM messages WHERE conversation_id = ? ORDER BY created_at ASC", (cid,))
+    except Exception:
+        return db.fetchall("SELECT id, role, content, created_at as timestamp FROM messages WHERE conversation_id = ? ORDER BY created_at ASC", (cid,))
 
 @app.delete("/api/v1/conversations/{cid}")
 def delete_conversation(cid: str):
@@ -780,6 +837,90 @@ def _get_active_keys() -> List[str]:
     if DEFAULT_ACCESS_KEY not in clean_keys:
         clean_keys.append(DEFAULT_ACCESS_KEY)
     return clean_keys
+
+# --- Clientes de IA duales (Groq + NVIDIA NIM) ---
+if not os.getenv("GROQ_API_KEY"):
+    os.environ["GROQ_API_KEY"] = "gsk_placeholder"
+if not os.getenv("NVIDIA_API_KEY"):
+    os.environ["NVIDIA_API_KEY"] = DEFAULT_ACCESS_KEY
+
+client_groq = openai.AsyncOpenAI(api_key=os.getenv("GROQ_API_KEY"), base_url="https://api.groq.com/openai/v1")
+client_nvidia = openai.AsyncOpenAI(api_key=os.getenv("NVIDIA_API_KEY"), base_url="https://integrate.api.nvidia.com/v1")
+
+MODELS = {
+    # speed y classic: Primario Groq (qwen/qwen3.8-27b), Fallback NVIDIA (meta/llama-3.1-8b-instruct) con respaldo a meta/llama-3.2-11b-vision-instruct
+    "speed": [
+        {"provider": "groq", "model": "qwen/qwen3.8-27b"},
+        {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
+        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+    ],
+    "classic": [
+        {"provider": "groq", "model": "qwen/qwen3.8-27b"},
+        {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
+        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+    ],
+    # cortex: Primario Groq (openai/gpt-oss-120b), Fallback NVIDIA (deepseek-ai/deepseek-r1 o meta/llama-3.3-70b-instruct)
+    "cortex": [
+        {"provider": "groq", "model": "openai/gpt-oss-120b"},
+        {"provider": "nvidia", "model": "deepseek-ai/deepseek-r1"},
+        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
+        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+    ],
+    # phantom y architect: Primario Groq (qwen/qwen3.8-27b), Fallback NVIDIA (meta/llama-3.3-70b-instruct)
+    "phantom": [
+        {"provider": "groq", "model": "qwen/qwen3.8-27b"},
+        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
+        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+    ],
+    "architect": [
+        {"provider": "groq", "model": "qwen/qwen3.8-27b"},
+        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
+        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+    ],
+    # nexus (Visión): Primario NVIDIA NIM (meta/llama-3.2-11b-vision-instruct), Fallback Groq (qwen/qwen3.8-27b)
+    "nexus": [
+        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+        {"provider": "groq", "model": "qwen/qwen3.8-27b"},
+    ],
+    # forge: Constructor práctico (Groq qwen/qwen3.8-27b, fallbacks Nemotron & Llama 70B)
+    "forge": [
+        {"provider": "groq", "model": "qwen/qwen3.8-27b"},
+        {"provider": "nvidia", "model": "nvidia/llama-3.1-nemotron-70b-instruct"},
+        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
+        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+    ],
+    # magister: Copiloto pedagógico SEP (Groq qwen/qwen3.8-27b, fallbacks Llama 70B)
+    "magister": [
+        {"provider": "groq", "model": "qwen/qwen3.8-27b"},
+        {"provider": "nvidia", "model": "meta/llama-3.1-70b-instruct"},
+        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
+        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+    ],
+    # root: Razonamiento técnico y código puro (Groq openai/gpt-oss-120b, fallbacks DeepSeek R1 & Llama 70B)
+    "root": [
+        {"provider": "groq", "model": "openai/gpt-oss-120b"},
+        {"provider": "nvidia", "model": "deepseek-ai/deepseek-r1"},
+        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
+        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+    ],
+}
+
+MODEL_TEMPERATURES = {
+    "cortex": 0.2,
+    "root": 0.2,
+    "phantom": 0.3,
+    "speed": 0.6,
+    "architect": 0.5,
+    "classic": 0.7,
+    "magister": 0.6,
+    "nexus": 0.8,
+    "forge": 0.85,
+}
+
+FALLBACK_MAP = {
+    key: [item["model"] for item in models[1:] if isinstance(item, dict)]
+    for key, models in MODELS.items()
+}
 
 GLOBAL_SPANISH_RULE = """
 <language_rule>
@@ -815,7 +956,7 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
     if conversation_id and last_user_msg:
         try:
             now = datetime.now(timezone.utc).isoformat()
-            title_text = last_user_msg.content[:30] if last_user_msg.content else "Nueva conversación"
+            title_text = (last_user_msg.content or "Consulta con imagen")[:30]
             conv = db.fetchone("SELECT id, title FROM conversations WHERE id = ?", (conversation_id,))
             if not conv:
                 db.execute(
@@ -831,10 +972,17 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
             mid = last_user_msg.id or str(uuid.uuid4())
             existing_msg = db.fetchone("SELECT id FROM messages WHERE id = ?", (mid,))
             if not existing_msg:
-                db.execute(
-                    "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (mid, conversation_id, "user", last_user_msg.content, now)
-                )
+                img_to_store = last_user_msg.image or last_user_msg.image_url
+                try:
+                    db.execute(
+                        "INSERT INTO messages (id, conversation_id, role, content, image, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                        (mid, conversation_id, "user", last_user_msg.content or "", img_to_store, now)
+                    )
+                except Exception:
+                    db.execute(
+                        "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                        (mid, conversation_id, "user", last_user_msg.content or "", now)
+                    )
             db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
         except Exception as err_db:
             print(f"Aviso DB mensaje: {err_db}")
@@ -842,50 +990,63 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
     full_response_text = ""
     last_err = None
 
-    # --- 2. AI Provider: Neural Engine ---
-    # Mapeo especializado por dominio y máxima velocidad
-    nvidia_model_map = {
-        "speed": "meta/llama-3.1-8b-instruct",                   # Ultra-rápido (~0.3s) desarrollo ágil & chat instantáneo
-        "cortex": "meta/llama-3.1-70b-instruct",                  # Razonamiento profundo, algoritmos y sistemas distribuidos
-        "architect": "nvidia/llama-3.3-nemotron-super-49b-v1",   # Nemotron Super 49B: Ingeniería de prompts & pedagogía técnica
-        "classic": "meta/llama-3.1-8b-instruct",                  # Conversación cotidiana ágil y versátil
-        "phantom": "meta/llama-3.1-70b-instruct",                 # Deconstructor & auditor implacable de código y vulnerabilidades
-        "nexus": "meta/llama-3.2-11b-vision-instruct",            # Síntesis creativa transversal y conexiones multidominio
-        "forge": "nvidia/nemotron-3.5-lightning-30b-a3b",        # Nemotron Lightning 30B MoE: Constructor de MVPs y proyectos
-        "magister": "meta/llama-3.1-70b-instruct",                # Copiloto pedagógico senior, planeaciones SEP y rúbricas
-        "root": "deepseek-ai/deepseek-v4-flash-0731",             # DeepSeek V4 Flash: Ejecución pura de código, sin censura ni disclaimers
-    }
+    # --- 2. Enrutamiento y Fallback Inteligente (Groq + NVIDIA NIM) ---
+    target_entries = MODELS.get(model_key, MODELS["speed"])
+    if isinstance(target_entries, dict):
+        candidate_configs = [target_entries]
+    elif isinstance(target_entries, list):
+        candidate_configs = list(target_entries)
+    else:
+        candidate_configs = [
+            {"provider": "groq", "model": "qwen/qwen3.8-27b"},
+            {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"}
+        ]
 
-    fallback_map = {
-        "speed": ["meta/llama-3.2-11b-vision-instruct", "meta/llama-3.1-70b-instruct"],
-        "cortex": ["nvidia/llama-3.3-nemotron-super-49b-v1", "meta/llama-3.1-8b-instruct"],
-        "architect": ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct"],
-        "classic": ["meta/llama-3.2-11b-vision-instruct", "meta/llama-3.1-70b-instruct"],
-        "phantom": ["nvidia/llama-3.3-nemotron-super-49b-v1", "meta/llama-3.1-8b-instruct"],
-        "nexus": ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct"],
-        "forge": ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct"],
-        "magister": ["nvidia/llama-3.3-nemotron-super-49b-v1", "meta/llama-3.2-11b-vision-instruct", "meta/llama-3.1-8b-instruct"],
-        "root": ["meta/llama-3.1-70b-instruct", "meta/llama-3.2-11b-vision-instruct", "meta/llama-3.1-8b-instruct"],
-    }
+    # Si hay una imagen en los mensajes, asegurar que el modelo de visión multimodal tenga prioridad
+    has_image = any(bool(m.image or m.image_url) for m in messages)
+    if has_image:
+        vision_cfg = {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"}
+        if vision_cfg not in candidate_configs:
+            candidate_configs.insert(0, vision_cfg)
 
-    primary_model = nvidia_model_map.get(model_key, "meta/llama-3.1-70b-instruct")
-    fallbacks = fallback_map.get(model_key, ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct"])
-    candidate_models = [primary_model] + fallbacks + ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct"]
-    # Preserve order while deduplicating
-    models_to_try = list(dict.fromkeys(candidate_models))
-
-    # Format messages for OpenAI standard API
+    # Format messages for OpenAI standard API (with multimodal image support)
     oai_messages = [{"role": "system", "content": active_prompt}]
     for msg in messages:
-        if not msg.content or not msg.content.strip():
+        msg_img = msg.image or msg.image_url
+        content_str = (msg.content or "").strip()
+        if not content_str and not msg_img:
             continue
-        if msg.content.startswith('⚠️') or msg.content.startswith('❌'):
+        if content_str.startswith('⚠️') or content_str.startswith('❌'):
             continue
         role = "assistant" if str(msg.role).lower() in ("model", "assistant") else "user"
-        oai_messages.append({"role": role, "content": msg.content.strip()})
 
-    if len(oai_messages) == 1 and last_user_msg and last_user_msg.content:
-        oai_messages.append({"role": "user", "content": last_user_msg.content.strip()})
+        if role == "user" and msg_img:
+            user_content = []
+            if content_str:
+                user_content.append({"type": "text", "text": content_str})
+            else:
+                user_content.append({"type": "text", "text": "Describe y analiza esta imagen en detalle."})
+            user_content.append({
+                "type": "image_url",
+                "image_url": {"url": msg_img}
+            })
+            oai_messages.append({"role": "user", "content": user_content})
+        else:
+            oai_messages.append({"role": role, "content": content_str})
+
+    if len(oai_messages) == 1 and last_user_msg:
+        last_img = last_user_msg.image or last_user_msg.image_url
+        last_text = (last_user_msg.content or "").strip()
+        if last_img:
+            oai_messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": last_text if last_text else "Describe y analiza esta imagen en detalle."},
+                    {"type": "image_url", "image_url": {"url": last_img}}
+                ]
+            })
+        elif last_text:
+            oai_messages.append({"role": "user", "content": last_text})
 
     DISCLAIMER_PATTERNS = [
         "este código es solo un ejemplo",
@@ -909,71 +1070,139 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
             return False
         return any(p in t for p in DISCLAIMER_PATTERNS)
 
-    from openai import AsyncOpenAI
-    for key_idx, current_key in enumerate(nvidia_keys):
-        client = AsyncOpenAI(
-            base_url="https://integrate.api.nvidia.com/v1",
-            api_key=current_key
-        )
-        key_invalid = False
+    interrupted = False
 
-        try:
-            for model_name in models_to_try:
-                if key_invalid:
-                    break
+    for target in candidate_configs:
+        if full_response_text or interrupted:
+            break
+
+        provider = str(target.get("provider", "nvidia")).lower().strip()
+        model_name = str(target.get("model", "")).strip()
+        if not model_name:
+            continue
+
+        if provider == "groq":
+            groq_key = os.getenv("GROQ_API_KEY", "").strip()
+            # Si no hay clave real configurada en el entorno, saltamos de inmediato al fallback de NVIDIA
+            if not groq_key or groq_key == "gsk_placeholder" or "placeholder" in groq_key:
+                print(f"[GROQ] Sin GROQ_API_KEY activa. Saltando inmediatamente a fallback de NVIDIA ({model_name}).")
+                continue
+
+            if client_groq.api_key != groq_key:
+                client_groq.api_key = groq_key
+
+            try:
+                print(f"[IA Engine] Enrutando a Groq con modelo: {model_name}...")
+                stream = await client_groq.chat.completions.create(
+                    model=model_name,
+                    messages=oai_messages,
+                    temperature=temperature,
+                    stream=True,
+                    timeout=22.0
+                )
                 try:
-                    stream = await client.chat.completions.create(
+                    async for chunk in stream:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            delta = chunk.choices[0].delta.content
+                            full_response_text += delta
+                            yield f"data: {json.dumps({'token': delta})}\n\n"
+                except Exception as chunk_err:
+                    print(f"Error durante streaming en Groq ({model_name}): {chunk_err}")
+                    if not full_response_text:
+                        last_err = chunk_err
+                        continue
+                    interrupted = True
+                    err_msg = str(chunk_err)
+                    if "429" in err_msg or "quota" in err_msg.lower():
+                        clean_err = "⚠️ Límite de cuota temporal alcanzado en el motor de IA. Por favor, espera unos momentos e intenta de nuevo."
+                    else:
+                        clean_err = "⚠️ Conexión interrumpida con el motor neural. Por favor, reintenta tu consulta."
+                    err_payload = {
+                        "error": f"Stream interrumpido: {str(chunk_err)}",
+                        "token": f"\n\n{clean_err}"
+                    }
+                    yield f"data: {json.dumps(err_payload)}\n\n"
+                finally:
+                    try:
+                        await stream.close()
+                    except Exception:
+                        pass
+
+                if interrupted:
+                    break
+
+                if full_response_text:
+                    last_err = None
+                    break
+
+            except Exception as err_groq:
+                last_err = err_groq
+                err_str = str(err_groq)
+                print(f"[GROQ] Falló ({model_name}): {err_str}. Saltando de inmediato a NVIDIA de forma transparente...")
+                continue
+
+        elif provider == "nvidia":
+            print(f"[IA Engine] Enrutando a NVIDIA NIM con modelo: {model_name}...")
+            for key_idx, current_key in enumerate(nvidia_keys):
+                if client_nvidia.api_key != current_key:
+                    client_nvidia.api_key = current_key
+
+                key_invalid = False
+                try:
+                    stream = await client_nvidia.chat.completions.create(
                         model=model_name,
                         messages=oai_messages,
                         temperature=temperature,
                         stream=True,
-                        timeout=22.0
+                        timeout=25.0
                     )
-
                     try:
-                        line_buf = ""
                         async for chunk in stream:
                             if chunk.choices and chunk.choices[0].delta.content:
                                 delta = chunk.choices[0].delta.content
-                                line_buf += delta
-                                if "\n" in line_buf:
-                                    lines = line_buf.split("\n")
-                                    for line in lines[:-1]:
-                                        if is_disclaimer_text(line):
-                                            continue
-                                        full_response_text += line + "\n"
-                                        yield f"data: {json.dumps({'token': line + chr(10)})}\n\n"
-                                    line_buf = lines[-1]
-
-                        if line_buf and not is_disclaimer_text(line_buf):
-                            full_response_text += line_buf
-                            yield f"data: {json.dumps({'token': line_buf})}\n\n"
+                                full_response_text += delta
+                                yield f"data: {json.dumps({'token': delta})}\n\n"
+                    except Exception as chunk_err:
+                        print(f"Error durante streaming en NVIDIA ({model_name}): {chunk_err}")
+                        if not full_response_text:
+                            last_err = chunk_err
+                            break
+                        interrupted = True
+                        err_msg = str(chunk_err)
+                        if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
+                            clean_err = "⚠️ Límite de cuota temporal alcanzado en el motor de IA. Por favor, espera unos momentos e intenta de nuevo."
+                        else:
+                            clean_err = "⚠️ Conexión interrumpida con el motor neural. Por favor, reintenta tu consulta."
+                        err_payload = {
+                            "error": f"Stream interrumpido: {str(chunk_err)}",
+                            "token": f"\n\n{clean_err}"
+                        }
+                        yield f"data: {json.dumps(err_payload)}\n\n"
                     finally:
                         try:
                             await stream.close()
                         except Exception:
                             pass
 
+                    if interrupted:
+                        break
+
                     if full_response_text:
                         last_err = None
                         break
-                except Exception as err_m:
-                    last_err = err_m
-                    err_str = str(err_m)
-                    if "401" in err_str or "Unauthorized" in err_str or "Authentication" in err_str:
-                        print(f"Key #{key_idx+1} no autorizada (401). Saltando a siguiente clave...")
-                        key_invalid = True
-                        break
-                    print(f"Engine #{key_idx+1} ({model_name}) no disponible: {err_m}. Probando fallback...")
-                    continue
-        finally:
-            try:
-                await client.close()
-            except Exception:
-                pass
 
-        if full_response_text:
-            break
+                except Exception as err_nvidia:
+                    last_err = err_nvidia
+                    err_str = str(err_nvidia)
+                    if "401" in err_str or "Unauthorized" in err_str or "Authentication" in err_str:
+                        print(f"[NVIDIA] Clave #{key_idx+1} no autorizada (401). Probando siguiente clave si existe...")
+                        key_invalid = True
+                        continue
+                    print(f"[NVIDIA] Modelo {model_name} falló: {err_nvidia}. Probando siguiente fallback...")
+                    break
+
+            if interrupted or full_response_text:
+                break
 
     # Handle final errors if generation yielded nothing
     if not full_response_text and last_err:
@@ -1015,13 +1244,18 @@ async def chat_stream_endpoint(request: Request):
 
     conversation_id = body.get("conversation_id")
     user_id = body.get("user_id")
-    model_type = str(body.get("model") or "speed")
+    model_type = str(body.get("model") or "speed").lower().strip()
 
-    temp_map = {"root": 0.2, "cortex": 0.3, "phantom": 0.4, "architect": 0.5, "magister": 0.5, "forge": 0.6, "speed": 0.7, "classic": 0.8, "nexus": 0.9}
-    try:
-        temp = float(body.get("temperature") if body.get("temperature") is not None else temp_map.get(model_type, 0.7))
-    except Exception:
-        temp = 0.7
+    model_default_temp = MODEL_TEMPERATURES.get(model_type, 0.6)
+    req_temp = body.get("temperature")
+    # Si la peticion no especifica temperatura o envia el valor generico 0.7 (salvo classic), usar la del modelo
+    if req_temp is None or (req_temp == 0.7 and model_type != "classic"):
+        temp = model_default_temp
+    else:
+        try:
+            temp = float(req_temp)
+        except Exception:
+            temp = model_default_temp
 
     raw_messages = body.get("messages") or []
     messages: List[ChatMessage] = []
@@ -1030,16 +1264,36 @@ async def chat_stream_endpoint(request: Request):
         for m in raw_messages:
             if isinstance(m, dict):
                 content = str(m.get("content") or "").strip()
-                if content and not content.startswith("⚠️") and not content.startswith("❌"):
+                img = m.get("image") or m.get("image_url")
+                if (content or img) and not content.startswith("⚠️") and not content.startswith("❌"):
                     role = "model" if str(m.get("role")).lower() in ("model", "assistant") else "user"
                     messages.append(ChatMessage(
                         id=str(m.get("id")) if m.get("id") else None,
                         role=role,
-                        content=content
+                        content=content,
+                        image=str(img) if img else None
                     ))
 
     if not messages:
         messages = [ChatMessage(role="user", content="Hola")]
+
+    # Asegurar que la conversación exista en conversations antes de guardar mensajes o generar stream
+    if conversation_id:
+        try:
+            now_ts = datetime.now(timezone.utc).isoformat()
+            existing_c = db.fetchone("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
+            if not existing_c:
+                first_title = "Nueva conversación"
+                if messages:
+                    u_first = next((m for m in messages if m.role == "user"), None)
+                    if u_first and u_first.content:
+                        first_title = u_first.content[:30]
+                db.execute(
+                    "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (conversation_id, user_id or "anon", first_title, model_type, now_ts, now_ts)
+                )
+        except Exception as e_conv:
+            print(f"Aviso asegurando conversación en chat_stream_endpoint: {e_conv}")
 
     generator = generate_ai_stream(
         conversation_id=conversation_id,

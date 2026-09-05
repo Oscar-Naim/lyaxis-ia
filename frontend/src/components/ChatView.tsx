@@ -1,0 +1,1049 @@
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Send,
+  Square,
+  AlertTriangle,
+  RefreshCw,
+  X,
+  FileDown,
+  ChevronDown,
+  ChevronRight,
+  Zap,
+  Shield,
+  Cpu,
+  Paperclip,
+  Volume2,
+  VolumeX,
+  Sparkles,
+  Brain,
+  Compass,
+  MessageCircle,
+  Crosshair,
+  Waypoints,
+  Hammer,
+  GraduationCap,
+  Terminal,
+} from 'lucide-react';
+import type { Message, ModelType } from '../types';
+import { useSSEStream } from '../useSSEStream';
+import { MessageBubble } from './MessageBubble';
+import { isSoundMuted, setSoundMuted, playCyberClick as globalPlayCyberClick } from '../sound';
+import { API_BASE, ALL_MODELS, MODEL_META, MODEL_QUICK_ACTIONS } from '../config';
+
+export interface ChatViewProps {
+  messages: Message[];
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+  selectedModel: ModelType;
+  setSelectedModel?: (model: ModelType) => void;
+  currentChatId: string | null;
+  setCurrentChatId?: (id: string) => void;
+  activeUserId?: string;
+  isMobile?: boolean;
+  soundEnabled?: boolean;
+  playCyberClick?: () => void;
+  onConversationUpdated?: () => void;
+  onExportPDF?: (title: string, label: string, color: string, msgs: Message[]) => void;
+  modelMeta?: Record<ModelType, { label: string; color: string; description: string; temperature: number }>;
+  modelPrompts?: Record<ModelType, { icon: React.ReactNode; bg: string; border: string; text: string }[]>;
+  onSelectModel?: (model: ModelType) => void;
+}
+
+const MODEL_ICONS: Record<ModelType, (size: number, color?: string) => React.ReactNode> = {
+  speed: (s, c = '#2563FF') => <Sparkles size={s} color={c} />,
+  cortex: (s, c = '#7C3AED') => <Brain size={s} color={c} />,
+  architect: (s, c = '#10B981') => <Compass size={s} color={c} />,
+  classic: (s, c = '#F59E0B') => <MessageCircle size={s} color={c} />,
+  phantom: (s, c = '#EF4444') => <Crosshair size={s} color={c} />,
+  nexus: (s, c = '#EC4899') => <Waypoints size={s} color={c} />,
+  forge: (s, c = '#F97316') => <Hammer size={s} color={c} />,
+  magister: (s, c = '#06B6D4') => <GraduationCap size={s} color={c} />,
+  root: (s, c = '#00FF66') => <Terminal size={s} color={c} />,
+};
+
+export const ChatView: React.FC<ChatViewProps> = ({
+  messages,
+  setMessages,
+  selectedModel,
+  setSelectedModel,
+  currentChatId,
+  setCurrentChatId,
+  activeUserId,
+  isMobile = false,
+  soundEnabled,
+  playCyberClick,
+  onConversationUpdated,
+  onExportPDF,
+  modelMeta = MODEL_META,
+  onSelectModel,
+}) => {
+  const [currentActiveModel, setCurrentActiveModel] = useState<ModelType>(selectedModel);
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showNexusSuggestion, setShowNexusSuggestion] = useState(false);
+
+  // Sound mute state synced with localStorage ('lyaxis_sound_muted')
+  const [isMuted, setIsMuted] = useState<boolean>(() => isSoundMuted());
+
+  const [inputValue, setInputValue] = useState('');
+  const [serverErrorBanner, setServerErrorBanner] = useState<string | null>(null);
+  const [lastFailedUserText, setLastFailedUserText] = useState<string | null>(null);
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setCurrentActiveModel(selectedModel);
+  }, [selectedModel]);
+
+  // Click outside to close model dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsModelDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const meta = modelMeta[currentActiveModel] || MODEL_META[currentActiveModel] || MODEL_META.speed;
+
+  const triggerSound = () => {
+    if (!isMuted) {
+      if (playCyberClick) playCyberClick();
+      else globalPlayCyberClick();
+    }
+  };
+
+  const toggleSoundMute = () => {
+    const next = !isMuted;
+    setIsMuted(next);
+    setSoundMuted(next);
+    if (!next) {
+      if (playCyberClick) playCyberClick();
+      else globalPlayCyberClick();
+    }
+  };
+
+  // Stream Hook with explicit onError handler
+  const { isStreaming, startStream, stopStreaming } = useSSEStream({
+    onDone: () => {
+      onConversationUpdated?.();
+    },
+    onError: (err) => {
+      handleStreamError(err);
+    },
+  });
+
+  const handleStreamError = (err?: Error | any) => {
+    console.warn('[ChatView] Stream error detected:', err?.message);
+    const friendly = '⚠️ El servidor tardó en responder o está iniciando. Por favor, reintenta en unos segundos.';
+    const rawMsg = err?.message || '';
+    const bannerMsg = (rawMsg.includes('502') || rawMsg.includes('504') || rawMsg.includes('TIMEOUT') || rawMsg.includes('servidor') || rawMsg.includes('fetch') || rawMsg.includes('Failed'))
+      ? friendly
+      : (rawMsg || friendly);
+    setServerErrorBanner(bannerMsg);
+
+    // Clean up empty placeholder assistant messages
+    setMessages((prev) =>
+      prev.filter((m) => !(m.role === 'model' && (!m.content || !m.content.trim())))
+    );
+  };
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, serverErrorBanner]);
+
+  // In-Chat Model Switcher: changes model without wiping messages and updates backend conversation
+  const handleModelSwitch = async (newModel: ModelType) => {
+    setIsModelDropdownOpen(false);
+    if (newModel === currentActiveModel || isStreaming) return;
+    triggerSound();
+
+    setCurrentActiveModel(newModel);
+    onSelectModel?.(newModel);
+    setSelectedModel?.(newModel);
+
+    if (newModel === 'nexus') {
+      setShowNexusSuggestion(false);
+    }
+
+    if (currentChatId) {
+      try {
+        await fetch(`${API_BASE}/api/v1/conversations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: currentChatId,
+            user_id: activeUserId || 'anon',
+            model: newModel,
+          }),
+        });
+        onConversationUpdated?.();
+      } catch (err) {
+        console.warn('Aviso actualizando modelo de conversación:', err);
+      }
+    }
+  };
+
+  // Image Upload handler
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor selecciona un archivo de imagen válido (PNG, JPG, WebP).');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('La imagen no debe superar los 5MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setSelectedImage(result);
+      if (currentActiveModel !== 'nexus') {
+        setShowNexusSuggestion(true);
+      }
+      triggerSound();
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleSend = async (customText?: string) => {
+    const textToSend = customText || inputValue;
+    if ((!textToSend || !textToSend.trim()) && !selectedImage) return;
+    if (isStreaming) return;
+
+    const userText = textToSend ? textToSend.trim() : '';
+    const imgToSend = selectedImage;
+    setInputValue('');
+    setSelectedImage(null);
+    setShowNexusSuggestion(false);
+    setServerErrorBanner(null);
+    setLastFailedUserText(userText);
+    triggerSound();
+
+    let targetChatId = currentChatId;
+    if (!targetChatId) {
+      targetChatId = `chat-${Date.now()}`;
+      if (setCurrentChatId) setCurrentChatId(targetChatId);
+    }
+
+    const userMessage: Message = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: userText,
+      timestamp: new Date().toISOString(),
+      model: currentActiveModel,
+      image: imgToSend || undefined,
+    };
+
+    const assistantPlaceholderId = `model-${Date.now() + 1}`;
+    const assistantMessage: Message = {
+      id: assistantPlaceholderId,
+      role: 'model',
+      content: '',
+      timestamp: new Date().toISOString(),
+      model: currentActiveModel,
+      isStreaming: true,
+    };
+
+    const updatedMessages = [...messages, userMessage];
+    setMessages([...updatedMessages, assistantMessage]);
+
+    // Active model individual temperature
+    const activeMeta = modelMeta[currentActiveModel] || MODEL_META[currentActiveModel] || MODEL_META.speed;
+    const activeTemp = activeMeta.temperature ?? 0.6;
+
+    // Stream with sound ticks if unmuted
+    await startStream(
+      updatedMessages,
+      currentActiveModel,
+      targetChatId,
+      activeUserId,
+      (accumulatedText) => {
+        if (!isMuted && Math.random() > 0.45) {
+          triggerSound();
+        }
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantPlaceholderId
+              ? { ...msg, content: accumulatedText }
+              : msg
+          )
+        );
+      },
+      {
+        temperature: activeTemp,
+        onError: (err) => {
+          handleStreamError(err);
+        },
+        onDone: () => {
+          setServerErrorBanner(null);
+          setLastFailedUserText(null);
+          onConversationUpdated?.();
+        },
+      }
+    );
+
+    // Finalize isStreaming flag
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === assistantPlaceholderId ? { ...msg, isStreaming: false } : msg
+      )
+    );
+  };
+
+  const handleRetry = () => {
+    if (lastFailedUserText) {
+      handleSend(lastFailedUserText);
+    } else if (messages.length > 0) {
+      const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+      if (lastUser && lastUser.content) {
+        handleSend(lastUser.content);
+      }
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const quickActions = MODEL_QUICK_ACTIONS[currentActiveModel] || MODEL_QUICK_ACTIONS.speed;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, position: 'relative', overflow: 'hidden' }}>
+      
+      {/* Header with Live In-Chat Model Switcher Dropdown, PDF export, and Mute Toggle */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: isMobile ? '10px 12px' : '12px 20px',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          backgroundColor: 'rgba(8, 8, 12, 0.85)',
+          backdropFilter: 'blur(12px)',
+          zIndex: 25,
+          flexShrink: 0,
+        }}
+      >
+        {/* Interactive In-Chat Model Selector */}
+        <div style={{ position: 'relative' }} ref={dropdownRef}>
+          <button
+            type="button"
+            onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+            title="Cambiar modelo de IA dentro de esta conversación"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              backgroundColor: 'rgba(255, 255, 255, 0.04)',
+              border: `1px solid ${meta.color}55`,
+              borderRadius: '10px',
+              padding: '6px 12px',
+              color: '#ffffff',
+              cursor: 'pointer',
+              boxShadow: `0 0 14px ${meta.color}22`,
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <span
+              style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: meta.color,
+                boxShadow: `0 0 8px ${meta.color}`,
+                display: 'inline-block',
+              }}
+            />
+            <span style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '0.3px' }}>
+              LYAXIS {meta.label}
+            </span>
+            <span style={{ fontSize: '11px', color: '#71717a', marginLeft: '2px', fontFamily: 'monospace' }}>
+              T:{meta.temperature}
+            </span>
+            <ChevronDown
+              size={14}
+              color="#a1a1aa"
+              style={{
+                transform: isModelDropdownOpen ? 'rotate(180deg)' : 'none',
+                transition: 'transform 0.2s ease',
+              }}
+            />
+          </button>
+
+          {isModelDropdownOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 6px)',
+                left: 0,
+                width: '270px',
+                backgroundColor: '#0a0a0f',
+                border: '1px solid #22222e',
+                borderRadius: '12px',
+                padding: '6px',
+                boxShadow: '0 10px 35px rgba(0,0,0,0.9), 0 0 20px rgba(0, 217, 255, 0.1)',
+                zIndex: 50,
+                backdropFilter: 'blur(16px)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '2px',
+              }}
+            >
+              <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 800, color: '#71717a', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                Cambiar Modelo en este Chat
+              </div>
+              {ALL_MODELS.map((m) => {
+                const itemMeta = modelMeta[m] || MODEL_META[m] || MODEL_META.speed;
+                const isSelected = currentActiveModel === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => handleModelSwitch(m)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+                      color: isSelected ? '#ffffff' : '#a1a1aa',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isSelected ? 'rgba(255, 255, 255, 0.08)' : 'transparent'; }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: itemMeta.color }} />
+                      <span style={{ fontSize: '12.5px', fontWeight: isSelected ? 700 : 500, color: isSelected ? '#ffffff' : '#d4d4d8' }}>
+                        {itemMeta.label}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '10.5px', color: '#71717a', fontFamily: 'monospace' }}>
+                      T:{itemMeta.temperature}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Action Controls in Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Sound Mute Toggle (5. Interruptor de Sonido Discreto) */}
+          <button
+            type="button"
+            onClick={toggleSoundMute}
+            title={isMuted ? 'Activar efectos de audio' : 'Silenciar efectos de audio'}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              backgroundColor: isMuted ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 217, 255, 0.08)',
+              border: isMuted ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 217, 255, 0.25)',
+              color: isMuted ? '#71717a' : '#00D9FF',
+              cursor: 'pointer',
+              boxShadow: isMuted ? 'none' : '0 0 10px rgba(0, 217, 255, 0.2)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+          </button>
+
+          {onExportPDF && messages.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onExportPDF('Conversación LYAXIS', meta.label, meta.color, messages)}
+              title="Exportar chat a PDF"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '8px',
+                padding: '6px 10px',
+                color: '#ffffff',
+                fontSize: '11.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              <FileDown size={13} color="#00D9FF" />
+              {!isMobile && <span>PDF</span>}
+            </button>
+          )}
+        </div>
+      </div>
+      
+      {/* Cyberpunk Cold Start / Server Timeout Error Banner */}
+      {serverErrorBanner && (
+        <div
+          role="alert"
+          style={{
+            margin: isMobile ? '8px 10px 0' : '12px 16px 0',
+            padding: '12px 16px',
+            borderRadius: '12px',
+            backgroundColor: 'rgba(20, 14, 8, 0.95)',
+            border: '1px solid rgba(245, 158, 11, 0.45)',
+            boxShadow: '0 0 25px rgba(245, 158, 11, 0.2), inset 0 0 12px rgba(245, 158, 11, 0.08)',
+            backdropFilter: 'blur(12px)',
+            display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: isMobile ? 'flex-start' : 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            zIndex: 30,
+            animation: 'fadeIn 0.3s ease-out',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                border: '1px solid rgba(245, 158, 11, 0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <AlertTriangle size={18} color="#F59E0B" />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.8px', color: '#F59E0B', textTransform: 'uppercase' }}>
+                  TELEMETRÍA // INICIO DE SERVIDOR EN CURSO
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: '13px', color: '#fef3c7', lineHeight: '1.4' }}>
+                {serverErrorBanner}
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', alignSelf: isMobile ? 'flex-end' : 'center' }}>
+            <button
+              type="button"
+              onClick={handleRetry}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                border: '1px solid #F59E0B',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 0 14px rgba(245, 158, 11, 0.3)',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <RefreshCw size={13} />
+              <span>Reintentar ahora</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setServerErrorBanner(null)}
+              title="Cerrar aviso"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#a1a1aa',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Messages List or Cyberpunk Empty State */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px 12px' : '24px 16px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ maxWidth: '860px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px', flex: 1 }}>
+          {messages.length === 0 ? (
+            /* 1. Tarjetas de Acción Rápida por Modelo (Eliminar pantalla vacía) */
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#71717a',
+                gap: '22px',
+                textAlign: 'center',
+                minHeight: '60vh',
+                padding: '16px 12px',
+                animation: 'fadeIn 0.3s ease-out',
+              }}
+            >
+              {/* Emblem with animated glowing aura ring */}
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div
+                  style={{
+                    position: 'absolute',
+                    width: '96px',
+                    height: '96px',
+                    borderRadius: '28px',
+                    background: `radial-gradient(circle, ${meta.color}66 0%, transparent 70%)`,
+                    filter: 'blur(16px)',
+                    animation: 'lyaxisPulse 2.5s infinite ease-in-out',
+                  }}
+                />
+                <div
+                  style={{
+                    width: '68px',
+                    height: '68px',
+                    borderRadius: '20px',
+                    background: `linear-gradient(135deg, ${meta.color}, #00D9FF)`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: `0 0 35px ${meta.color}77, 0 0 15px rgba(0, 217, 255, 0.4)`,
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    position: 'relative',
+                    zIndex: 1,
+                  }}
+                >
+                  {MODEL_ICONS[currentActiveModel]?.(32, '#ffffff')}
+                </div>
+              </div>
+
+              {/* Title & Philosophy */}
+              <div>
+                <h2
+                  style={{
+                    fontSize: '26px',
+                    fontWeight: 800,
+                    color: '#ffffff',
+                    margin: '0 0 8px 0',
+                    letterSpacing: '-0.4px',
+                    background: `linear-gradient(180deg, #FFFFFF 0%, ${meta.color} 140%)`,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                  }}
+                >
+                  LYAXIS {meta.label}
+                </h2>
+                <p style={{ fontSize: '14px', maxWidth: '540px', margin: '0 auto', lineHeight: '1.6', color: '#94a3b8' }}>
+                  {meta.description}
+                </p>
+              </div>
+
+              {/* Capability badges */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: '#00D9FF', backgroundColor: 'rgba(0, 217, 255, 0.08)', border: '1px solid rgba(0, 217, 255, 0.25)', padding: '4px 11px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <Zap size={11} /> Temperatura: {meta.temperature}
+                </span>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: meta.color, backgroundColor: `${meta.color}14`, border: `1px solid ${meta.color}40`, padding: '4px 11px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <Shield size={11} /> Encriptación AES-256
+                </span>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: '#a78bfa', backgroundColor: 'rgba(167, 139, 250, 0.08)', border: '1px solid rgba(167, 139, 250, 0.25)', padding: '4px 11px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <Cpu size={11} /> Motor Dual Groq + NIM
+                </span>
+              </div>
+
+              {/* 4 Cyberpunk Quick Action Cards */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+                  gap: '12px',
+                  width: '100%',
+                  maxWidth: '680px',
+                  marginTop: '6px',
+                }}
+              >
+                {quickActions.map((promptText, i) => (
+                  <button
+                    key={`${currentActiveModel}-${i}`}
+                    type="button"
+                    className="lyaxis-quick-card"
+                    onClick={() => handleSend(promptText)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      backgroundColor: 'rgba(10, 10, 16, 0.75)',
+                      border: `1px solid ${meta.color}33`,
+                      borderRadius: '14px',
+                      padding: '14px 16px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      color: '#ffffff',
+                      backdropFilter: 'blur(12px)',
+                      boxShadow: `0 4px 20px rgba(0, 0, 0, 0.5), inset 0 0 1px ${meta.color}22`,
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = `${meta.color}88`;
+                      e.currentTarget.style.backgroundColor = 'rgba(18, 18, 28, 0.85)';
+                      e.currentTarget.style.boxShadow = `0 6px 24px rgba(0,0,0,0.6), 0 0 16px ${meta.color}22`;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = `${meta.color}33`;
+                      e.currentTarget.style.backgroundColor = 'rgba(10, 10, 16, 0.75)';
+                      e.currentTarget.style.boxShadow = `0 4px 20px rgba(0, 0, 0, 0.5), inset 0 0 1px ${meta.color}22`;
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '9px',
+                        backgroundColor: `${meta.color}15`,
+                        border: `1px solid ${meta.color}40`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {MODEL_ICONS[currentActiveModel]?.(15, meta.color)}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span
+                        style={{
+                          fontSize: '12.5px',
+                          lineHeight: '1.45',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          color: '#f1f5f9',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {promptText}
+                      </span>
+                    </div>
+                    <ChevronRight size={14} color="#52525b" style={{ flexShrink: 0 }} />
+                  </button>
+                ))}
+              </div>
+
+              {/* Status footer pill */}
+              <div
+                style={{
+                  marginTop: '8px',
+                  padding: '5px 14px',
+                  borderRadius: '20px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '10.5px',
+                  color: '#71717a',
+                }}
+              >
+                <span style={{ color: '#10B981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10B981', boxShadow: '0 0 8px #10B981' }} />
+                  NÚCLEO ONLINE
+                </span>
+                <span>•</span>
+                <span>FAILOVER: GROQ ⇄ NVIDIA NIM</span>
+              </div>
+            </div>
+          ) : (
+            /* 2. Renderizado Matemático con KaTeX y Markdown Elegante con MessageBubble */
+            messages.map((msg, idx) => (
+              <MessageBubble
+                key={msg.id || idx}
+                message={msg}
+                activeModel={currentActiveModel}
+                isMobile={isMobile}
+                onExportPDF={onExportPDF}
+              />
+            ))
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+
+      {/* Input Area with Image Attachment & Nexus Suggestion (4. Selector de Imágenes) */}
+      <div
+        style={{
+          padding: isMobile ? '10px 12px 14px' : '16px 24px 20px',
+          borderTop: '1px solid #121216',
+          backgroundColor: 'rgba(4, 4, 8, 0.92)',
+          backdropFilter: 'blur(16px)',
+          flexShrink: 0,
+        }}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSend();
+          }}
+          style={{ maxWidth: '860px', margin: '0 auto', width: '100%' }}
+        >
+          {/* Automatic Nexus Suggestion Banner if user uploaded an image and isn't on Nexus */}
+          {showNexusSuggestion && selectedImage && currentActiveModel !== 'nexus' && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 12px',
+                marginBottom: '8px',
+                borderRadius: '10px',
+                backgroundColor: 'rgba(236, 72, 153, 0.12)',
+                border: '1px solid rgba(236, 72, 153, 0.35)',
+                boxShadow: '0 0 15px rgba(236, 72, 153, 0.15)',
+                gap: '10px',
+                animation: 'fadeIn 0.25s ease-out',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                <Sparkles size={14} color="#EC4899" />
+                <span style={{ fontSize: '12px', color: '#fbcfe8', lineHeight: '1.4' }}>
+                  Has adjuntado una imagen. Se recomienda <strong>LYAXIS Nexus</strong> (visión multimodal LLaMA 3.2 11B Vision).
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => handleModelSwitch('nexus')}
+                  style={{
+                    backgroundColor: '#EC4899',
+                    border: 'none',
+                    borderRadius: '6px',
+                    color: '#ffffff',
+                    padding: '4px 10px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 0 10px rgba(236, 72, 153, 0.4)',
+                  }}
+                >
+                  Cambiar a Nexus
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowNexusSuggestion(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#f472b6',
+                    cursor: 'pointer',
+                    padding: '2px',
+                    display: 'flex',
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Floating Thumbnail Preview with Close Cross */}
+          {selectedImage && (
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '10px',
+                marginBottom: '10px',
+                padding: '6px 10px',
+                borderRadius: '10px',
+                backgroundColor: 'rgba(15, 15, 22, 0.95)',
+                border: `1px solid ${currentActiveModel === 'nexus' ? '#EC4899' : 'rgba(255, 255, 255, 0.15)'}`,
+                boxShadow: '0 4px 18px rgba(0,0,0,0.7)',
+                animation: 'fadeIn 0.2s ease-out',
+              }}
+            >
+              <img
+                src={selectedImage}
+                alt="Vista previa adjunta"
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  objectFit: 'cover',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                }}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '11.5px', fontWeight: 700, color: currentActiveModel === 'nexus' ? '#f472b6' : '#ffffff' }}>
+                  Imagen lista {currentActiveModel === 'nexus' ? '(Nexus Multimodal)' : ''}
+                </span>
+                <span style={{ fontSize: '10px', color: '#71717a' }}>Base64 codificado</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedImage(null);
+                  setShowNexusSuggestion(false);
+                }}
+                title="Eliminar imagen"
+                style={{
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '6px',
+                  color: '#f87171',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  marginLeft: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <X size={13} />
+              </button>
+            </div>
+          )}
+
+          {/* Input Bar */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-end',
+              backgroundColor: '#08080c',
+              border: `1px solid ${selectedImage ? meta.color + '66' : '#1a1a24'}`,
+              borderRadius: '14px',
+              padding: isMobile ? '8px 12px' : '12px 16px',
+              gap: '10px',
+              boxShadow: '0 4px 25px rgba(0,0,0,0.8)',
+              transition: 'border-color 0.2s ease',
+            }}
+          >
+            {/* Hidden File Input */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept="image/png,image/jpeg,image/webp,image/jpg"
+              style={{ display: 'none' }}
+            />
+
+            {/* Paperclip Button for Image Attachment */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              title="Adjuntar imagen para análisis multimodal"
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                backgroundColor: selectedImage ? 'rgba(236, 72, 153, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                border: selectedImage ? '1px solid #EC4899' : '1px solid rgba(255, 255, 255, 0.1)',
+                color: selectedImage ? '#EC4899' : '#a1a1aa',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
+                transition: 'all 0.2s ease',
+                boxShadow: selectedImage ? '0 0 12px rgba(236, 72, 153, 0.3)' : 'none',
+              }}
+            >
+              <Paperclip size={16} />
+            </button>
+
+            <textarea
+              ref={textareaRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={selectedImage ? 'Describe o haz una pregunta sobre la imagen adjunta...' : `Escribe tu mensaje a LYAXIS ${meta.label}...`}
+              rows={1}
+              style={{
+                flex: 1,
+                background: 'none',
+                border: 'none',
+                color: '#ffffff',
+                fontSize: isMobile ? '13.5px' : '14px',
+                resize: 'none',
+                outline: 'none',
+                maxHeight: '140px',
+                fontFamily: 'inherit',
+              }}
+            />
+
+            {isStreaming ? (
+              <button
+                type="button"
+                onClick={stopStreaming}
+                title="Detener generación"
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  backgroundColor: '#dc2626',
+                  border: 'none',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  boxShadow: '0 0 14px rgba(220, 38, 38, 0.4)',
+                }}
+              >
+                <Square size={15} />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!inputValue.trim() && !selectedImage}
+                title="Enviar mensaje"
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  backgroundColor: (inputValue.trim() || selectedImage) ? meta.color : '#1c1c24',
+                  border: 'none',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: (inputValue.trim() || selectedImage) ? 'pointer' : 'default',
+                  flexShrink: 0,
+                  boxShadow: (inputValue.trim() || selectedImage) ? `0 0 16px ${meta.color}44` : 'none',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <Send size={15} />
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+
+    </div>
+  );
+};
+
+export default ChatView;

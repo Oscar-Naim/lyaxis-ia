@@ -6,13 +6,16 @@ export interface User {
   picture: string;
 }
 
+export type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'root';
+
 export interface Message {
   id: string;
   role: 'user' | 'model';
   content: string;
   timestamp: string;
-  model?: 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'root';
+  model?: ModelType;
   isStreaming?: boolean;
+  image?: string;
 }
 
 export interface Conversation {
@@ -20,5 +23,5 @@ export interface Conversation {
   userId?: string;
   title: string;
   createdAt: string;
-  model: 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'root';
+  model: ModelType;
 }

@@ -2,81 +2,67 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette, PanelLeft, PanelLeftClose, Hammer, GraduationCap, FileDown, Presentation } from 'lucide-react';
+import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette, PanelLeft, PanelLeftClose, Hammer, GraduationCap, FileDown, Presentation, AlertTriangle, RefreshCw, Paperclip } from 'lucide-react';
 import { exportChatToPDF } from './pdfExporter';
 import { InstallPwaPrompt } from './InstallPwaPrompt';
 import { SlideDeckViewer } from './SlideDeckViewer';
-
-type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'root';
-
-const ALL_MODELS: ModelType[] = ['speed', 'cortex', 'architect', 'classic', 'phantom', 'nexus', 'forge', 'magister', 'root'];
-
-const MODEL_META: Record<ModelType, { label: string; color: string; description: string }> = {
-  speed: { label: 'Speed', color: '#2563FF', description: 'Asistente de desarrollo ágil y streaming ultrarrápido de LYAXIS labs.' },
-  cortex: { label: 'Cortex', color: '#7C3AED', description: 'Motor de razonamiento profundo para algoritmos y arquitectura.' },
-  architect: { label: 'Architect', color: '#10B981', description: 'Módulo de arquitectura de prompts y mentoría técnica.' },
-  classic: { label: 'Classic', color: '#F59E0B', description: 'Tu compañero inteligente para el día a día. Pregunta lo que quieras.' },
-  phantom: { label: 'Phantom', color: '#EF4444', description: 'El deconstructor. Encuentra fallas, bugs y puntos de fracaso.' },
-  nexus: { label: 'Nexus', color: '#EC4899', description: 'Sintetizador creativo. Conecta ideas de dominios imposibles.' },
-  forge: { label: 'Forge', color: '#F97316', description: 'Constructor práctico. Convierte ideas vagas en proyectos reales y concretos.' },
-  magister: { label: 'Magister', color: '#06B6D4', description: 'Copiloto pedagógico y arquitecto de planeaciones docente SEP para todos los niveles.' },
-  root: { label: 'Root', color: '#00FF66', description: 'Ejecución técnica total: interfaces completas (UI/UX), full-stack, bajo nivel y código sin filtros.' },
-};
+import type { ModelType } from './types';
+import { ALL_MODELS, MODEL_META } from './config';
 
 const MODEL_PROMPTS: Record<ModelType, { icon: React.ReactNode; bg: string; border: string; text: string }[]> = {
   speed: [
-    { icon: <Code2 size={16} color="#2563FF" />, bg: 'rgba(37, 99, 255, 0.12)', border: 'rgba(37, 99, 255, 0.25)', text: 'Crea un hook de React para infinite scroll con IntersectionObserver' },
-    { icon: <Zap size={16} color="#00D9FF" />, bg: 'rgba(0, 217, 255, 0.12)', border: 'rgba(0, 217, 255, 0.25)', text: 'Genera una API REST con FastAPI, validación y docs automáticos' },
-    { icon: <Flame size={16} color="#F97316" />, bg: 'rgba(249, 115, 22, 0.12)', border: 'rgba(249, 115, 22, 0.25)', text: 'Implementa un dark mode toggle con CSS custom properties' },
-    { icon: <Terminal size={16} color="#2563FF" />, bg: 'rgba(37, 99, 255, 0.12)', border: 'rgba(37, 99, 255, 0.25)', text: 'Construye un componente de notificaciones toast animadas' },
+    { icon: <Code2 size={16} color="#2563FF" />, bg: 'rgba(37, 99, 255, 0.12)', border: 'rgba(37, 99, 255, 0.25)', text: 'Crea un hook de debounce en React' },
+    { icon: <Terminal size={16} color="#00D9FF" />, bg: 'rgba(0, 217, 255, 0.12)', border: 'rgba(0, 217, 255, 0.25)', text: 'Script en Python para renombrar archivos por fecha' },
+    { icon: <Zap size={16} color="#2563FF" />, bg: 'rgba(37, 99, 255, 0.12)', border: 'rgba(37, 99, 255, 0.25)', text: 'Optimiza esta consulta SQL' },
+    { icon: <Lightbulb size={16} color="#00D9FF" />, bg: 'rgba(0, 217, 255, 0.12)', border: 'rgba(0, 217, 255, 0.25)', text: 'Explícame la diferencia entre let y const' },
   ],
   cortex: [
-    { icon: <Brain size={16} color="#7C3AED" />, bg: 'rgba(124, 58, 237, 0.12)', border: 'rgba(124, 58, 237, 0.25)', text: 'Analiza la complejidad temporal de este algoritmo recursivo' },
-    { icon: <Network size={16} color="#a78bfa" />, bg: 'rgba(167, 139, 250, 0.12)', border: 'rgba(167, 139, 250, 0.25)', text: 'Diseña un sistema de caché distribuido con invalidación' },
-    { icon: <Cpu size={16} color="#7C3AED" />, bg: 'rgba(124, 58, 237, 0.12)', border: 'rgba(124, 58, 237, 0.25)', text: '¿Cuándo usar BFS vs DFS? Dame el framework de decisión' },
-    { icon: <Lightbulb size={16} color="#c084fc" />, bg: 'rgba(192, 132, 252, 0.12)', border: 'rgba(192, 132, 252, 0.25)', text: 'Compara microservicios vs monolito para un MVP de 3 personas' },
+    { icon: <Brain size={16} color="#7C3AED" />, bg: 'rgba(124, 58, 237, 0.12)', border: 'rgba(124, 58, 237, 0.25)', text: 'Analiza la complejidad de Dijkstra vs A*' },
+    { icon: <Cpu size={16} color="#a78bfa" />, bg: 'rgba(167, 139, 250, 0.12)', border: 'rgba(167, 139, 250, 0.25)', text: 'Resuelve el problema de la mochila (Knapsack) con DP' },
+    { icon: <Network size={16} color="#7C3AED" />, bg: 'rgba(124, 58, 237, 0.12)', border: 'rgba(124, 58, 237, 0.25)', text: 'Diseña la arquitectura para un chat WebSocket distribuido' },
+    { icon: <Sparkles size={16} color="#c084fc" />, bg: 'rgba(192, 132, 252, 0.12)', border: 'rgba(192, 132, 252, 0.25)', text: 'Demuestra formalmente por qué QuickSort es O(n log n)' },
   ],
   architect: [
-    { icon: <Compass size={16} color="#10B981" />, bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.25)', text: 'Diseña un System Prompt para un agente de soporte técnico' },
-    { icon: <BookOpen size={16} color="#34d399" />, bg: 'rgba(52, 211, 153, 0.12)', border: 'rgba(52, 211, 153, 0.25)', text: 'Enséñame el patrón Observer como si tuviera 12 años' },
-    { icon: <Code2 size={16} color="#10B981" />, bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.25)', text: 'Estructura un prompt de producción con few-shot examples' },
-    { icon: <Shield size={16} color="#6ee7b7" />, bg: 'rgba(110, 231, 183, 0.12)', border: 'rgba(110, 231, 183, 0.25)', text: '¿Cuáles son los 5 errores más comunes al diseñar prompts?' },
+    { icon: <Compass size={16} color="#10B981" />, bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.25)', text: 'Diseña un System Prompt para un agente autónomo de soporte' },
+    { icon: <Code2 size={16} color="#34d399" />, bg: 'rgba(52, 211, 153, 0.12)', border: 'rgba(52, 211, 153, 0.25)', text: 'Explica el patrón Observer con un ejemplo práctico en TypeScript' },
+    { icon: <BookOpen size={16} color="#10B981" />, bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.25)', text: 'Estructura un prompt con few-shot examples para clasificación' },
+    { icon: <Shield size={16} color="#6ee7b7" />, bg: 'rgba(110, 231, 183, 0.12)', border: 'rgba(110, 231, 183, 0.25)', text: '¿Cuáles son los 5 antipatrones más comunes al diseñar prompts?' },
   ],
   classic: [
-    { icon: <Lightbulb size={16} color="#F59E0B" />, bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.25)', text: '¿Cuáles son las mejores técnicas de productividad para devs?' },
+    { icon: <Lightbulb size={16} color="#F59E0B" />, bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.25)', text: '¿Cuáles son las mejores técnicas de gestión de tiempo para devs?' },
     { icon: <MessageCircle size={16} color="#fbbf24" />, bg: 'rgba(251, 191, 36, 0.12)', border: 'rgba(251, 191, 36, 0.25)', text: 'Ayúdame a redactar un correo profesional convincente' },
-    { icon: <BookOpen size={16} color="#F59E0B" />, bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.25)', text: 'Dame un plan de estudio para aprender Rust en 30 días' },
-    { icon: <Sparkles size={16} color="#fcd34d" />, bg: 'rgba(252, 211, 77, 0.12)', border: 'rgba(252, 211, 77, 0.25)', text: 'Recomiéndame libros que cambien mi forma de pensar' },
+    { icon: <BookOpen size={16} color="#F59E0B" />, bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.25)', text: 'Crea un plan de estudio estructurado de 30 días para aprender Rust' },
+    { icon: <Sparkles size={16} color="#fcd34d" />, bg: 'rgba(252, 211, 77, 0.12)', border: 'rgba(252, 211, 77, 0.25)', text: 'Recomiéndame 5 libros que cambien mi perspectiva sobre sistemas' },
   ],
   phantom: [
-    { icon: <Crosshair size={16} color="#EF4444" />, bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.25)', text: '¿Por qué mi código falla en producción pero no en local?' },
-    { icon: <Shield size={16} color="#f87171" />, bg: 'rgba(248, 113, 113, 0.12)', border: 'rgba(248, 113, 113, 0.25)', text: 'Encuentra las 3 peores vulnerabilidades de esta API' },
-    { icon: <Flame size={16} color="#EF4444" />, bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.25)', text: 'Destruye mi plan de negocio — dime por qué fracasaría' },
-    { icon: <Zap size={16} color="#fca5a5" />, bg: 'rgba(252, 165, 165, 0.12)', border: 'rgba(252, 165, 165, 0.25)', text: 'Audita esta arquitectura y muéstrame dónde se rompe' },
+    { icon: <Crosshair size={16} color="#EF4444" />, bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.25)', text: 'Audita este login contra inyecciones SQL y XSS' },
+    { icon: <Zap size={16} color="#f87171" />, bg: 'rgba(248, 113, 113, 0.12)', border: 'rgba(248, 113, 113, 0.25)', text: 'Encuentra fugas de memoria en este bucle de Node.js' },
+    { icon: <Flame size={16} color="#EF4444" />, bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.25)', text: 'Deconstruye este script y dime sus 3 peores fallos' },
+    { icon: <Shield size={16} color="#fca5a5" />, bg: 'rgba(252, 165, 165, 0.12)', border: 'rgba(252, 165, 165, 0.25)', text: 'Stress-test a esta lógica de autenticación JWT' },
   ],
   nexus: [
-    { icon: <Waypoints size={16} color="#EC4899" />, bg: 'rgba(236, 72, 153, 0.12)', border: 'rgba(236, 72, 153, 0.25)', text: 'Conecta la biología con el diseño de software' },
-    { icon: <Palette size={16} color="#f472b6" />, bg: 'rgba(244, 114, 182, 0.12)', border: 'rgba(244, 114, 182, 0.25)', text: '¿Qué pasaría si los videojuegos fueran educación formal?' },
-    { icon: <Sparkles size={16} color="#EC4899" />, bg: 'rgba(236, 72, 153, 0.12)', border: 'rgba(236, 72, 153, 0.25)', text: 'Genera 10 nombres únicos para mi proyecto usando etimología' },
-    { icon: <Lightbulb size={16} color="#f9a8d4" />, bg: 'rgba(249, 168, 212, 0.12)', border: 'rgba(249, 168, 212, 0.25)', text: 'Combina minimalismo japonés con arquitectura de APIs' },
+    { icon: <Waypoints size={16} color="#EC4899" />, bg: 'rgba(236, 72, 153, 0.12)', border: 'rgba(236, 72, 153, 0.25)', text: 'Sube un diagrama o imagen para analizar su estructura' },
+    { icon: <Palette size={16} color="#f472b6" />, bg: 'rgba(244, 114, 182, 0.12)', border: 'rgba(244, 114, 182, 0.25)', text: 'Combina conceptos de biología y desarrollo de software' },
+    { icon: <Sparkles size={16} color="#EC4899" />, bg: 'rgba(236, 72, 153, 0.12)', border: 'rgba(236, 72, 153, 0.25)', text: 'Escribe un ensayo de ciencia ficción cyberpunk' },
+    { icon: <Lightbulb size={16} color="#f9a8d4" />, bg: 'rgba(249, 168, 212, 0.12)', border: 'rgba(249, 168, 212, 0.25)', text: 'Analiza este wireframe y sugiere mejoras de UX' },
   ],
   forge: [
-    { icon: <Hammer size={16} color="#F97316" />, bg: 'rgba(249, 115, 22, 0.12)', border: 'rgba(249, 115, 22, 0.25)', text: 'Quiero hacer una página para intercambiar habilidades' },
-    { icon: <Lightbulb size={16} color="#fb923c" />, bg: 'rgba(251, 146, 60, 0.12)', border: 'rgba(251, 146, 60, 0.25)', text: 'Tengo una idea para vender postres, ayúdame a estructurarla' },
-    { icon: <Waypoints size={16} color="#F97316" />, bg: 'rgba(249, 115, 22, 0.12)', border: 'rgba(249, 115, 22, 0.25)', text: 'Diseña un sistema personal para organizar mi dinero' },
-    { icon: <Compass size={16} color="#fdba74" />, bg: 'rgba(253, 186, 116, 0.12)', border: 'rgba(253, 186, 116, 0.25)', text: 'Quiero aprender fotografía, hazme un plan práctico' },
+    { icon: <Hammer size={16} color="#F97316" />, bg: 'rgba(249, 115, 22, 0.12)', border: 'rgba(249, 115, 22, 0.25)', text: 'Aterriza esta idea de SaaS en un MVP de 1 fin de semana' },
+    { icon: <Lightbulb size={16} color="#fb923c" />, bg: 'rgba(251, 146, 60, 0.12)', border: 'rgba(251, 146, 60, 0.25)', text: 'Estructura el modelo de negocio freemium para una app' },
+    { icon: <Waypoints size={16} color="#F97316" />, bg: 'rgba(249, 115, 22, 0.12)', border: 'rgba(249, 115, 22, 0.25)', text: 'Diseña el funnel de conversión para desarrolladores' },
+    { icon: <Compass size={16} color="#fdba74" />, bg: 'rgba(253, 186, 116, 0.12)', border: 'rgba(253, 186, 116, 0.25)', text: '¿Cuál es la stack mínima viable para validar esta idea?' },
   ],
   magister: [
-    { icon: <GraduationCap size={16} color="#06B6D4" />, bg: 'rgba(6, 182, 212, 0.12)', border: 'rgba(6, 182, 212, 0.25)', text: 'Crea una planeación NEM (Fase 4, 3° Primaria) para el proyecto "Cuidado del Agua"' },
-    { icon: <BookOpen size={16} color="#22d3ee" />, bg: 'rgba(34, 211, 238, 0.12)', border: 'rgba(34, 211, 238, 0.25)', text: 'Diseña un proyecto STEAM de Indagación para Secundaria sobre Energías Renovables' },
-    { icon: <Sparkles size={16} color="#06B6D4" />, bg: 'rgba(6, 182, 212, 0.12)', border: 'rgba(6, 182, 212, 0.25)', text: 'Genera una rúbrica analítica de evaluación formativa para Preescolar en expresión artística' },
-    { icon: <Compass size={16} color="#67e8f9" />, bg: 'rgba(103, 232, 249, 0.12)', border: 'rgba(103, 232, 249, 0.25)', text: 'Estructura una secuencia didáctica de 5 sesiones de historia para Preparatoria' },
+    { icon: <GraduationCap size={16} color="#06B6D4" />, bg: 'rgba(6, 182, 212, 0.12)', border: 'rgba(6, 182, 212, 0.25)', text: 'Diseña una secuencia didáctica con enfoque NEM' },
+    { icon: <BookOpen size={16} color="#22d3ee" />, bg: 'rgba(34, 211, 238, 0.12)', border: 'rgba(34, 211, 238, 0.25)', text: 'Crea una rúbrica de evaluación formativa para secundaria' },
+    { icon: <Sparkles size={16} color="#06B6D4" />, bg: 'rgba(6, 182, 212, 0.12)', border: 'rgba(6, 182, 212, 0.25)', text: 'Explica el concepto de derivadas con una analogía cotidiana' },
+    { icon: <Compass size={16} color="#67e8f9" />, bg: 'rgba(103, 232, 249, 0.12)', border: 'rgba(103, 232, 249, 0.25)', text: 'Diseña un reactivo tipo examen con distractores justificados' },
   ],
   root: [
-    { icon: <Palette size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Diseña una interfaz web futurista y completa en React con animaciones en CSS puro' },
-    { icon: <Code2 size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Crea una aplicación full-stack completa con FastAPI, SQLite y autenticación JWT' },
-    { icon: <Terminal size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Implementa un hook de memoria en C++ para monitoreo de procesos y llamadas de sistema' },
-    { icon: <Zap size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Escribe un scanner de red multihilo asíncrono en Python sin librerías externas' },
+    { icon: <Palette size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Diseña una interfaz web futurista en React con animaciones en CSS puro' },
+    { icon: <Code2 size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Crea un backend asíncrono con FastAPI y SQLite con pool de conexiones' },
+    { icon: <Terminal size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Implementa una cola de tareas distribuida en Python desde cero' },
+    { icon: <Zap size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Escribe un parser AST en TypeScript para un mini lenguaje' },
   ],
 };
 import type { Message, Conversation, User } from './types';
@@ -88,32 +74,8 @@ import { FuturisticDashboardModal } from './FuturisticDashboardModal';
 import { LyaxisInfoDrawer } from './LyaxisInfoDrawer';
 import { API_BASE, GOOGLE_CLIENT_ID } from './config';
 
-let audioCtx: AudioContext | null = null;
-const playCyberClick = () => {
-  try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!audioCtx && AudioCtx) audioCtx = new AudioCtx();
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-    if (!audioCtx) return;
-
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    const now = audioCtx.currentTime;
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(450 + Math.random() * 80, now);
-    osc.frequency.exponentialRampToValueAtTime(100, now + 0.02);
-
-    gain.gain.setValueAtTime(0.015, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.02);
-
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    osc.start(now);
-    osc.stop(now + 0.02);
-  } catch {}
-};
+import { MessageBubble } from './MessageBubble';
+import { isSoundMuted, setSoundMuted, playCyberClick } from './sound';
 
 const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) => {
   const [isOpen, setIsOpen] = useState(true);
@@ -218,13 +180,46 @@ export default function App() {
   };
   const [inputValue, setInputValue] = useState('');
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
-    return typeof window !== 'undefined' ? localStorage.getItem('lyaxis_sound') === 'true' : false;
+    return typeof window !== 'undefined' ? !isSoundMuted() : true;
   });
+  const [showNexusSuggestion, setShowNexusSuggestion] = useState(false);
+
+  const [serverErrorBanner, setServerErrorBanner] = useState<string | null>(null);
+  const [lastFailedUserText, setLastFailedUserText] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor selecciona un archivo de imagen válido (PNG, JPG, WebP).');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('La imagen no debe superar los 5MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setSelectedImage(result);
+      if (selectedModel !== 'nexus') {
+        setShowNexusSuggestion(true);
+      }
+      if (soundEnabled) playCyberClick();
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   // Auto-resize textarea
   useEffect(() => {
@@ -246,10 +241,11 @@ export default function App() {
   }, []);
 
   const toggleSound = () => {
-    const next = !soundEnabled;
-    setSoundEnabled(next);
-    localStorage.setItem('lyaxis_sound', String(next));
-    if (next) playCyberClick();
+    const currentMuted = isSoundMuted();
+    const nextMuted = !currentMuted;
+    setSoundMuted(nextMuted);
+    setSoundEnabled(!nextMuted);
+    if (!nextMuted) playCyberClick();
   };
 
   const handleLoginSuccess = (loggedInUser: User) => {
@@ -264,40 +260,36 @@ export default function App() {
     fetchConversations(guestId);
   };
 
-  const { isStreaming, sendMessage, stopStreaming } = useSSEStream({
+  const { isStreaming, sendMessage, startStream, stopStreaming } = useSSEStream({
     onDone: () => {
-      fetchConversations(activeUserId);
+      fetchConversations(user?.id || 'anon');
     },
     onError: (err) => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `err-${Date.now()}`,
-          role: 'model',
-          content: `⚠️ Aviso de servicio: ${err.message}`,
-          timestamp: new Date().toISOString(),
-          model: selectedModel,
-        }
-      ]);
+      const friendly = '⚠️ El servidor tardó en responder o está iniciando. Por favor, reintenta en unos segundos.';
+      const rawMsg = err?.message || '';
+      const bannerMsg = (rawMsg.includes('502') || rawMsg.includes('504') || rawMsg.includes('TIMEOUT') || rawMsg.includes('servidor') || rawMsg.includes('fetch') || rawMsg.includes('Failed'))
+        ? friendly
+        : (rawMsg || friendly);
+      setServerErrorBanner(bannerMsg);
+      setMessages((prev) => prev.filter((m) => !(m.role === 'model' && (!m.content || !m.content.trim()))));
     }
   });
 
   const fetchConversations = async (targetUserId?: string) => {
     try {
-      const uid = targetUserId || activeUserId;
-      const url = `${API_BASE}/api/v1/conversations?user_id=${uid}`;
+      const uid = targetUserId !== undefined ? targetUserId : (user?.id || 'anon');
+      const url = `${API_BASE}/api/v1/conversations?user_id=${encodeURIComponent(uid)}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setConversations((prev) => {
-            const map = new Map<string, Conversation>();
-            data.forEach((c: Conversation) => map.set(c.id, c));
-            prev.forEach((c: Conversation) => {
-              if (!map.has(c.id)) map.set(c.id, c);
-            });
-            return Array.from(map.values());
-          });
+        if (Array.isArray(data)) {
+          setConversations(data.map((c: any) => ({
+            id: c.id,
+            userId: c.user_id || uid,
+            title: c.title || 'Nueva conversación',
+            createdAt: c.created_at || new Date().toISOString(),
+            model: c.model || 'speed'
+          })));
         }
       }
     } catch (e) {
@@ -325,8 +317,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchConversations(activeUserId);
-  }, [activeUserId]);
+    fetchConversations(user?.id || 'anon');
+  }, [user]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -344,8 +336,8 @@ export default function App() {
   const [isScanlineActive, setIsScanlineActive] = useState(false);
   const [isChromaticActive, setIsChromaticActive] = useState(false);
 
-  // Switch model and load last conversation for that model
-  const switchModel = (newModel: ModelType) => {
+  // Switch model in-chat (persisting model for current conversation without resetting)
+  const switchModel = async (newModel: ModelType) => {
     if (isStreaming || newModel === selectedModel) return;
     if (soundEnabled) playCyberClick();
     setIsScanlineActive(true);
@@ -353,64 +345,112 @@ export default function App() {
     setTimeout(() => setIsScanlineActive(false), 750);
     setTimeout(() => setIsChromaticActive(false), 450);
 
-    // Save current conversation for current model
-    if (currentChatId) {
-      updateLastChatPerModel(selectedModel, currentChatId);
-    }
     setSelectedModel(newModel);
-    // Load last conversation for the new model
-    const lastChatId = lastChatPerModel[newModel];
-    if (lastChatId) {
-      const chat = conversations.find(c => c.id === lastChatId);
-      if (chat) {
-        setCurrentChatId(lastChatId);
-        loadMessages(lastChatId);
-        return;
+    if (newModel === 'nexus') {
+      setShowNexusSuggestion(false);
+    }
+
+    // If there is an active conversation, update its model without clearing messages
+    if (currentChatId) {
+      setConversations((prev) =>
+        prev.map((c) => (c.id === currentChatId ? { ...c, model: newModel } : c))
+      );
+      try {
+        await fetch(`${API_BASE}/api/v1/conversations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: currentChatId,
+            user_id: user?.id || 'anon',
+            model: newModel
+          })
+        });
+      } catch (err) {
+        console.warn('Aviso actualizando modelo de conversación:', err);
       }
     }
-    // No previous conversation for this model — show empty state
-    setCurrentChatId(null);
-    setMessages([]);
   };
 
-  const createNewChat = () => {
+  const handleNewConversation = async (modelOverride?: ModelType) => {
     if (isStreaming) return;
-    const localId = `chat-${Date.now()}`;
+    const cid = `chat-${Date.now()}`;
+    const modelToUse = modelOverride || selectedModel;
+    const uid = user?.id || 'anon';
     const newChat: Conversation = {
-      id: localId,
-      userId: activeUserId,
+      id: cid,
+      userId: uid,
       title: 'Nueva conversación',
       createdAt: new Date().toISOString(),
-      model: selectedModel
+      model: modelToUse
     };
-    setConversations((prev) => [newChat, ...prev]);
-    setCurrentChatId(localId);
+    setConversations((prev) => [newChat, ...prev.filter((c) => c.id !== cid)]);
+    setCurrentChatId(cid);
     setMessages([]);
     if (isMobile) setIsSidebarOpen(false);
+
+    try {
+      await fetch(`${API_BASE}/api/v1/conversations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: cid,
+          user_id: uid,
+          title: 'Nueva conversación',
+          model: modelToUse
+        })
+      });
+    } catch (err) {
+      console.warn("Aviso persistiendo conversación en backend:", err);
+    }
   };
 
-  const deleteConversation = async (chatId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleStartChat = handleNewConversation;
+  const createNewChat = handleNewConversation;
+
+  const handleDeleteConversation = async (chatId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     try {
-      fetch(`${API_BASE}/api/v1/conversations/${chatId}`, { method: 'DELETE' });
-      const updated = conversations.filter((c) => c.id !== chatId);
-      setConversations(updated);
-      if (currentChatId === chatId) {
-        if (updated.length > 0) {
-          selectConversation(updated[0]);
-        } else {
-          createNewChat();
-        }
-      }
+      await fetch(`${API_BASE}/api/v1/conversations/${chatId}`, { method: 'DELETE' });
     } catch (err) {
-      console.error("Error eliminando conversación:", err);
+      console.error("Error eliminando conversación en backend:", err);
+    }
+    const updated = conversations.filter((c) => c.id !== chatId);
+    setConversations(updated);
+    if (currentChatId === chatId) {
+      if (updated.length > 0) {
+        selectConversation(updated[0]);
+      } else {
+        handleNewConversation();
+      }
+    }
+  };
+
+  const deleteConversation = handleDeleteConversation;
+
+  const onUpdateTitle = async (chatId: string, newTitle: string) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === chatId ? { ...c, title: newTitle } : c))
+    );
+    try {
+      await fetch(`${API_BASE}/api/v1/conversations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: chatId,
+          user_id: user?.id || 'anon',
+          title: newTitle,
+          model: selectedModel
+        })
+      });
+    } catch (err) {
+      console.warn("Aviso actualizando título en backend:", err);
     }
   };
 
   const deleteAllConversations = async () => {
     if (isStreaming) return;
     try {
-      await fetch(`${API_BASE}/api/v1/conversations/all?user_id=${activeUserId}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/api/v1/conversations/all?user_id=${user?.id || 'anon'}`, { method: 'DELETE' });
       setConversations([]);
       setMessages([]);
       setCurrentChatId(null);
@@ -421,23 +461,41 @@ export default function App() {
 
   const handleSend = async (customText?: string) => {
     const textToSend = customText || inputValue;
-    if (!textToSend || !textToSend.trim() || isStreaming) return;
+    if ((!textToSend || !textToSend.trim()) && !selectedImage) return;
+    if (isStreaming) return;
 
-    const userText = textToSend.trim();
+    const userText = textToSend ? textToSend.trim() : '';
+    const imgToSend = selectedImage;
     setInputValue('');
+    setSelectedImage(null);
+    setShowNexusSuggestion(false);
 
     let targetChatId = currentChatId;
     if (!targetChatId) {
       targetChatId = `chat-${Date.now()}`;
       setCurrentChatId(targetChatId);
+      const uid = user?.id || 'anon';
+      const initialTitle = (userText || 'Consulta con imagen').slice(0, 30);
       const localChat: Conversation = {
         id: targetChatId,
-        userId: activeUserId,
-        title: userText.slice(0, 30),
+        userId: uid,
+        title: initialTitle,
         createdAt: new Date().toISOString(),
         model: selectedModel
       };
       setConversations((prev) => [localChat, ...prev]);
+      try {
+        fetch(`${API_BASE}/api/v1/conversations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: targetChatId,
+            user_id: uid,
+            title: initialTitle,
+            model: selectedModel
+          })
+        }).catch(() => {});
+      } catch {}
     }
 
     const userMessage: Message = {
@@ -446,6 +504,7 @@ export default function App() {
       content: userText,
       timestamp: new Date().toISOString(),
       model: selectedModel,
+      image: imgToSend || undefined,
     };
 
     const assistantPlaceholderId = `model-${Date.now() + 1}`;
@@ -460,19 +519,50 @@ export default function App() {
 
     const updatedMessages = [...messages, userMessage];
     setMessages([...updatedMessages, assistantMessage]);
+    setServerErrorBanner(null);
+    setLastFailedUserText(userText);
 
-    await sendMessage(updatedMessages, selectedModel, targetChatId, activeUserId, (accumulatedText) => {
-      if (soundEnabled && Math.random() > 0.4) {
-        playCyberClick();
+    // Active model individual temperature
+    const activeMeta = MODEL_META[selectedModel] || MODEL_META.speed;
+    const activeTemp = activeMeta.temperature ?? 0.6;
+
+    await startStream(
+      updatedMessages,
+      selectedModel,
+      targetChatId,
+      user?.id || 'anon',
+      (accumulatedText) => {
+        if (soundEnabled && Math.random() > 0.4) {
+          playCyberClick();
+        }
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantPlaceholderId
+              ? { ...msg, content: accumulatedText }
+              : msg
+          )
+        );
+      },
+      {
+        temperature: activeTemp,
+        onError: (err) => {
+          const friendly = '⚠️ El servidor tardó en responder o está iniciando. Por favor, reintenta en unos segundos.';
+          const rawMsg = err?.message || '';
+          const bannerMsg = (rawMsg.includes('502') || rawMsg.includes('504') || rawMsg.includes('TIMEOUT') || rawMsg.includes('servidor') || rawMsg.includes('fetch') || rawMsg.includes('Failed'))
+            ? friendly
+            : (rawMsg || friendly);
+          setServerErrorBanner(bannerMsg);
+          setMessages((prev) =>
+            prev.filter((m) => !(m.role === 'model' && (!m.content || !m.content.trim())))
+          );
+        },
+        onDone: () => {
+          setServerErrorBanner(null);
+          setLastFailedUserText(null);
+          fetchConversations(user?.id || 'anon');
+        }
       }
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === assistantPlaceholderId
-            ? { ...msg, content: accumulatedText }
-            : msg
-        )
-      );
-    });
+    );
 
     setMessages((prev) =>
       prev.map((msg) =>
@@ -481,7 +571,7 @@ export default function App() {
     );
 
     // Refresh conversation list so newly created/updated conversation shows in sidebar
-    fetchConversations(activeUserId);
+    fetchConversations(user?.id || 'anon');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -784,8 +874,43 @@ export default function App() {
             )}
           </div>
 
-          <div style={{ paddingTop: '12px', borderTop: '1px solid #141418', fontSize: '11px', color: '#52525b', textAlign: 'center' }}>
-            Create. Break. Rebuild. • 2026
+          <div
+            style={{
+              paddingTop: '12px',
+              borderTop: '1px solid #141418',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingLeft: '4px',
+              paddingRight: '4px',
+            }}
+          >
+            <span style={{ fontSize: '11px', color: '#52525b', letterSpacing: '0.3px' }}>
+              Create. Break. Rebuild. • 2026
+            </span>
+            <button
+              type="button"
+              onClick={toggleSound}
+              title={!soundEnabled ? 'Activar efectos de audio' : 'Silenciar efectos de audio'}
+              style={{
+                background: !soundEnabled ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 217, 255, 0.08)',
+                border: !soundEnabled ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 217, 255, 0.3)',
+                borderRadius: '6px',
+                color: !soundEnabled ? '#52525b' : '#00D9FF',
+                cursor: 'pointer',
+                padding: '4px 8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                fontSize: '11px',
+                fontWeight: 600,
+                boxShadow: !soundEnabled ? 'none' : '0 0 10px rgba(0, 217, 255, 0.2)',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              {!soundEnabled ? <VolumeX size={13} /> : <Volume2 size={13} />}
+              <span>{!soundEnabled ? 'Muted' : 'Audio'}</span>
+            </button>
           </div>
         </aside>
 
@@ -1026,6 +1151,105 @@ export default function App() {
             </div>
           </header>
 
+          {/* Cyberpunk Cold Start / Server Timeout Error Banner */}
+          {serverErrorBanner && (
+            <div
+              role="alert"
+              style={{
+                margin: isMobile ? '8px 10px 0' : '12px 16px 0',
+                padding: '12px 16px',
+                borderRadius: '12px',
+                backgroundColor: 'rgba(20, 14, 8, 0.95)',
+                border: '1px solid rgba(245, 158, 11, 0.45)',
+                boxShadow: '0 0 25px rgba(245, 158, 11, 0.2), inset 0 0 12px rgba(245, 158, 11, 0.08)',
+                backdropFilter: 'blur(12px)',
+                display: 'flex',
+                flexDirection: isMobile ? 'column' : 'row',
+                alignItems: isMobile ? 'flex-start' : 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                zIndex: 30,
+                animation: 'fadeIn 0.3s ease-out'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <AlertTriangle size={18} color="#F59E0B" />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.8px', color: '#F59E0B', textTransform: 'uppercase' }}>
+                      TELEMETRÍA // INICIO DE SERVIDOR EN CURSO
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#fef3c7', lineHeight: '1.4' }}>
+                    {serverErrorBanner}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', alignSelf: isMobile ? 'flex-end' : 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (lastFailedUserText) {
+                      handleSend(lastFailedUserText);
+                    } else if (messages.length > 0) {
+                      const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+                      if (lastUser && lastUser.content) {
+                        handleSend(lastUser.content);
+                      }
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                    border: '1px solid #F59E0B',
+                    color: '#ffffff',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 0 14px rgba(245, 158, 11, 0.3)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <RefreshCw size={13} />
+                  <span>Reintentar ahora</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setServerErrorBanner(null)}
+                  title="Cerrar aviso"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#a1a1aa',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Main Area: Standard Chat Messages */}
           <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px 12px' : '24px 16px', display: 'flex', flexDirection: 'column' }}>
             <div style={{ maxWidth: '860px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px', flex: 1 }}>
@@ -1198,85 +1422,15 @@ export default function App() {
 
                 </div>
               ) : (
-                messages.map((msg, msgIndex) => {
-                  const messageModel = msg.model || selectedModel;
-                  return (
-                    <div
-                      key={msg.id || msgIndex}
-                      className="lyaxis-msg-bubble"
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignSelf: 'flex-start',
-                        maxWidth: '100%',
-                        width: '100%',
-                        backgroundColor: msg.role === 'user' ? '#0d0d12' : 'rgba(6, 6, 9, 0.85)',
-                        backdropFilter: 'blur(8px)',
-                        border: msg.role === 'user' ? '1px solid #22222c' : `1px solid ${msg.role === 'model' ? getModelColor(messageModel) + '33' : '#14141c'}`,
-                        borderRadius: '14px',
-                        padding: isMobile ? '12px 14px' : '16px 20px',
-                        fontSize: isMobile ? '13.5px' : '14.5px',
-                        lineHeight: '1.6',
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
-                        overflowWrap: 'break-word',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', fontSize: '11px', color: '#71717a' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          {msg.role === 'model' && getModelIcon(messageModel)}
-                          <span style={{ fontWeight: 600, color: msg.role === 'user' ? '#a1a1aa' : getModelColor(messageModel) }}>
-                            {msg.role === 'user' ? 'Tú' : `LYAXIS ${getModelLabel(messageModel)}`}
-                          </span>
-                        </div>
-                        {msg.role === 'model' && msg.content && !msg.isStreaming && (
-                          <div className="lyaxis-action-bar">
-                            <button
-                              type="button"
-                              title="Copiar respuesta"
-                              className={`lyaxis-action-btn${copiedMsgId === msg.id ? ' copied' : ''}`}
-                              onClick={() => {
-                                navigator.clipboard.writeText(msg.content);
-                                setCopiedMsgId(msg.id);
-                                setTimeout(() => setCopiedMsgId(null), 2000);
-                              }}
-                            >
-                              {copiedMsgId === msg.id ? <Check size={13} /> : <Copy size={13} />}
-                            </button>
-                            <button
-                              type="button"
-                              title="Descargar esta respuesta como PDF"
-                              className="lyaxis-action-btn"
-                              onClick={() => exportChatToPDF(
-                                conversations.find(c => c.id === currentChatId)?.title || 'Respuesta LYAXIS',
-                                getModelLabel(messageModel),
-                                getModelColor(messageModel),
-                                [msg]
-                              )}
-                            >
-                              <FileDown size={13} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="markdown-content" style={{ opacity: msg.role === 'model' && msg.isStreaming ? 0.8 : 1 }}>
-                        {!msg.content && msg.isStreaming ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 2px' }}>
-                            <span className="lyaxis-loading-dot" />
-                            <span className="lyaxis-loading-dot" />
-                            <span className="lyaxis-loading-dot" />
-                          </div>
-                        ) : !msg.content && !msg.isStreaming ? (
-                          <span style={{ color: '#71717a', fontStyle: 'italic' }}>⚠️ Conectando con la IA...</span>
-                        ) : (
-                          <>
-                            {renderMessageContent(msg.content, msg.isStreaming)}
-                            {msg.isStreaming && <span className="lyaxis-cursor" />}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
+                messages.map((msg, msgIndex) => (
+                  <MessageBubble
+                    key={msg.id || msgIndex}
+                    message={msg}
+                    activeModel={selectedModel}
+                    isMobile={isMobile}
+                    onExportPDF={exportChatToPDF}
+                  />
+                ))
               )}
               <div ref={messagesEndRef} />
             </div>
@@ -1291,13 +1445,166 @@ export default function App() {
               }}
               style={{ maxWidth: '860px', margin: '0 auto', width: '100%' }}
             >
+              {/* Automatic Nexus Suggestion Banner if user uploaded an image and isn't on Nexus */}
+              {showNexusSuggestion && selectedImage && selectedModel !== 'nexus' && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 12px',
+                    marginBottom: '8px',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(236, 72, 153, 0.12)',
+                    border: '1px solid rgba(236, 72, 153, 0.35)',
+                    boxShadow: '0 0 15px rgba(236, 72, 153, 0.15)',
+                    gap: '10px',
+                    animation: 'fadeIn 0.25s ease-out',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                    <Sparkles size={14} color="#EC4899" />
+                    <span style={{ fontSize: '12px', color: '#fbcfe8', lineHeight: '1.4' }}>
+                      Has adjuntado una imagen. Se recomienda <strong>LYAXIS Nexus</strong> (visión multimodal LLaMA 3.2 11B Vision).
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        switchModel('nexus');
+                        setShowNexusSuggestion(false);
+                      }}
+                      style={{
+                        backgroundColor: '#EC4899',
+                        border: 'none',
+                        borderRadius: '6px',
+                        color: '#ffffff',
+                        padding: '4px 10px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: '0 0 10px rgba(236, 72, 153, 0.4)',
+                      }}
+                    >
+                      Cambiar a Nexus
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowNexusSuggestion(false)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#f472b6',
+                        cursor: 'pointer',
+                        padding: '2px',
+                        display: 'flex',
+                      }}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Floating Thumbnail Preview with Close Cross */}
+              {selectedImage && (
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    marginBottom: '10px',
+                    padding: '6px 10px',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(15, 15, 22, 0.95)',
+                    border: `1px solid ${selectedModel === 'nexus' ? '#EC4899' : 'rgba(255, 255, 255, 0.15)'}`,
+                    boxShadow: '0 4px 18px rgba(0,0,0,0.7)',
+                    animation: 'fadeIn 0.2s ease-out',
+                  }}
+                >
+                  <img
+                    src={selectedImage}
+                    alt="Vista previa adjunta"
+                    style={{
+                      width: '42px',
+                      height: '42px',
+                      objectFit: 'cover',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                    }}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: 700, color: selectedModel === 'nexus' ? '#f472b6' : '#ffffff' }}>
+                      Imagen lista {selectedModel === 'nexus' ? '(Nexus Multimodal)' : ''}
+                    </span>
+                    <span style={{ fontSize: '10px', color: '#71717a' }}>Base64 codificado</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedImage(null);
+                      setShowNexusSuggestion(false);
+                    }}
+                    title="Eliminar imagen"
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      borderRadius: '6px',
+                      color: '#f87171',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      marginLeft: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              )}
+
               <div style={{ display: 'flex', alignItems: 'flex-end', backgroundColor: '#08080c', border: '1px solid #1a1a24', borderRadius: '14px', padding: isMobile ? '8px 12px' : '12px 16px', gap: '10px', boxShadow: '0 4px 25px rgba(0,0,0,0.8)' }}>
+                
+                {/* Hidden File Input */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept="image/png,image/jpeg,image/webp,image/jpg"
+                  style={{ display: 'none' }}
+                />
+
+                {/* Paperclip Button for Image Attachment */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Adjuntar imagen para análisis multimodal"
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    backgroundColor: selectedImage ? 'rgba(236, 72, 153, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                    border: selectedImage ? '1px solid #EC4899' : '1px solid rgba(255, 255, 255, 0.1)',
+                    color: selectedImage ? '#EC4899' : '#a1a1aa',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    transition: 'all 0.2s ease',
+                    boxShadow: selectedImage ? '0 0 12px rgba(236, 72, 153, 0.3)' : 'none',
+                  }}
+                >
+                  <Paperclip size={16} />
+                </button>
+
                 <textarea
                   ref={textareaRef}
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Escribe tu mensaje a LYAXIS IA..."
+                  placeholder={selectedImage ? "Describe o pregunta sobre la imagen adjunta..." : "Escribe tu mensaje a LYAXIS IA..."}
                   rows={1}
                   style={{
                     flex: 1,
@@ -1322,20 +1629,20 @@ export default function App() {
                 ) : (
                   <button
                     type="submit"
-                    disabled={!inputValue.trim()}
+                    disabled={!inputValue.trim() && !selectedImage}
                     style={{
                       width: '36px',
                       height: '36px',
                       borderRadius: '10px',
-                      backgroundColor: inputValue.trim() ? getModelColor(selectedModel) : '#1c1c24',
+                      backgroundColor: (inputValue.trim() || selectedImage) ? getModelColor(selectedModel) : '#1c1c24',
                       border: 'none',
                       color: '#ffffff',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      cursor: inputValue.trim() ? 'pointer' : 'default',
+                      cursor: (inputValue.trim() || selectedImage) ? 'pointer' : 'default',
                       flexShrink: 0,
-                      boxShadow: inputValue.trim() ? `0 0 16px ${getModelColor(selectedModel)}44` : 'none',
+                      boxShadow: (inputValue.trim() || selectedImage) ? `0 0 16px ${getModelColor(selectedModel)}44` : 'none',
                     }}
                   >
                     <Send size={16} />

@@ -40,8 +40,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
 
   if (!isOpen) return null;
 
-  const handleRequestCode = async (customTarget?: string, type?: 'email' | 'phone') => {
-    const inputTarget = (customTarget || target).trim();
+  const handleSendOTP = async (identifier: string, type?: 'email' | 'phone') => {
+    const inputTarget = (identifier || target).trim();
     const finalType = type || authType;
 
     if (!inputTarget) {
@@ -63,12 +63,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
       fetch(`${API_BASE}/api/v1/auth/otp/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target: inputTarget, auth_type: finalType })
+        body: JSON.stringify({
+          contact: inputTarget,
+          target: inputTarget,
+          auth_type: finalType
+        })
       });
     } catch {}
   };
 
-  const handleVerifyOtp = async () => {
+  const handleRequestCode = handleSendOTP;
+
+  const handleVerifyOTP = async () => {
     const fullCode = otpCode.join('').trim();
     if (fullCode.length !== 6) {
       setError('Debes ingresar los 6 dígitos del código');
@@ -94,10 +100,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
       fetch(`${API_BASE}/api/v1/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target, code: fullCode, auth_type: authType })
+        body: JSON.stringify({
+          contact: target,
+          target: target,
+          code: otpCode.join(''),
+          auth_type: authType
+        })
       });
     } catch {}
   };
+
+  const handleVerifyOtp = handleVerifyOTP;
 
   const handleGoogleSuccess = async (credentialResponse: any) => {
     try {
@@ -117,8 +130,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            credential: credentialResponse.credential,
-            client_id: GOOGLE_CLIENT_ID
+            credential: credentialResponse.credential
           })
         }).catch(() => {});
       } else {
