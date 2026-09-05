@@ -1073,3 +1073,41 @@ textarea {
 .lyaxis-quick-card:active {
   transform: translateY(0);
 }
+
+/* ====== MOBILE OPTIMIZATIONS & VIEWPORT SCALING ====== */
+@media (max-width: 767px) {
+  html, body {
+    overflow-x: hidden;
+    width: 100vw;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Ensure text inputs never trigger unwanted zoom in iOS Safari */
+  textarea, input[type="text"], input[type="search"] {
+    font-size: 16px !important;
+  }
+
+  /* Legible reading text in mobile chat messages */
+  .markdown-content {
+    font-size: 15px !important;
+    line-height: 1.65 !important;
+  }
+
+  .markdown-content p, 
+  .markdown-content li {
+    font-size: 15px !important;
+    line-height: 1.65 !important;
+  }
+
+  /* Code block font size readability on mobile */
+  .lyaxis-code-pre code {
+    font-size: 13.5px !important;
+    line-height: 1.5 !important;
+  }
+
+  /* Touch optimization */
+  button, a {
+    touch-action: manipulation;
+  }
+}

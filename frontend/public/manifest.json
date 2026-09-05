@@ -1,12 +1,12 @@
 {
-  "name": "LYAXIS IA",
+  "name": "LYAXIS IA — Create. Break. Rebuild.",
   "short_name": "LYAXIS IA",
-  "description": "Plataforma de Inteligencia Artificial multicapa Cyber-Premium con 9 personalidades especializadas.",
+  "description": "Plataforma de inteligencia artificial multi-motor especializada en programación, algoritmos y razonamiento determinista.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#050505",
-  "theme_color": "#00f0ff",
+  "background_color": "#050508",
+  "theme_color": "#050508",
   "categories": ["productivity", "utilities", "ai"],
   "icons": [
     {

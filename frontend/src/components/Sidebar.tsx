@@ -97,26 +97,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const getModelColor = (m: ModelType) => MODEL_META[m]?.color || '#2563FF';
 
   return (
-    <aside
-      className="lyaxis-sidebar"
-      style={{
-        position: isMobile ? 'fixed' : 'relative',
-        top: 0,
-        left: 0,
-        bottom: 0,
-        zIndex: 10001,
-        width: isOpen ? '280px' : '0px',
-        display: isOpen ? 'flex' : 'none',
-        backgroundColor: '#000000',
-        borderRight: '1px solid #141418',
-        flexDirection: 'column',
-        padding: isOpen ? '16px' : '0px',
-        flexShrink: 0,
-        boxShadow: isMobile ? '10px 0 40px rgba(0,0,0,0.9)' : 'none',
-        transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-        overflow: 'hidden',
-      }}
-    >
+    <>
+      {/* Backdrop overlay for mobile with blur */}
+      {isMobile && isOpen && (
+        <div
+          onClick={onClose}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            zIndex: 10000,
+          }}
+        />
+      )}
+      <aside
+        className="lyaxis-sidebar"
+        style={{
+          position: isMobile ? 'fixed' : 'relative',
+          top: 0,
+          left: 0,
+          bottom: 0,
+          zIndex: 10001,
+          width: isOpen ? (isMobile ? '85%' : '280px') : '0px',
+          maxWidth: isMobile ? '340px' : '280px',
+          display: isOpen ? 'flex' : 'none',
+          backgroundColor: '#0D0D15',
+          borderRight: '1px solid #232336',
+          flexDirection: 'column',
+          padding: isOpen ? '16px' : '0px',
+          flexShrink: 0,
+          boxShadow: isMobile ? '12px 0 45px rgba(0,0,0,0.95)' : 'none',
+          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+          overflow: 'hidden',
+        }}
+      >
       {/* Top Brand & Nav */}
       <div
         style={{
@@ -129,20 +145,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }}
       >
         <div
-          onClick={onHomeClick}
-          style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: onHomeClick ? 'pointer' : 'default' }}
-          title="Volver a la portada de inicio"
+          onClick={() => {
+            if (onHomeClick) onHomeClick();
+            else onNewChat();
+            if (isMobile) onClose();
+          }}
+          style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+          title="Iniciar nuevo chat"
         >
           <div
             style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
+              width: '34px',
+              height: '34px',
+              borderRadius: '9px',
               background: 'linear-gradient(135deg, #2563FF, #00D9FF)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               boxShadow: '0 0 16px rgba(0, 217, 255, 0.3)',
+              flexShrink: 0,
             }}
           >
             <Terminal size={18} color="#ffffff" />
@@ -166,10 +187,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                padding: '6px',
+                justifyContent: 'center',
+                minWidth: '40px',
+                minHeight: '40px',
+                borderRadius: '8px',
               }}
             >
-              <Home size={17} />
+              <Home size={18} />
             </button>
           )}
           <button
@@ -178,17 +202,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
             title="Ocultar barra lateral"
             style={{
               background: 'none',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: '10px',
               color: '#a1a1aa',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              padding: '6px',
-              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+              justifyContent: 'center',
+              minWidth: '44px',
+              minHeight: '44px',
+              backgroundColor: 'rgba(255, 255, 255, 0.04)',
             }}
           >
-            <PanelLeftClose size={17} />
+            <PanelLeftClose size={18} />
           </button>
         </div>
       </div>
@@ -277,20 +303,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* New Chat Button */}
       <button
         type="button"
-        onClick={onNewChat}
+        onClick={() => {
+          onNewChat();
+          if (isMobile) onClose();
+        }}
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
+          gap: '10px',
           width: '100%',
-          padding: '10px 14px',
+          minHeight: '46px',
+          padding: '12px 14px',
           backgroundColor: '#0a0a0e',
           border: '1px solid #1c1c24',
-          borderRadius: '8px',
+          borderRadius: '10px',
           color: '#ffffff',
-          fontSize: '13px',
+          fontSize: '14.5px',
+          fontWeight: 600,
           cursor: 'pointer',
-          marginBottom: '16px',
+          marginBottom: '14px',
           transition: 'all 0.2s ease',
         }}
         onMouseEnter={(e) => {
@@ -302,26 +333,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
           e.currentTarget.style.boxShadow = 'none';
         }}
       >
-        <Plus size={16} /> Nuevo Chat
+        <Plus size={17} /> Nuevo Chat
       </button>
 
       {/* 2. Acceso Directo al Cuaderno / Mis Notas */}
       {onOpenNotebook && (
         <button
           type="button"
-          onClick={onOpenNotebook}
+          onClick={() => {
+            onOpenNotebook();
+            if (isMobile) onClose();
+          }}
           title="Abrir Cuaderno Visual LYAXIS (Notebook Studio)"
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             width: '100%',
-            padding: '9px 12px',
+            minHeight: '46px',
+            padding: '11px 14px',
             backgroundColor: 'rgba(0, 217, 255, 0.05)',
             border: '1px solid rgba(0, 217, 255, 0.22)',
-            borderRadius: '8px',
+            borderRadius: '10px',
             color: '#ffffff',
-            fontSize: '12.5px',
+            fontSize: '14px',
             fontWeight: 600,
             cursor: 'pointer',
             marginBottom: '16px',
@@ -340,14 +375,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BookOpen size={15} color="#00D9FF" />
+            <BookOpen size={16} color="#00D9FF" />
             <span>Mis Notas / Cuaderno</span>
           </div>
           <span
             style={{
               fontSize: '10px',
-              padding: '2px 6px',
-              borderRadius: '10px',
+              padding: '2px 7px',
+              borderRadius: '6px',
               backgroundColor: 'rgba(0, 217, 255, 0.15)',
               color: '#00D9FF',
               fontWeight: 700,
@@ -412,15 +447,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
             return (
               <div
                 key={chat.id}
-                onClick={() => onSelectConversation(chat)}
+                onClick={() => {
+                  onSelectConversation(chat);
+                  if (isMobile) onClose();
+                }}
                 style={{
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  fontSize: '13px',
+                  minHeight: '46px',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  fontSize: '14px',
                   cursor: 'pointer',
                   backgroundColor: isSelected ? `${modelColor}22` : 'transparent',
                   border: isSelected ? `1px solid ${modelColor}55` : '1px solid transparent',
-                  color: isSelected ? '#ffffff' : '#a1a1aa',
+                  color: isSelected ? '#ffffff' : '#cbd5e1',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -428,9 +467,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   boxShadow: isSelected ? `0 0 14px ${modelColor}22` : 'none',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                  {MODEL_ICONS[chat.model]?.(14, modelColor) || <Sparkles size={14} color={modelColor} />}
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                  {MODEL_ICONS[chat.model]?.(16, modelColor) || <Sparkles size={16} color={modelColor} />}
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '14px' }}>
                     {chat.title}
                   </span>
                 </div>
@@ -441,16 +480,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#52525b',
+                    color: '#71717a',
                     cursor: 'pointer',
-                    padding: '2px',
+                    minWidth: '34px',
+                    minHeight: '34px',
                     display: 'flex',
                     alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '6px',
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = '#52525b'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = '#71717a'; }}
                 >
-                  <Trash2 size={13} />
+                  <Trash2 size={14} />
                 </button>
               </div>
             );

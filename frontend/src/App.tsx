@@ -76,6 +76,7 @@ import { API_BASE, GOOGLE_CLIENT_ID } from './config';
 
 import { MessageBubble } from './MessageBubble';
 import { NotebookStudio } from './NotebookStudio';
+import { BootSplash } from './components/BootSplash';
 import { isSoundMuted, setSoundMuted, playCyberClick } from './sound';
 
 const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) => {
@@ -105,7 +106,8 @@ const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) =
 };
 
 export default function App() {
-  const [view, setView] = useState<'landing' | 'chat'>('landing');
+  const [view, setView] = useState<'landing' | 'chat'>('chat');
+  const [showBoot, setShowBoot] = useState(() => typeof window !== 'undefined' ? sessionStorage.getItem('lyaxis_boot_seen') !== 'true' : false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window === 'undefined' ? true : window.innerWidth >= 768);
@@ -190,6 +192,11 @@ export default function App() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    // Focus textarea ready to write immediately
+    textareaRef.current?.focus();
+  }, []);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [isNotebookOpen, setIsNotebookOpen] = useState(false);
   const [notebookContent, setNotebookContent] = useState('');
@@ -695,29 +702,11 @@ export default function App() {
 
   const getModelIcon = (modelKey: ModelType) => MODEL_ICONS[modelKey]?.(14) || <Sparkles size={14} color="#2563FF" />;
 
-  if (view === 'landing') {
-    return (
-      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-        <LandingPage
-          onEnterChat={() => setView('chat')}
-          onEnterChatWithModel={(model, promptText) => {
-            switchModel(model);
-            setView('chat');
-            if (promptText) {
-              setTimeout(() => handleSend(promptText), 100);
-            }
-          }}
-          onOpenAuth={() => setIsAuthOpen(true)}
-          onOpenInfo={openInfoDrawer}
-        />
-        <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} onLoginSuccess={handleLoginSuccess} />
-        <LyaxisInfoDrawer isOpen={isInfoDrawerOpen} onClose={() => setIsInfoDrawerOpen(false)} initialTab={infoDrawerTab} />
-      </GoogleOAuthProvider>
-    );
-  }
-
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      {/* 2. Micro-Animación Cinemática de Entrada ("Boot Sequence") */}
+      {showBoot && <BootSplash onComplete={() => setShowBoot(false)} />}
+
       <div className="cyber-grid-bg" style={{ display: 'flex', width: '100vw', height: '100vh', color: '#ffffff', position: 'relative', overflow: 'hidden' }}>
         
         {/* Dynamic Ambient Aura */}
@@ -731,10 +720,18 @@ export default function App() {
           transition: 'background 1.2s ease-in-out'
         }} />
         
+        {/* Backdrop overlay for mobile with blur */}
         {isMobile && isSidebarOpen && (
           <div
             onClick={() => setIsSidebarOpen(false)}
-            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.8)', backdropFilter: 'blur(6px)', zIndex: 10000 }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              zIndex: 10000,
+            }}
           />
         )}
 
@@ -746,25 +743,29 @@ export default function App() {
             left: 0,
             bottom: 0,
             zIndex: 10001,
-            width: isSidebarOpen ? '280px' : '0px',
+            width: isSidebarOpen ? (isMobile ? '85%' : '280px') : '0px',
+            maxWidth: isMobile ? '340px' : '280px',
             display: isSidebarOpen ? 'flex' : 'none',
-            backgroundColor: '#000000',
-            borderRight: '1px solid #141418',
+            backgroundColor: '#0D0D15',
+            borderRight: '1px solid #232336',
             flexDirection: 'column',
             padding: isSidebarOpen ? '16px' : '0px',
             flexShrink: 0,
-            boxShadow: isMobile ? '10px 0 40px rgba(0,0,0,0.9)' : 'none',
+            boxShadow: isMobile ? '12px 0 45px rgba(0,0,0,0.95)' : 'none',
             transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
             overflow: 'hidden',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #141418' }}>
             <div
-              onClick={() => setView('landing')}
+              onClick={() => {
+                createNewChat();
+                if (isMobile) setIsSidebarOpen(false);
+              }}
               style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
-              title="Volver a la portada de inicio"
+              title="Iniciar nuevo chat"
             >
-              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, #2563FF, #00D9FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(0, 217, 255, 0.3)' }}>
+              <div style={{ width: '34px', height: '34px', borderRadius: '9px', background: 'linear-gradient(135deg, #2563FF, #00D9FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(0, 217, 255, 0.3)', flexShrink: 0 }}>
                 <Terminal size={18} color="#ffffff" />
               </div>
               <div>
@@ -772,23 +773,46 @@ export default function App() {
                 <span style={{ fontSize: '11px', color: '#71717a' }}>LYAXIS labs™</span>
               </div>
             </div>
-            
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <button
                 type="button"
                 onClick={() => openInfoDrawer('manifesto')}
                 title="Manifiesto, Filosofía y Legales de LYAXIS labs™"
-                style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px' }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#71717a',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: '40px',
+                  minHeight: '40px',
+                  borderRadius: '8px',
+                }}
               >
-                <Home size={17} />
+                <Home size={18} />
               </button>
               <button
                 type="button"
                 onClick={() => setIsSidebarOpen(false)}
                 title="Ocultar barra lateral"
-                style={{ background: 'none', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px', color: '#a1a1aa', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
+                style={{
+                  background: 'none',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '10px',
+                  color: '#a1a1aa',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: '44px',
+                  minHeight: '44px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                }}
               >
-                <PanelLeftClose size={17} />
+                <PanelLeftClose size={18} />
               </button>
             </div>
           </div>
@@ -822,10 +846,29 @@ export default function App() {
 
           <button
             type="button"
-            onClick={createNewChat}
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '10px 14px', backgroundColor: '#0a0a0e', border: '1px solid #1c1c24', borderRadius: '8px', color: '#ffffff', fontSize: '13px', cursor: 'pointer', marginBottom: '8px' }}
+            onClick={() => {
+              createNewChat();
+              if (isMobile) setIsSidebarOpen(false);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              width: '100%',
+              minHeight: '46px',
+              padding: '12px 14px',
+              backgroundColor: '#0a0a0e',
+              border: '1px solid #1c1c24',
+              borderRadius: '10px',
+              color: '#ffffff',
+              fontSize: '14.5px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              marginBottom: '12px',
+              transition: 'all 0.2s ease',
+            }}
           >
-            <Plus size={16} /> Nuevo Chat
+            <Plus size={17} /> Nuevo Chat
           </button>
 
           {/* Acceso Directo al Cuaderno / Mis Notas */}
@@ -849,12 +892,13 @@ export default function App() {
               alignItems: 'center',
               justifyContent: 'space-between',
               width: '100%',
-              padding: '9px 12px',
+              minHeight: '46px',
+              padding: '11px 14px',
               backgroundColor: 'rgba(0, 217, 255, 0.05)',
               border: '1px solid rgba(0, 217, 255, 0.22)',
-              borderRadius: '8px',
+              borderRadius: '10px',
               color: '#ffffff',
-              fontSize: '12.5px',
+              fontSize: '14px',
               fontWeight: 600,
               cursor: 'pointer',
               marginBottom: '16px',
@@ -873,7 +917,7 @@ export default function App() {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <BookOpen size={15} color="#00D9FF" />
+              <BookOpen size={16} color="#00D9FF" />
               <span>Mis Notas / Cuaderno</span>
             </div>
             <span
@@ -882,8 +926,8 @@ export default function App() {
                 fontWeight: 700,
                 color: '#00D9FF',
                 backgroundColor: 'rgba(0, 217, 255, 0.15)',
-                padding: '1px 6px',
-                borderRadius: '4px',
+                padding: '2px 7px',
+                borderRadius: '6px',
                 letterSpacing: '0.4px',
               }}
             >
@@ -922,30 +966,50 @@ export default function App() {
               conversations.map((chat) => (
                 <div
                   key={chat.id}
-                  onClick={() => selectConversation(chat)}
+                  onClick={() => {
+                    selectConversation(chat);
+                    if (isMobile) setIsSidebarOpen(false);
+                  }}
                   style={{
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    fontSize: '13px',
+                    minHeight: '46px',
+                    padding: '10px 14px',
+                    borderRadius: '10px',
+                    fontSize: '14px',
                     cursor: 'pointer',
                     backgroundColor: currentChatId === chat.id ? `${getModelColor(chat.model)}22` : 'transparent',
                     border: currentChatId === chat.id ? `1px solid ${getModelColor(chat.model)}55` : '1px solid transparent',
-                    color: currentChatId === chat.id ? '#ffffff' : '#a1a1aa',
+                    color: currentChatId === chat.id ? '#ffffff' : '#cbd5e1',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     transition: 'all 0.2s ease',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
                     {getModelIcon(chat.model)}
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.title}</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '14px' }}>{chat.title}</span>
                   </div>
-                  <Trash2
-                    size={14}
-                    color="#52525b"
+                  <button
+                    type="button"
                     onClick={(e) => deleteConversation(chat.id, e)}
-                  />
+                    title="Eliminar conversación"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#71717a',
+                      cursor: 'pointer',
+                      minWidth: '34px',
+                      minHeight: '34px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '6px',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = '#71717a'; }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               ))
             )}
@@ -1019,13 +1083,16 @@ export default function App() {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
+                    justifyContent: 'center',
                     gap: '6px',
                     backgroundColor: 'rgba(0, 217, 255, 0.08)',
                     border: '1px solid rgba(0, 217, 255, 0.25)',
                     color: '#00D9FF',
-                    padding: '6px 10px',
+                    padding: isMobile ? '8px 12px' : '6px 10px',
+                    minWidth: isMobile ? '44px' : 'auto',
+                    minHeight: isMobile ? '44px' : 'auto',
                     borderRadius: '8px',
-                    fontSize: '12px',
+                    fontSize: isMobile ? '13px' : '12px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     boxShadow: '0 0 12px rgba(0, 217, 255, 0.12)',
@@ -1033,7 +1100,7 @@ export default function App() {
                     flexShrink: 0,
                   }}
                 >
-                  <PanelLeft size={16} color="#00D9FF" />
+                  <PanelLeft size={17} color="#00D9FF" />
                   {!isMobile && <span>Historial</span>}
                 </button>
               )}
@@ -1047,12 +1114,13 @@ export default function App() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    padding: isMobile ? '6px 10px' : '8px 14px',
+                    padding: isMobile ? '8px 14px' : '8px 14px',
+                    minHeight: isMobile ? '44px' : '36px',
                     borderRadius: '10px',
                     border: '1px solid #181822',
                     backgroundColor: '#08080c',
                     color: '#ffffff',
-                    fontSize: isMobile ? '11px' : '12px',
+                    fontSize: isMobile ? '13.5px' : '12px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
@@ -1060,7 +1128,7 @@ export default function App() {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: getModelColor(selectedModel) }}>
-                    {MODEL_ICONS[selectedModel]?.(14)}
+                    {MODEL_ICONS[selectedModel]?.(15)}
                   </div>
                   {getModelLabel(selectedModel)}
                   <ChevronDown size={14} style={{ color: '#71717a', transform: isModelDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
@@ -1164,20 +1232,23 @@ export default function App() {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
+                  justifyContent: 'center',
                   gap: '4px',
                   backgroundColor: 'rgba(0, 217, 255, 0.08)',
                   border: '1px solid rgba(0, 217, 255, 0.25)',
                   color: '#00D9FF',
-                  padding: isMobile ? '5px 8px' : '6px 12px',
+                  padding: isMobile ? '8px 12px' : '6px 12px',
+                  minHeight: isMobile ? '44px' : 'auto',
+                  minWidth: isMobile ? '44px' : 'auto',
                   borderRadius: '8px',
-                  fontSize: isMobile ? '11px' : '12px',
+                  fontSize: isMobile ? '13px' : '12px',
                   fontWeight: 700,
                   cursor: 'pointer',
                   boxShadow: '0 0 12px rgba(0, 217, 255, 0.12)',
                   transition: 'all 0.2s ease',
                 }}
               >
-                <Activity size={13} className="lyaxis-hero-icon" />
+                <Activity size={14} className="lyaxis-hero-icon" />
                 <span>HUD</span>
               </button>
 
@@ -1199,19 +1270,22 @@ export default function App() {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
+                  justifyContent: 'center',
                   gap: '6px',
                   backgroundColor: isNotebookOpen ? 'rgba(0, 217, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)',
                   border: isNotebookOpen ? '1px solid rgba(0, 217, 255, 0.4)' : '1px solid rgba(255, 255, 255, 0.15)',
                   color: isNotebookOpen ? '#00D9FF' : '#ffffff',
-                  padding: isMobile ? '5px 8px' : '6px 12px',
+                  padding: isMobile ? '8px 12px' : '6px 12px',
+                  minHeight: isMobile ? '44px' : 'auto',
+                  minWidth: isMobile ? '44px' : 'auto',
                   borderRadius: '8px',
-                  fontSize: isMobile ? '11px' : '12px',
+                  fontSize: isMobile ? '13px' : '12px',
                   fontWeight: 600,
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
                 }}
               >
-                <BookOpen size={14} color="#00D9FF" />
+                <BookOpen size={15} color="#00D9FF" />
                 {!isMobile && <span>Notebook</span>}
               </button>
               <button
@@ -1226,19 +1300,22 @@ export default function App() {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
+                  justifyContent: 'center',
                   gap: '6px',
                   backgroundColor: 'rgba(255, 255, 255, 0.05)',
                   border: '1px solid rgba(255, 255, 255, 0.15)',
                   color: '#ffffff',
-                  padding: isMobile ? '5px 8px' : '6px 12px',
+                  padding: isMobile ? '8px 12px' : '6px 12px',
+                  minHeight: isMobile ? '44px' : 'auto',
+                  minWidth: isMobile ? '44px' : 'auto',
                   borderRadius: '8px',
-                  fontSize: isMobile ? '11px' : '12px',
+                  fontSize: isMobile ? '13px' : '12px',
                   fontWeight: 600,
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
                 }}
               >
-                <FileDown size={14} color="#00D9FF" />
+                <FileDown size={15} color="#00D9FF" />
                 {!isMobile && <span>PDF</span>}
               </button>
               <button
@@ -1249,15 +1326,18 @@ export default function App() {
                   background: 'none',
                   border: '1px solid #1c1c26',
                   borderRadius: '8px',
-                  padding: '6px 8px',
+                  padding: '8px 10px',
+                  minWidth: isMobile ? '44px' : '32px',
+                  minHeight: isMobile ? '44px' : '32px',
                   color: soundEnabled ? '#00D9FF' : '#52525b',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
+                  justifyContent: 'center',
                   backgroundColor: soundEnabled ? '#00D9FF11' : 'transparent',
                 }}
               >
-                {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+                {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
               </button>
             </div>
           </header>
@@ -1487,21 +1567,40 @@ export default function App() {
                         onClick={() => handleSend(prompt.text)}
                         style={{
                           backgroundColor: 'rgba(8, 8, 14, 0.75)',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          border: `1px solid ${getModelColor(selectedModel)}33`,
                           borderRadius: '14px',
-                          padding: '14px 16px',
+                          padding: isMobile ? '14px 16px' : '14px 16px',
+                          minHeight: isMobile ? '56px' : '48px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          color: '#ffffff',
+                          transition: 'all 0.2s ease',
+                          boxShadow: '0 4px 18px rgba(0, 0, 0, 0.5)',
                         }}
                       >
                         <div
                           className="prompt-icon"
-                          style={{ backgroundColor: prompt.bg, border: `1px solid ${prompt.border}`, borderRadius: '10px' }}
+                          style={{
+                            backgroundColor: prompt.bg,
+                            border: `1px solid ${prompt.border}`,
+                            borderRadius: '10px',
+                            width: isMobile ? '38px' : '32px',
+                            height: isMobile ? '38px' : '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
                         >
                           {prompt.icon}
                         </div>
                         <div style={{ flex: 1, textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                          <span className="prompt-text" style={{ fontSize: '12.5px', lineHeight: '1.45', display: 'block' }}>{prompt.text}</span>
+                          <span className="prompt-text" style={{ fontSize: isMobile ? '14.5px' : '13px', lineHeight: '1.5', display: 'block', color: '#f8fafc', fontWeight: 500 }}>{prompt.text}</span>
                         </div>
-                        <ChevronRight size={14} color="#52525b" style={{ flexShrink: 0, marginTop: '2px' }} />
+                        <ChevronRight size={16} color="#71717a" style={{ flexShrink: 0 }} />
                       </button>
                     ))}
                   </div>
@@ -1547,9 +1646,8 @@ export default function App() {
               <div ref={messagesEndRef} />
             </div>
           </div>
-
-          {/* Input Area */}
-          <div style={{ padding: isMobile ? '10px 12px 14px' : '16px 24px 20px', borderTop: '1px solid #121216', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)', flexShrink: 0 }}>
+                  {/* Input Area */}
+          <div style={{ padding: isMobile ? '10px 12px max(14px, env(safe-area-inset-bottom, 14px))' : '16px 24px 20px', borderTop: '1px solid #121216', backgroundColor: 'rgba(0, 0, 0, 0.95)', backdropFilter: 'blur(10px)', flexShrink: 0 }}>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -1571,7 +1669,7 @@ export default function App() {
                     border: '1px solid rgba(236, 72, 153, 0.35)',
                     boxShadow: '0 0 15px rgba(236, 72, 153, 0.15)',
                     gap: '10px',
-                    animation: 'fadeIn 0.25s ease-out',
+                    animation: 'fadeIn 0.25s ease-out'
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
@@ -1676,7 +1774,7 @@ export default function App() {
                 </div>
               )}
 
-              <div style={{ display: 'flex', alignItems: 'flex-end', backgroundColor: '#08080c', border: '1px solid #1a1a24', borderRadius: '14px', padding: isMobile ? '8px 12px' : '12px 16px', gap: '10px', boxShadow: '0 4px 25px rgba(0,0,0,0.8)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', backgroundColor: '#08080c', border: '1px solid #1a1a24', borderRadius: '14px', padding: isMobile ? '8px 10px' : '12px 16px', gap: '10px', boxShadow: '0 4px 25px rgba(0,0,0,0.8)' }}>
                 
                 {/* Hidden File Input */}
                 <input
@@ -1693,8 +1791,9 @@ export default function App() {
                   onClick={() => fileInputRef.current?.click()}
                   title="Adjuntar imagen para análisis multimodal"
                   style={{
-                    width: '36px',
-                    height: '36px',
+                    width: isMobile ? '44px' : '36px',
+                    height: isMobile ? '44px' : '36px',
+                    minWidth: isMobile ? '44px' : '36px',
                     borderRadius: '10px',
                     backgroundColor: selectedImage ? 'rgba(236, 72, 153, 0.2)' : 'rgba(255, 255, 255, 0.05)',
                     border: selectedImage ? '1px solid #EC4899' : '1px solid rgba(255, 255, 255, 0.1)',
@@ -1708,7 +1807,7 @@ export default function App() {
                     boxShadow: selectedImage ? '0 0 12px rgba(236, 72, 153, 0.3)' : 'none',
                   }}
                 >
-                  <Paperclip size={16} />
+                  <Paperclip size={18} />
                 </button>
 
                 <textarea
@@ -1716,25 +1815,42 @@ export default function App() {
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={selectedImage ? "Describe o pregunta sobre la imagen adjunta..." : "Escribe tu mensaje a LYAXIS IA..."}
+                  placeholder={selectedImage ? "Describe la imagen adjunta..." : "Escribe tu mensaje a LYAXIS IA..."}
                   rows={1}
                   style={{
                     flex: 1,
                     background: 'none',
                     border: 'none',
                     color: '#ffffff',
-                    fontSize: isMobile ? '13.5px' : '14px',
+                    fontSize: isMobile ? '16px' : '14.5px',
+                    lineHeight: '1.45',
                     resize: 'none',
                     outline: 'none',
                     maxHeight: '140px',
                     fontFamily: 'inherit',
+                    padding: '6px 0',
                   }}
                 />
                 {isStreaming ? (
                   <button
                     type="button"
                     onClick={stopStreaming}
-                    style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#dc2626', border: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                    title="Detener generación"
+                    style={{
+                      width: isMobile ? '44px' : '36px',
+                      height: isMobile ? '44px' : '36px',
+                      minWidth: isMobile ? '44px' : '36px',
+                      borderRadius: '10px',
+                      backgroundColor: '#dc2626',
+                      border: 'none',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                      boxShadow: '0 0 14px rgba(220, 38, 38, 0.4)',
+                    }}
                   >
                     <Square size={16} />
                   </button>
@@ -1742,9 +1858,11 @@ export default function App() {
                   <button
                     type="submit"
                     disabled={!inputValue.trim() && !selectedImage}
+                    title="Enviar mensaje"
                     style={{
-                      width: '36px',
-                      height: '36px',
+                      width: isMobile ? '44px' : '36px',
+                      height: isMobile ? '44px' : '36px',
+                      minWidth: isMobile ? '44px' : '36px',
                       borderRadius: '10px',
                       backgroundColor: (inputValue.trim() || selectedImage) ? getModelColor(selectedModel) : '#1c1c24',
                       border: 'none',

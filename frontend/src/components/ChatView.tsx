@@ -365,7 +365,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
               backgroundColor: 'rgba(255, 255, 255, 0.04)',
               border: `1px solid ${meta.color}55`,
               borderRadius: '10px',
-              padding: '6px 12px',
+              padding: isMobile ? '8px 14px' : '6px 12px',
+              minHeight: isMobile ? '44px' : '36px',
               color: '#ffffff',
               cursor: 'pointer',
               boxShadow: `0 0 14px ${meta.color}22`,
@@ -382,10 +383,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 display: 'inline-block',
               }}
             />
-            <span style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '0.3px' }}>
+            <span style={{ fontSize: isMobile ? '14px' : '13px', fontWeight: 700, letterSpacing: '0.3px' }}>
               LYAXIS {meta.label}
             </span>
-            <span style={{ fontSize: '11px', color: '#71717a', marginLeft: '2px', fontFamily: 'monospace' }}>
+            <span style={{ fontSize: isMobile ? '12px' : '11px', color: '#71717a', marginLeft: '2px', fontFamily: 'monospace' }}>
               T:{meta.temperature}
             </span>
             <ChevronDown
@@ -471,8 +472,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: '32px',
-              height: '32px',
+              minWidth: isMobile ? '44px' : '32px',
+              minHeight: isMobile ? '44px' : '32px',
+              width: isMobile ? '44px' : '32px',
+              height: isMobile ? '44px' : '32px',
               borderRadius: '8px',
               backgroundColor: isMuted ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 217, 255, 0.08)',
               border: isMuted ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 217, 255, 0.25)',
@@ -482,7 +485,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               transition: 'all 0.2s ease',
             }}
           >
-            {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
           </button>
 
           {/* LYAXIS Notebook Canvas Studio Button */}
@@ -503,19 +506,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
             style={{
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '6px',
               backgroundColor: isNotebookOpen ? 'rgba(0, 217, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)',
               border: isNotebookOpen ? '1px solid rgba(0, 217, 255, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
               borderRadius: '8px',
-              padding: '6px 10px',
+              padding: isMobile ? '8px 12px' : '6px 10px',
+              minHeight: isMobile ? '44px' : '32px',
               color: isNotebookOpen ? '#00D9FF' : '#ffffff',
-              fontSize: '11.5px',
+              fontSize: isMobile ? '13px' : '11.5px',
               fontWeight: 600,
               cursor: 'pointer',
               transition: 'all 0.2s ease',
             }}
           >
-            <BookOpen size={13} color="#00D9FF" />
+            <BookOpen size={15} color="#00D9FF" />
             {!isMobile && <span>Notebook</span>}
           </button>
 
@@ -527,18 +532,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
               style={{
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: '6px',
                 backgroundColor: 'rgba(255, 255, 255, 0.05)',
                 border: '1px solid rgba(255, 255, 255, 0.12)',
                 borderRadius: '8px',
-                padding: '6px 10px',
+                padding: isMobile ? '8px 12px' : '6px 10px',
+                minHeight: isMobile ? '44px' : '32px',
                 color: '#ffffff',
-                fontSize: '11.5px',
+                fontSize: isMobile ? '13px' : '11.5px',
                 fontWeight: 600,
                 cursor: 'pointer',
               }}
             >
-              <FileDown size={13} color="#00D9FF" />
+              <FileDown size={15} color="#00D9FF" />
               {!isMobile && <span>PDF</span>}
             </button>
           )}
@@ -731,7 +738,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   gap: '12px',
                   width: '100%',
                   maxWidth: '680px',
-                  marginTop: '6px',
+                  marginTop: '10px',
                 }}
               >
                 {quickActions.map((promptText, i) => (
@@ -747,12 +754,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       backgroundColor: 'rgba(10, 10, 16, 0.75)',
                       border: `1px solid ${meta.color}33`,
                       borderRadius: '14px',
-                      padding: '14px 16px',
+                      padding: isMobile ? '14px 16px' : '12px 16px',
+                      minHeight: isMobile ? '56px' : '48px',
                       cursor: 'pointer',
                       textAlign: 'left',
                       color: '#ffffff',
                       backdropFilter: 'blur(12px)',
                       boxShadow: `0 4px 20px rgba(0, 0, 0, 0.5), inset 0 0 1px ${meta.color}22`,
+                      transition: 'all 0.2s ease',
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.borderColor = `${meta.color}88`;
@@ -767,9 +776,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   >
                     <div
                       style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '9px',
+                        width: isMobile ? '38px' : '32px',
+                        height: isMobile ? '38px' : '32px',
+                        borderRadius: '10px',
                         backgroundColor: `${meta.color}15`,
                         border: `1px solid ${meta.color}40`,
                         display: 'flex',
@@ -778,25 +787,25 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         flexShrink: 0,
                       }}
                     >
-                      {MODEL_ICONS[currentActiveModel]?.(15, meta.color)}
+                      {MODEL_ICONS[currentActiveModel]?.(isMobile ? 18 : 15, meta.color)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <span
                         style={{
-                          fontSize: '12.5px',
-                          lineHeight: '1.45',
+                          fontSize: isMobile ? '14.5px' : '13px',
+                          lineHeight: '1.5',
                           display: '-webkit-box',
                           WebkitLineClamp: 2,
                           WebkitBoxOrient: 'vertical',
                           overflow: 'hidden',
-                          color: '#f1f5f9',
+                          color: '#f8fafc',
                           fontWeight: 500,
                         }}
                       >
                         {promptText}
                       </span>
                     </div>
-                    <ChevronRight size={14} color="#52525b" style={{ flexShrink: 0 }} />
+                    <ChevronRight size={16} color="#71717a" style={{ flexShrink: 0 }} />
                   </button>
                 ))}
               </div>
@@ -844,9 +853,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
       {/* Input Area with Image Attachment & Nexus Suggestion (4. Selector de Imágenes) */}
       <div
         style={{
-          padding: isMobile ? '10px 12px 14px' : '16px 24px 20px',
+          padding: isMobile ? '10px 12px max(14px, env(safe-area-inset-bottom, 14px))' : '16px 24px 20px',
           borderTop: '1px solid #121216',
-          backgroundColor: 'rgba(4, 4, 8, 0.92)',
+          backgroundColor: 'rgba(4, 4, 8, 0.95)',
           backdropFilter: 'blur(16px)',
           flexShrink: 0,
         }}
@@ -982,7 +991,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               backgroundColor: '#08080c',
               border: `1px solid ${selectedImage ? meta.color + '66' : '#1a1a24'}`,
               borderRadius: '14px',
-              padding: isMobile ? '8px 12px' : '12px 16px',
+              padding: isMobile ? '8px 10px' : '12px 16px',
               gap: '10px',
               boxShadow: '0 4px 25px rgba(0,0,0,0.8)',
               transition: 'border-color 0.2s ease',
@@ -1003,8 +1012,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
               onClick={() => fileInputRef.current?.click()}
               title="Adjuntar imagen para análisis multimodal"
               style={{
-                width: '36px',
-                height: '36px',
+                width: isMobile ? '44px' : '36px',
+                height: isMobile ? '44px' : '36px',
+                minWidth: isMobile ? '44px' : '36px',
                 borderRadius: '10px',
                 backgroundColor: selectedImage ? 'rgba(236, 72, 153, 0.2)' : 'rgba(255, 255, 255, 0.05)',
                 border: selectedImage ? '1px solid #EC4899' : '1px solid rgba(255, 255, 255, 0.1)',
@@ -1018,7 +1028,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 boxShadow: selectedImage ? '0 0 12px rgba(236, 72, 153, 0.3)' : 'none',
               }}
             >
-              <Paperclip size={16} />
+              <Paperclip size={18} />
             </button>
 
             <textarea
@@ -1026,18 +1036,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={selectedImage ? 'Describe o haz una pregunta sobre la imagen adjunta...' : `Escribe tu mensaje a LYAXIS ${meta.label}...`}
+              placeholder={selectedImage ? 'Describe la imagen adjunta...' : `Mensaje a LYAXIS ${meta.label}...`}
               rows={1}
               style={{
                 flex: 1,
                 background: 'none',
                 border: 'none',
                 color: '#ffffff',
-                fontSize: isMobile ? '13.5px' : '14px',
+                fontSize: isMobile ? '16px' : '14.5px',
+                lineHeight: '1.45',
                 resize: 'none',
                 outline: 'none',
                 maxHeight: '140px',
                 fontFamily: 'inherit',
+                padding: '6px 0',
               }}
             />
 
@@ -1047,8 +1059,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 onClick={stopStreaming}
                 title="Detener generación"
                 style={{
-                  width: '36px',
-                  height: '36px',
+                  width: isMobile ? '44px' : '36px',
+                  height: isMobile ? '44px' : '36px',
+                  minWidth: isMobile ? '44px' : '36px',
                   borderRadius: '10px',
                   backgroundColor: '#dc2626',
                   border: 'none',
@@ -1061,7 +1074,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   boxShadow: '0 0 14px rgba(220, 38, 38, 0.4)',
                 }}
               >
-                <Square size={15} />
+                <Square size={16} />
               </button>
             ) : (
               <button
@@ -1069,8 +1082,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 disabled={!inputValue.trim() && !selectedImage}
                 title="Enviar mensaje"
                 style={{
-                  width: '36px',
-                  height: '36px',
+                  width: isMobile ? '44px' : '36px',
+                  height: isMobile ? '44px' : '36px',
+                  minWidth: isMobile ? '44px' : '36px',
                   borderRadius: '10px',
                   backgroundColor: (inputValue.trim() || selectedImage) ? meta.color : '#1c1c24',
                   border: 'none',
@@ -1084,7 +1098,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   transition: 'all 0.2s ease',
                 }}
               >
-                <Send size={15} />
+                <Send size={16} />
               </button>
             )}
           </div>
