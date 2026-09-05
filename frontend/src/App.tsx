@@ -75,6 +75,7 @@ import { LyaxisInfoDrawer } from './LyaxisInfoDrawer';
 import { API_BASE, GOOGLE_CLIENT_ID } from './config';
 
 import { MessageBubble } from './MessageBubble';
+import { NotebookStudio } from './NotebookStudio';
 import { isSoundMuted, setSoundMuted, playCyberClick } from './sound';
 
 const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) => {
@@ -190,6 +191,19 @@ export default function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
+  const [isNotebookOpen, setIsNotebookOpen] = useState(false);
+  const [notebookContent, setNotebookContent] = useState('');
+  const [notebookTitle, setNotebookTitle] = useState('Cuaderno LYAXIS');
+
+  const handleOpenInNotebook = (content: string, model?: ModelType) => {
+    if (soundEnabled) playCyberClick();
+    setNotebookContent(content);
+    const targetModel = model || selectedModel;
+    const label = getModelLabel(targetModel);
+    setNotebookTitle(`Apuntes ${label} • ${new Date().toLocaleDateString('es-MX')}`);
+    setIsNotebookOpen(true);
+  };
+
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -809,9 +823,72 @@ export default function App() {
           <button
             type="button"
             onClick={createNewChat}
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '10px 14px', backgroundColor: '#0a0a0e', border: '1px solid #1c1c24', borderRadius: '8px', color: '#ffffff', fontSize: '13px', cursor: 'pointer', marginBottom: '16px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '10px 14px', backgroundColor: '#0a0a0e', border: '1px solid #1c1c24', borderRadius: '8px', color: '#ffffff', fontSize: '13px', cursor: 'pointer', marginBottom: '8px' }}
           >
             <Plus size={16} /> Nuevo Chat
+          </button>
+
+          {/* Acceso Directo al Cuaderno / Mis Notas */}
+          <button
+            type="button"
+            onClick={() => {
+              if (soundEnabled) playCyberClick();
+              if (isMobile) setIsSidebarOpen(false);
+              if (!notebookContent && messages.length > 0) {
+                const lastModel = [...messages].reverse().find((m) => m.role === 'model');
+                if (lastModel?.content) {
+                  setNotebookContent(lastModel.content);
+                  setNotebookTitle(`Apuntes ${getModelLabel(selectedModel)} • ${new Date().toLocaleDateString('es-MX')}`);
+                }
+              }
+              setIsNotebookOpen(true);
+            }}
+            title="Abrir Cuaderno Visual LYAXIS (Notebook Studio)"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              padding: '9px 12px',
+              backgroundColor: 'rgba(0, 217, 255, 0.05)',
+              border: '1px solid rgba(0, 217, 255, 0.22)',
+              borderRadius: '8px',
+              color: '#ffffff',
+              fontSize: '12.5px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              marginBottom: '16px',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 0 12px rgba(0, 217, 255, 0.06)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.12)';
+              e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.45)';
+              e.currentTarget.style.boxShadow = '0 0 16px rgba(0, 217, 255, 0.2)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.05)';
+              e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.22)';
+              e.currentTarget.style.boxShadow = '0 0 12px rgba(0, 217, 255, 0.06)';
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <BookOpen size={15} color="#00D9FF" />
+              <span>Mis Notas / Cuaderno</span>
+            </div>
+            <span
+              style={{
+                fontSize: '9.5px',
+                fontWeight: 700,
+                color: '#00D9FF',
+                backgroundColor: 'rgba(0, 217, 255, 0.15)',
+                padding: '1px 6px',
+                borderRadius: '4px',
+                letterSpacing: '0.4px',
+              }}
+            >
+              CANVAS
+            </span>
           </button>
 
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -1102,6 +1179,40 @@ export default function App() {
               >
                 <Activity size={13} className="lyaxis-hero-icon" />
                 <span>HUD</span>
+              </button>
+
+              {/* LYAXIS Notebook Canvas Studio Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (soundEnabled) playCyberClick();
+                  if (!notebookContent && messages.length > 0) {
+                    const lastModel = [...messages].reverse().find((m) => m.role === 'model');
+                    if (lastModel?.content) {
+                      setNotebookContent(lastModel.content);
+                      setNotebookTitle(`Apuntes ${getModelLabel(selectedModel)} • ${new Date().toLocaleDateString('es-MX')}`);
+                    }
+                  }
+                  setIsNotebookOpen(true);
+                }}
+                title="Abrir Cuaderno Visual LYAXIS (Notebook Studio)"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: isNotebookOpen ? 'rgba(0, 217, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                  border: isNotebookOpen ? '1px solid rgba(0, 217, 255, 0.4)' : '1px solid rgba(255, 255, 255, 0.15)',
+                  color: isNotebookOpen ? '#00D9FF' : '#ffffff',
+                  padding: isMobile ? '5px 8px' : '6px 12px',
+                  borderRadius: '8px',
+                  fontSize: isMobile ? '11px' : '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <BookOpen size={14} color="#00D9FF" />
+                {!isMobile && <span>Notebook</span>}
               </button>
               <button
                 type="button"
@@ -1429,6 +1540,7 @@ export default function App() {
                     activeModel={selectedModel}
                     isMobile={isMobile}
                     onExportPDF={exportChatToPDF}
+                    onOpenInNotebook={handleOpenInNotebook}
                   />
                 ))
               )}
@@ -1677,6 +1789,15 @@ export default function App() {
           isOpen={isInfoDrawerOpen}
           onClose={() => setIsInfoDrawerOpen(false)}
           initialTab={infoDrawerTab}
+        />
+
+        <NotebookStudio
+          isOpen={isNotebookOpen}
+          onClose={() => setIsNotebookOpen(false)}
+          initialContent={notebookContent}
+          initialTitle={notebookTitle}
+          activeModel={selectedModel}
+          isMobile={isMobile}
         />
 
         <InstallPwaPrompt />

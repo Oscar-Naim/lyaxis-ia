@@ -15,6 +15,7 @@ import {
   Volume2,
   VolumeX,
   Sparkles,
+  BookOpen,
   Brain,
   Compass,
   MessageCircle,
@@ -27,6 +28,7 @@ import {
 import type { Message, ModelType } from '../types';
 import { useSSEStream } from '../useSSEStream';
 import { MessageBubble } from './MessageBubble';
+import { NotebookStudio } from './NotebookStudio';
 import { isSoundMuted, setSoundMuted, playCyberClick as globalPlayCyberClick } from '../sound';
 import { API_BASE, ALL_MODELS, MODEL_META, MODEL_QUICK_ACTIONS } from '../config';
 
@@ -81,6 +83,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showNexusSuggestion, setShowNexusSuggestion] = useState(false);
 
+  const [isNotebookOpen, setIsNotebookOpen] = useState(false);
+  const [notebookContent, setNotebookContent] = useState('');
+  const [notebookTitle, setNotebookTitle] = useState('Cuaderno LYAXIS');
+
   // Sound mute state synced with localStorage ('lyaxis_sound_muted')
   const [isMuted, setIsMuted] = useState<boolean>(() => isSoundMuted());
 
@@ -92,6 +98,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleOpenInNotebook = (msgContent: string, model: ModelType) => {
+    triggerSound();
+    setNotebookContent(msgContent);
+    const targetMeta = modelMeta[model] || MODEL_META[model] || meta;
+    setNotebookTitle(`Apuntes ${targetMeta.label} • ${new Date().toLocaleDateString('es-MX')}`);
+    setIsNotebookOpen(true);
+  };
 
   useEffect(() => {
     setCurrentActiveModel(selectedModel);
@@ -471,6 +485,40 @@ export const ChatView: React.FC<ChatViewProps> = ({
             {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
           </button>
 
+          {/* LYAXIS Notebook Canvas Studio Button */}
+          <button
+            type="button"
+            onClick={() => {
+              triggerSound();
+              if (!notebookContent && messages.length > 0) {
+                const lastModel = [...messages].reverse().find((m) => m.role === 'model');
+                if (lastModel?.content) {
+                  setNotebookContent(lastModel.content);
+                  setNotebookTitle(`Apuntes ${meta.label} • ${new Date().toLocaleDateString('es-MX')}`);
+                }
+              }
+              setIsNotebookOpen(true);
+            }}
+            title="Abrir Cuaderno Visual LYAXIS (Notebook Studio)"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: isNotebookOpen ? 'rgba(0, 217, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+              border: isNotebookOpen ? '1px solid rgba(0, 217, 255, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: '8px',
+              padding: '6px 10px',
+              color: isNotebookOpen ? '#00D9FF' : '#ffffff',
+              fontSize: '11.5px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <BookOpen size={13} color="#00D9FF" />
+            {!isMobile && <span>Notebook</span>}
+          </button>
+
           {onExportPDF && messages.length > 0 && (
             <button
               type="button"
@@ -785,6 +833,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 activeModel={currentActiveModel}
                 isMobile={isMobile}
                 onExportPDF={onExportPDF}
+                onOpenInNotebook={handleOpenInNotebook}
               />
             ))
           )}
@@ -1042,6 +1091,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </form>
       </div>
 
+      {/* LYAXIS NOTEBOOK STUDIO VISOR / DRAWER */}
+      <NotebookStudio
+        isOpen={isNotebookOpen}
+        onClose={() => setIsNotebookOpen(false)}
+        initialContent={notebookContent}
+        initialTitle={notebookTitle}
+        activeModel={currentActiveModel}
+        isMobile={isMobile}
+      />
     </div>
   );
 };

@@ -5,7 +5,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
-import { Copy, Check, FileDown, ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
+import { Copy, Check, FileDown, ChevronDown, ChevronRight, Sparkles, BookOpen } from 'lucide-react';
 import type { Message, ModelType } from '../types';
 import { CodeBlock } from '../CodeBlock';
 import { SlideDeckViewer } from '../SlideDeckViewer';
@@ -16,6 +16,7 @@ export interface MessageBubbleProps {
   activeModel?: ModelType;
   isMobile?: boolean;
   onExportPDF?: (title: string, label: string, color: string, msgs: Message[]) => void;
+  onOpenInNotebook?: (content: string, model: ModelType) => void;
   renderPresentation?: (content: string) => React.ReactNode;
 }
 
@@ -89,11 +90,99 @@ const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) =
   );
 };
 
+const AiEnrichedImage: React.FC<{ src?: string; alt?: string; title?: string }> = ({ src, alt, title }) => {
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+
+  if (!src) return null;
+
+  return (
+    <figure
+      style={{
+        margin: '18px 0',
+        borderRadius: '14px',
+        overflow: 'hidden',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        backgroundColor: '#07070b',
+        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
+        position: 'relative',
+      }}
+    >
+      {!loaded && !error && (
+        <div
+          style={{
+            width: '100%',
+            height: '220px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            backgroundColor: 'rgba(0, 217, 255, 0.03)',
+            border: '1px dashed rgba(0, 217, 255, 0.25)',
+            color: '#94a3b8',
+            fontSize: '12px',
+          }}
+        >
+          <Sparkles size={18} color="#00D9FF" className="animate-spin" />
+          <span style={{ fontFamily: 'monospace', letterSpacing: '0.4px' }}>
+            GENERANDO ILUSTRACIÓN IA...
+          </span>
+        </div>
+      )}
+
+      {error ? (
+        <div style={{ padding: '16px', textAlign: 'center', color: '#ef4444', fontSize: '11.5px' }}>
+          <span>No se pudo cargar la imagen</span>
+          {alt && <p style={{ margin: '4px 0 0', color: '#71717a' }}>{alt}</p>}
+        </div>
+      ) : (
+        <img
+          src={src}
+          alt={alt || 'Ilustración técnica'}
+          title={title || alt}
+          loading="lazy"
+          onLoad={() => setLoaded(true)}
+          onError={() => setError(true)}
+          style={{
+            display: loaded ? 'block' : 'none',
+            width: '100%',
+            maxHeight: '420px',
+            objectFit: 'cover',
+            borderRadius: alt ? '14px 14px 0 0' : '14px',
+            transition: 'opacity 0.25s ease',
+          }}
+        />
+      )}
+
+      {alt && (
+        <figcaption
+          style={{
+            padding: '8px 14px',
+            fontSize: '11.5px',
+            color: '#cbd5e1',
+            fontStyle: 'italic',
+            borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+            backgroundColor: 'rgba(10, 10, 16, 0.92)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+          }}
+        >
+          <Sparkles size={11} color="#00D9FF" style={{ flexShrink: 0 }} />
+          <span>{alt}</span>
+        </figcaption>
+      )}
+    </figure>
+  );
+};
+
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   activeModel = 'speed',
   isMobile = false,
   onExportPDF,
+  onOpenInNotebook,
   renderPresentation,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -168,6 +257,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={{
+          img({ src, alt, title }: any) {
+            return <AiEnrichedImage src={src} alt={alt} title={title} />;
+          },
           table({ children, ...props }: any) {
             return (
               <div className="lyaxis-markdown-table-wrapper" style={{
@@ -375,6 +467,39 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               {copied ? <Check size={12} color="#10B981" /> : <Copy size={12} />}
               <span>{copied ? 'Copiado' : 'Copiar'}</span>
             </button>
+
+            {onOpenInNotebook && (
+              <button
+                type="button"
+                title="Abrir en LYAXIS Notebook"
+                onClick={() => onOpenInNotebook(message.content, msgModel)}
+                style={{
+                  background: 'rgba(0, 217, 255, 0.06)',
+                  border: '1px solid rgba(0, 217, 255, 0.22)',
+                  borderRadius: '6px',
+                  padding: '3px 8px',
+                  color: '#00D9FF',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.15)';
+                  e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.45)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.06)';
+                  e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.22)';
+                }}
+              >
+                <BookOpen size={12} color="#00D9FF" />
+                <span>Notebook</span>
+              </button>
+            )}
 
             {onExportPDF && (
               <button

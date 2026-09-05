@@ -40,6 +40,7 @@ export interface SidebarProps {
   selectedModel?: ModelType;
   soundMuted?: boolean;
   onToggleSoundMute?: () => void;
+  onOpenNotebook?: () => void;
 }
 
 const MODEL_ICONS: Record<ModelType, (size: number, color?: string) => React.ReactNode> = {
@@ -71,6 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onDeleteAllConversations,
   soundMuted: soundMutedProp,
   onToggleSoundMute,
+  onOpenNotebook,
 }) => {
   const [internalMuted, setInternalMuted] = useState<boolean>(() => isSoundMuted());
 
@@ -302,6 +304,60 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         <Plus size={16} /> Nuevo Chat
       </button>
+
+      {/* 2. Acceso Directo al Cuaderno / Mis Notas */}
+      {onOpenNotebook && (
+        <button
+          type="button"
+          onClick={onOpenNotebook}
+          title="Abrir Cuaderno Visual LYAXIS (Notebook Studio)"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            padding: '9px 12px',
+            backgroundColor: 'rgba(0, 217, 255, 0.05)',
+            border: '1px solid rgba(0, 217, 255, 0.22)',
+            borderRadius: '8px',
+            color: '#ffffff',
+            fontSize: '12.5px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            marginBottom: '16px',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 0 12px rgba(0, 217, 255, 0.06)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.12)';
+            e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.45)';
+            e.currentTarget.style.boxShadow = '0 0 16px rgba(0, 217, 255, 0.2)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.05)';
+            e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.22)';
+            e.currentTarget.style.boxShadow = '0 0 12px rgba(0, 217, 255, 0.06)';
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <BookOpen size={15} color="#00D9FF" />
+            <span>Mis Notas / Cuaderno</span>
+          </div>
+          <span
+            style={{
+              fontSize: '10px',
+              padding: '2px 6px',
+              borderRadius: '10px',
+              backgroundColor: 'rgba(0, 217, 255, 0.15)',
+              color: '#00D9FF',
+              fontWeight: 700,
+              letterSpacing: '0.4px',
+            }}
+          >
+            CANVAS
+          </span>
+        </button>
+      )}
 
       {/* Conversation List */}
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
