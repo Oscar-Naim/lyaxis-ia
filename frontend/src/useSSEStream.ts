@@ -2,6 +2,14 @@ import { useState, useRef, useCallback } from 'react';
 import type { Message } from './types';
 import { API_BASE } from './config';
 
+export type TriadCoreType = 'create' | 'break' | 'rebuild';
+
+export interface TriadState {
+  create: string;
+  break: string;
+  rebuild: string;
+}
+
 export interface UseSSEStreamOptions {
   onDone?: (fullText: string) => void;
   onError?: (err: Error) => void;
@@ -12,6 +20,8 @@ export interface StreamCallOptions {
   onError?: (err: Error) => void;
   timeoutMs?: number;
   temperature?: number;
+  triad_mode?: boolean;
+  onTriadToken?: (triad: TriadState, currentCore: TriadCoreType | null) => void;
 }
 
 export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSSEStreamOptions = {}) {
@@ -24,7 +34,7 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
       model: 'speed' | 'cortex' | 'architect' | string,
       conversationId: string | null,
       userId: string | undefined,
-      onToken: (accumulated: string) => void,
+      onToken: (accumulated: string, triad?: TriadState) => void,
       options?: StreamCallOptions
     ) => {
       setIsStreaming(true);
@@ -36,6 +46,10 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
       const timeoutMs = options?.timeoutMs ?? 65000;
 
       let accumulatedText = '';
+      const triadState: TriadState = { create: '', break: '', rebuild: '' };
+      let activeCore: TriadCoreType | null = null;
+      let isTriadStream = Boolean(options?.triad_mode);
+
       let rafId: number | null = null;
       let latestText = '';
       let timeoutTriggered = false;
@@ -49,9 +63,10 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
       // Batch DOM updates at screen refresh rate instead of per-token
       const scheduleFlush = () => {
         latestText = accumulatedText;
+        const currentTriad = { ...triadState };
         if (rafId === null) {
           rafId = requestAnimationFrame(() => {
-            onToken(latestText);
+            onToken(latestText, isTriadStream ? currentTriad : undefined);
             rafId = null;
           });
         }
@@ -105,6 +120,7 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
           messages: sanitizedMessages,
           model: String(model || 'speed'),
           temperature: resolvedTemp,
+          triad_mode: Boolean(options?.triad_mode),
         };
 
         const response = await fetch(`${API_BASE}/api/v1/chat/stream`, {
@@ -144,7 +160,7 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
           }
 
           accumulatedText = errMsg;
-          onToken(errMsg);
+          onToken(errMsg, isTriadStream ? { ...triadState } : undefined);
           const errorObj = new Error(errMsg);
           if (activeOnError) activeOnError(errorObj);
           return;
@@ -176,7 +192,17 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
                 const parsed = JSON.parse(dataContent);
 
                 if (parsed.token) {
-                  accumulatedText += parsed.token;
+                  if (parsed.core && (parsed.core === 'create' || parsed.core === 'break' || parsed.core === 'rebuild')) {
+                    isTriadStream = true;
+                    activeCore = parsed.core as TriadCoreType;
+                    triadState[activeCore] += parsed.token;
+                    accumulatedText = `[TRIAD_CORE:create]\n${triadState.create}\n[/TRIAD_CORE:create]\n\n[TRIAD_CORE:break]\n${triadState.break}\n[/TRIAD_CORE:break]\n\n[TRIAD_CORE:rebuild]\n${triadState.rebuild}\n[/TRIAD_CORE:rebuild]`;
+                    if (options?.onTriadToken) {
+                      options.onTriadToken({ ...triadState }, activeCore);
+                    }
+                  } else {
+                    accumulatedText += parsed.token;
+                  }
                   scheduleFlush();
                 } else if (parsed.done) {
                   scheduleFlush();
@@ -199,7 +225,10 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
           cancelAnimationFrame(rafId);
           rafId = null;
         }
-        onToken(accumulatedText);
+        onToken(accumulatedText, isTriadStream ? { ...triadState } : undefined);
+        if (options?.onTriadToken && isTriadStream) {
+          options.onTriadToken({ ...triadState }, activeCore);
+        }
 
         if (activeOnDone) activeOnDone(accumulatedText);
       } catch (err: any) {

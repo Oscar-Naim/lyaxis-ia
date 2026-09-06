@@ -94,6 +94,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [serverErrorBanner, setServerErrorBanner] = useState<string | null>(null);
   const [lastFailedUserText, setLastFailedUserText] = useState<string | null>(null);
 
+  // LYAXIS TRIAD™ Mode State
+  const [isTriadActive, setIsTriadActive] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('lyaxis_triad_active') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleTriad = () => {
+    triggerSound();
+    setIsTriadActive((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('lyaxis_triad_active', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
@@ -299,6 +319,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       },
       {
         temperature: activeTemp,
+        triad_mode: isTriadActive,
         onError: (err) => {
           handleStreamError(err);
         },
@@ -1016,17 +1037,94 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
           )}
 
+          {/* LYAXIS TRIAD™ Control Strip */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '8px',
+              padding: '0 4px',
+              flexWrap: 'wrap',
+              gap: '8px',
+            }}
+          >
+            <button
+              type="button"
+              onClick={toggleTriad}
+              title="Activar o desactivar el debate triádico en tiempo real: Create ➔ Break ➔ Rebuild"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: isMobile ? '6px 12px' : '5px 12px',
+                borderRadius: '8px',
+                backgroundColor: isTriadActive ? 'rgba(124, 58, 237, 0.18)' : 'rgba(255, 255, 255, 0.04)',
+                border: isTriadActive ? '1px solid rgba(124, 58, 237, 0.55)' : '1px solid rgba(255, 255, 255, 0.1)',
+                color: isTriadActive ? '#ffffff' : '#a1a1aa',
+                cursor: 'pointer',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                letterSpacing: '0.3px',
+                transition: 'all 0.2s ease',
+                boxShadow: isTriadActive ? '0 0 16px rgba(124, 58, 237, 0.35)' : 'none',
+              }}
+            >
+              <Zap size={13} color={isTriadActive ? '#00D9FF' : '#71717a'} />
+              <span>⚡ LYAXIS TRIAD™ :</span>
+              <span
+                style={{
+                  color: isTriadActive ? '#10B981' : '#71717a',
+                  fontWeight: 800,
+                }}
+              >
+                {isTriadActive ? 'ON' : 'OFF'}
+              </span>
+            </button>
+
+            {isTriadActive && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '10.5px',
+                  fontFamily: 'monospace',
+                  color: '#d8b4fe',
+                  backgroundColor: 'rgba(124, 58, 237, 0.14)',
+                  border: '1px solid rgba(124, 58, 237, 0.35)',
+                  padding: '3px 10px',
+                  borderRadius: '12px',
+                  animation: 'fadeIn 0.25s ease-out',
+                }}
+              >
+                <span
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: '#10B981',
+                    boxShadow: '0 0 8px #10B981',
+                    display: 'inline-block',
+                  }}
+                />
+                <span>TRIAD ENGAGED // 3 CORES SYNCED</span>
+              </div>
+            )}
+          </div>
+
           {/* Input Bar */}
           <div
+            className={isTriadActive ? 'lyaxis-triad-active-box' : ''}
             style={{
               display: 'flex',
               alignItems: 'flex-end',
               backgroundColor: '#08080c',
-              border: `1px solid ${selectedImage ? meta.color + '66' : '#1a1a24'}`,
+              border: isTriadActive ? '1px solid transparent' : `1px solid ${selectedImage ? meta.color + '66' : '#1a1a24'}`,
               borderRadius: '14px',
               padding: isMobile ? '8px 10px' : '12px 16px',
               gap: '10px',
-              boxShadow: '0 4px 25px rgba(0,0,0,0.8)',
+              boxShadow: isTriadActive ? undefined : '0 4px 25px rgba(0,0,0,0.8)',
               transition: 'border-color 0.2s ease',
             }}
           >
@@ -1077,9 +1175,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 }
               }}
               placeholder={
-                selectedImage
-                  ? 'Describe la imagen adjunta...'
-                  : `Mensaje a LYAXIS ${meta.label}...`
+                isTriadActive
+                  ? 'Consulta a LYAXIS TRIAD™ (Create ➔ Break ➔ Rebuild)...'
+                  : (selectedImage
+                      ? 'Describe la imagen adjunta...'
+                      : `Mensaje a LYAXIS ${meta.label}...`)
               }
               rows={1}
               style={{
@@ -1130,7 +1230,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   height: isMobile ? '44px' : '36px',
                   minWidth: isMobile ? '44px' : '36px',
                   borderRadius: '10px',
-                  backgroundColor: (inputValue.trim() || selectedImage) ? meta.color : '#1c1c24',
+                  backgroundColor: isTriadActive
+                    ? ((inputValue.trim() || selectedImage) ? '#7C3AED' : '#1c1c24')
+                    : ((inputValue.trim() || selectedImage) ? meta.color : '#1c1c24'),
                   border: 'none',
                   color: '#ffffff',
                   display: 'flex',
@@ -1138,7 +1240,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   justifyContent: 'center',
                   cursor: (inputValue.trim() || selectedImage) ? 'pointer' : 'default',
                   flexShrink: 0,
-                  boxShadow: (inputValue.trim() || selectedImage) ? `0 0 16px ${meta.color}44` : 'none',
+                  boxShadow: (inputValue.trim() || selectedImage) 
+                    ? (isTriadActive ? '0 0 16px rgba(124, 58, 237, 0.5)' : `0 0 16px ${meta.color}44`) 
+                    : 'none',
                   transition: 'all 0.2s ease',
                 }}
               >

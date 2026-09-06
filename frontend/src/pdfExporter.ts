@@ -4,6 +4,23 @@ import type { Message } from './types';
 function markdownToPdfHtml(markdownText: string): string {
   if (!markdownText) return '';
   let text = markdownText;
+
+  // Format LYAXIS TRIAD™ structured cores for PDF export
+  if (text.includes('[TRIAD_CORE:')) {
+    const extractCore = (core: string) => {
+      const openTag = `[TRIAD_CORE:${core}]`;
+      const closeTag = `[/TRIAD_CORE:${core}]`;
+      const s = text.indexOf(openTag);
+      if (s === -1) return '';
+      const e = text.indexOf(closeTag, s + openTag.length);
+      return e !== -1 ? text.slice(s + openTag.length, e).trim() : text.slice(s + openTag.length).trim();
+    };
+    const c1 = extractCore('create');
+    const c2 = extractCore('break');
+    const c3 = extractCore('rebuild').replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
+
+    text = `## ⚡ NÚCLEO I · CREATE (Speed)\n\n${c1}\n\n## 👻 NÚCLEO II · BREAK (Phantom)\n\n${c2}\n\n## 🧠 NÚCLEO III · REBUILD (Cortex Pro)\n\n${c3}`;
+  }
   
   // Remove <thought> process tags for clean output
   if (text.includes('<thought>')) {

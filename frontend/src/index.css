@@ -1152,3 +1152,104 @@ textarea {
     height: 100dvh;
   }
 }
+
+/* ==========================================================================
+   LYAXIS TRIAD™ — Futuristic Triadic Real-time Aesthetics
+   ========================================================================== */
+
+@keyframes triadBorderGlow {
+  0% {
+    box-shadow: 0 0 16px rgba(37, 99, 255, 0.35), 0 0 28px rgba(124, 58, 237, 0.2);
+    border-color: rgba(37, 99, 255, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(239, 68, 68, 0.35), 0 0 32px rgba(37, 99, 255, 0.25);
+    border-color: rgba(239, 68, 68, 0.65);
+  }
+  100% {
+    box-shadow: 0 0 20px rgba(124, 58, 237, 0.4), 0 0 28px rgba(37, 99, 255, 0.25);
+    border-color: rgba(124, 58, 237, 0.65);
+  }
+}
+
+@keyframes triadGradFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.lyaxis-triad-active-box {
+  position: relative;
+  border-radius: 14px;
+  background: 
+    linear-gradient(#08080c, #08080c) padding-box,
+    linear-gradient(90deg, #2563FF, #EF4444, #7C3AED, #2563FF) border-box !important;
+  border: 1.5px solid transparent !important;
+  background-size: 200% 200% !important;
+  animation: triadGradFlow 4s ease infinite, triadBorderGlow 3s ease-in-out infinite !important;
+}
+
+@keyframes neonPulseDown {
+  0% {
+    top: -4px;
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+  100% {
+    top: 18px;
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+.lyaxis-triad-connector-line {
+  position: relative;
+  width: 2px;
+  height: 18px;
+  margin: 0 auto;
+  background: linear-gradient(180deg, rgba(37, 99, 255, 0.6), rgba(239, 68, 68, 0.6), rgba(124, 58, 237, 0.6));
+  box-shadow: 0 0 8px rgba(124, 58, 237, 0.5);
+  border-radius: 1px;
+}
+
+.lyaxis-triad-connector-pulse {
+  position: absolute;
+  left: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #00D9FF;
+  box-shadow: 0 0 10px #00D9FF, 0 0 18px #7C3AED;
+  animation: neonPulseDown 1.4s infinite cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lyaxis-triad-card {
+  width: 100%;
+  border-radius: 12px;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.lyaxis-triad-card-create {
+  background-color: #0A0D1A;
+  border: 1px solid rgba(37, 99, 255, 0.32);
+  box-shadow: 0 4px 20px rgba(10, 13, 26, 0.8), 0 0 15px rgba(37, 99, 255, 0.08);
+}
+
+.lyaxis-triad-card-break {
+  background-color: #1A0A0E;
+  border: 1px solid rgba(239, 68, 68, 0.32);
+  box-shadow: 0 4px 20px rgba(26, 10, 14, 0.8), 0 0 15px rgba(239, 68, 68, 0.08);
+}
+
+.lyaxis-triad-card-rebuild {
+  background-color: #130A1F;
+  border: 1px solid rgba(124, 58, 237, 0.35);
+  box-shadow: 0 4px 24px rgba(19, 10, 31, 0.85), 0 0 20px rgba(124, 58, 237, 0.12);
+}
+

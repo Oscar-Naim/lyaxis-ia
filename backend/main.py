@@ -640,6 +640,7 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage] = []
     model: str = "classic"
     temperature: Optional[float] = None
+    triad_mode: Optional[bool] = False
 
 class CreateConversationRequest(BaseModel):
     id: Optional[str] = None
@@ -981,7 +982,136 @@ Todas las secciones, títulos, explicaciones, desgloses, viñetas, nombres de pa
 </language_rule>
 """
 
-async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "classic"):
+async def _stream_candidate_configs(
+    candidate_configs: List[dict],
+    oai_messages: List[dict],
+    temperature: float,
+    nvidia_keys: List[str],
+    metadata: Optional[dict] = None
+):
+    full_text = ""
+    last_err = None
+    interrupted = False
+
+    for target in candidate_configs:
+        if full_text or interrupted:
+            break
+
+        provider = str(target.get("provider", "nvidia")).lower().strip()
+        model_name = str(target.get("model", "")).strip()
+        if not model_name:
+            continue
+
+        if provider == "groq":
+            groq_key = os.getenv("GROQ_API_KEY", "").strip()
+            if not groq_key or groq_key == "gsk_placeholder" or "placeholder" in groq_key:
+                print(f"[GROQ] Sin GROQ_API_KEY activa. Saltando a fallback ({model_name}).")
+                continue
+
+            if client_groq.api_key != groq_key:
+                client_groq.api_key = groq_key
+
+            try:
+                print(f"[IA Engine - Groq] Streaming {model_name}...")
+                stream = await client_groq.chat.completions.create(
+                    model=model_name,
+                    messages=oai_messages,
+                    temperature=temperature,
+                    stream=True,
+                    timeout=25.0
+                )
+                try:
+                    async for chunk in stream:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            delta = chunk.choices[0].delta.content
+                            full_text += delta
+                            payload = {"token": delta}
+                            if metadata:
+                                payload.update(metadata)
+                            yield f"data: {json.dumps(payload)}\n\n", delta
+                except Exception as chunk_err:
+                    print(f"Error streaming Groq ({model_name}): {chunk_err}")
+                    if not full_text:
+                        last_err = chunk_err
+                        continue
+                    interrupted = True
+                    break
+                finally:
+                    try:
+                        await stream.close()
+                    except Exception:
+                        pass
+
+                if interrupted:
+                    break
+                if full_text:
+                    last_err = None
+                    break
+
+            except Exception as err_groq:
+                last_err = err_groq
+                print(f"[GROQ] Error ({model_name}): {err_groq}. Saltando a fallback...")
+                continue
+
+        elif provider == "nvidia":
+            print(f"[IA Engine - NVIDIA NIM] Streaming {model_name}...")
+            for key_idx, current_key in enumerate(nvidia_keys):
+                if client_nvidia.api_key != current_key:
+                    client_nvidia.api_key = current_key
+
+                try:
+                    stream = await client_nvidia.chat.completions.create(
+                        model=model_name,
+                        messages=oai_messages,
+                        temperature=temperature,
+                        stream=True,
+                        timeout=28.0
+                    )
+                    try:
+                        async for chunk in stream:
+                            if chunk.choices and chunk.choices[0].delta.content:
+                                delta = chunk.choices[0].delta.content
+                                full_text += delta
+                                payload = {"token": delta}
+                                if metadata:
+                                    payload.update(metadata)
+                                yield f"data: {json.dumps(payload)}\n\n", delta
+                    except Exception as chunk_err:
+                        print(f"Error streaming NVIDIA ({model_name}): {chunk_err}")
+                        if not full_text:
+                            last_err = chunk_err
+                            break
+                        interrupted = True
+                        break
+                    finally:
+                        try:
+                            await stream.close()
+                        except Exception:
+                            pass
+
+                    if interrupted or full_text:
+                        break
+
+                except Exception as err_nvidia:
+                    last_err = err_nvidia
+                    err_str = str(err_nvidia)
+                    if "401" in err_str or "Unauthorized" in err_str or "Authentication" in err_str:
+                        print(f"[NVIDIA] Clave #{key_idx+1} no autorizada (401). Probando siguiente clave...")
+                        continue
+                    print(f"[NVIDIA] Error {model_name}: {err_nvidia}. Probando fallback...")
+                    break
+
+            if interrupted or full_text:
+                break
+
+    if not full_text and last_err:
+        err_msg = "⚠️ Error temporal al generar este bloque neural."
+        payload = {"token": f"\n\n{err_msg}"}
+        if metadata:
+            payload.update(metadata)
+        yield f"data: {json.dumps(payload)}\n\n", err_msg
+
+async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "classic", triad_mode: bool = False):
     nvidia_keys = _get_active_keys()
 
     if not nvidia_keys:
@@ -1043,6 +1173,120 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
             db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
         except Exception as err_db:
             print(f"Aviso DB mensaje: {err_db}")
+
+    # --- ORQUESTACION LYAXIS TRIAD (CREATE -> BREAK -> REBUILD) ---
+    if triad_mode:
+        print("[LYAXIS TRIAD] Activando orquestacion triadica (Speed -> Phantom -> Cortex Pro)...")
+        speed_text = ""
+        phantom_text = ""
+        cortex_text = ""
+
+        user_query_text = (last_user_msg.content or "").strip() if last_user_msg else "Consulta técnica"
+
+        # FASE 1: NÚCLEO I · CREATE (Speed - #2563FF)
+        candidate_create = [
+            {"provider": "groq", "model": "qwen/qwen3.8-27b"},
+            {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+            {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
+        ]
+        meta_create = {"core": "create", "core_name": "Speed", "color": "#2563FF"}
+        create_prompt = (
+            "Eres NÚCLEO I · CREATE (Speed) del sistema insignia LYAXIS TRIAD™. "
+            "Propón la solución técnica, código o respuesta directa a la consulta del usuario de forma ágil y concisa (máximo 120-150 palabras). "
+            "Redacta 100% en español con formato Markdown limpio y código funcional."
+        )
+        create_messages = [
+            {"role": "system", "content": create_prompt},
+            {"role": "user", "content": user_query_text}
+        ]
+        async for sse_line, delta in _stream_candidate_configs(
+            candidate_create, create_messages, 0.6, nvidia_keys, metadata=meta_create
+        ):
+            speed_text += delta
+            yield sse_line
+
+        await asyncio.sleep(0.05)
+
+        # FASE 2: NÚCLEO II · BREAK (Phantom - #EF4444)
+        candidate_break = [
+            {"provider": "groq", "model": "qwen/qwen3.8-27b"},
+            {"provider": "nvidia", "model": "meta/llama-3.1-70b-instruct"},
+            {"provider": "nvidia", "model": "nvidia/llama-3.1-nemotron-70b-instruct"},
+            {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+        ]
+        meta_break = {"core": "break", "core_name": "Phantom", "color": "#EF4444"}
+        break_prompt = (
+            "Eres NÚCLEO II · BREAK (Phantom) del sistema insignia LYAXIS TRIAD™. "
+            "Actúa como auditor implacable. Señala de forma estricta las 2 mayores vulnerabilidades, fallas de seguridad, casos de borde no contemplados o ineficiencias de la propuesta anterior en formato de viñetas claras (máximo 80 palabras). "
+            "Redacta 100% en español."
+        )
+        break_messages = [
+            {"role": "system", "content": break_prompt},
+            {"role": "user", "content": (
+                f"CONSULTA DEL USUARIO:\n{user_query_text}\n\n"
+                f"PROPUESTA NÚCLEO I (Speed):\n{speed_text}\n\n"
+                "Audita de forma implacable señalando las 2 mayores vulnerabilidades, fallas o ineficiencias en viñetas claras (máximo 80 palabras)."
+            )}
+        ]
+        async for sse_line, delta in _stream_candidate_configs(
+            candidate_break, break_messages, 0.3, nvidia_keys, metadata=meta_break
+        ):
+            phantom_text += delta
+            yield sse_line
+
+        await asyncio.sleep(0.05)
+
+        # FASE 3: NÚCLEO III · REBUILD (Cortex Pro - #7C3AED)
+        candidate_rebuild = [
+            {"provider": "groq", "model": "openai/gpt-oss-120b"},
+            {"provider": "nvidia", "model": "deepseek-ai/deepseek-r1"},
+            {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+            {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
+        ]
+        meta_rebuild = {"core": "rebuild", "core_name": "Cortex Pro", "color": "#7C3AED"}
+        rebuild_prompt = (
+            "Eres NÚCLEO III · REBUILD (Cortex Pro) del sistema insignia LYAXIS TRIAD™. "
+            "Actúa como el arquitecto maestro. Analiza las objeciones de Phantom en un bloque <thought>...</thought> "
+            "y entrega la versión definitiva, optimizada, blindada y lista para producción, reconciliando los puntos anteriores. "
+            "Redacta 100% en español con formato Markdown impecable, arquitectura sólida y código robusto."
+        )
+        rebuild_messages = [
+            {"role": "system", "content": rebuild_prompt},
+            {"role": "user", "content": (
+                f"CONSULTA ORIGINAL DEL USUARIO:\n{user_query_text}\n\n"
+                f"PROPUESTA NÚCLEO I (Speed):\n{speed_text}\n\n"
+                f"AUDITORÍA NÚCLEO II (Phantom):\n{phantom_text}\n\n"
+                "Analiza en <thought> las objeciones y sintetiza la solución definitiva blindada para producción."
+            )}
+        ]
+        async for sse_line, delta in _stream_candidate_configs(
+            candidate_rebuild, rebuild_messages, 0.2, nvidia_keys, metadata=meta_rebuild
+        ):
+            cortex_text += delta
+            yield sse_line
+
+        # Señal de finalización triádica
+        yield f"data: {json.dumps({'done': True})}\n\n"
+
+        # Guardar en base de datos el mensaje combinado estructurado
+        if conversation_id and (speed_text or phantom_text or cortex_text):
+            try:
+                mid = str(uuid.uuid4())
+                now = datetime.now(timezone.utc).isoformat()
+                triad_combined = (
+                    f"[TRIAD_CORE:create]\n{speed_text.strip()}\n[/TRIAD_CORE:create]\n\n"
+                    f"[TRIAD_CORE:break]\n{phantom_text.strip()}\n[/TRIAD_CORE:break]\n\n"
+                    f"[TRIAD_CORE:rebuild]\n{cortex_text.strip()}\n[/TRIAD_CORE:rebuild]"
+                )
+                db.execute(
+                    "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (mid, conversation_id, "model", triad_combined, now)
+                )
+                db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
+            except Exception as err_db_triad:
+                print(f"Aviso guardando respuesta Triad en DB: {err_db_triad}")
+
+        return
 
     full_response_text = ""
     last_err = None
@@ -1355,12 +1599,15 @@ async def chat_stream_endpoint(request: Request):
         except Exception as e_conv:
             print(f"Aviso asegurando conversación en chat_stream_endpoint: {e_conv}")
 
+    triad_mode = bool(body.get("triad_mode", False))
+
     generator = generate_ai_stream(
         conversation_id=conversation_id,
         user_id=user_id,
         messages=messages,
         temperature=temp,
-        model_type=model_type
+        model_type=model_type,
+        triad_mode=triad_mode
     )
 
     return StreamingResponse(

@@ -20,6 +20,43 @@ export interface MessageBubbleProps {
   renderPresentation?: (content: string) => React.ReactNode;
 }
 
+export interface ParsedTriad {
+  isTriad: boolean;
+  create: string;
+  breakText: string;
+  rebuild: string;
+}
+
+export function parseTriadContent(content: string): ParsedTriad {
+  if (!content || !content.includes('[TRIAD_CORE:')) {
+    return { isTriad: false, create: '', breakText: '', rebuild: '' };
+  }
+
+  const extractBlock = (core: string) => {
+    const openTag = `[TRIAD_CORE:${core}]`;
+    const closeTag = `[/TRIAD_CORE:${core}]`;
+    const start = content.indexOf(openTag);
+    if (start === -1) return '';
+    const afterOpen = start + openTag.length;
+    const end = content.indexOf(closeTag, afterOpen);
+    if (end !== -1) {
+      return content.slice(afterOpen, end).trim();
+    }
+    const nextTag = content.indexOf('[TRIAD_CORE:', afterOpen);
+    if (nextTag !== -1) {
+      return content.slice(afterOpen, nextTag).trim();
+    }
+    return content.slice(afterOpen).trim();
+  };
+
+  return {
+    isTriad: true,
+    create: extractBlock('create'),
+    breakText: extractBlock('break'),
+    rebuild: extractBlock('rebuild'),
+  };
+}
+
 const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) => {
   const [isOpen, setIsOpen] = useState(true);
   if (!thoughtText || !thoughtText.trim()) return null;
@@ -188,11 +225,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   renderPresentation,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [copiedVerdict, setCopiedVerdict] = useState(false);
+
+  const parsedTriad = parseTriadContent(message.content || '');
+  const isTriad = parsedTriad.isTriad;
 
   const msgModel = (message.model || activeModel) as ModelType;
   const meta = MODEL_META[msgModel] || MODEL_META.speed;
-  const modelColor = meta.color || '#2563FF';
-  const modelLabel = meta.label || 'Speed';
+  const modelColor = isTriad ? '#7C3AED' : (meta.color || '#2563FF');
+  const modelLabel = isTriad ? 'TRIAD™' : (meta.label || 'Speed');
 
   const isUser = message.role === 'user';
 
@@ -214,7 +255,184 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     }
   };
 
+  const handleCopyVerdict = async () => {
+    const verdictText = `=== LYAXIS TRIAD™ VEREDICTO ===\n\n` +
+      `[NÚCLEO I · CREATE (Speed)]\n${parsedTriad.create}\n\n` +
+      `[NÚCLEO II · BREAK (Phantom)]\n${parsedTriad.breakText}\n\n` +
+      `[NÚCLEO III · REBUILD (Cortex Pro)]\n${parsedTriad.rebuild.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim()}`;
+
+    try {
+      await navigator.clipboard.writeText(verdictText);
+      setCopiedVerdict(true);
+      setTimeout(() => setCopiedVerdict(false), 2000);
+    } catch {
+      const textArea = document.createElement('textarea');
+      textArea.value = verdictText;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopiedVerdict(true);
+      setTimeout(() => setCopiedVerdict(false), 2000);
+    }
+  };
+
+  const renderConnector = () => (
+    <div style={{ padding: '3px 0', display: 'flex', justifyContent: 'center' }}>
+      <div className="lyaxis-triad-connector-line">
+        <div className="lyaxis-triad-connector-pulse" />
+      </div>
+    </div>
+  );
+
+  const renderTriadCard = (
+    coreNum: string,
+    title: string,
+    color: string,
+    bgColor: string,
+    borderColor: string,
+    iconEmoji: string,
+    body: string,
+    isStreamingCurrent: boolean
+  ) => {
+    return (
+      <div
+        className="lyaxis-triad-card"
+        style={{
+          backgroundColor: bgColor,
+          border: `1px solid ${borderColor}`,
+          borderRadius: '12px',
+          padding: isMobile ? '12px 14px' : '15px 18px',
+          boxShadow: `0 4px 20px rgba(0, 0, 0, 0.7), 0 0 16px ${color}12`,
+          width: '100%',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '10px',
+            paddingBottom: '8px',
+            borderBottom: `1px solid ${color}25`,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '15px' }}>{iconEmoji}</span>
+            <span style={{ fontWeight: 800, fontSize: isMobile ? '12.5px' : '13.5px', color: color, letterSpacing: '0.3px' }}>
+              {title}
+            </span>
+          </div>
+          <span
+            style={{
+              fontSize: '10px',
+              fontFamily: 'monospace',
+              padding: '2px 8px',
+              borderRadius: '6px',
+              backgroundColor: `${color}15`,
+              border: `1px solid ${color}40`,
+              color: color,
+              fontWeight: 700,
+            }}
+          >
+            {coreNum === '1' ? 'CREATE' : (coreNum === '2' ? 'BREAK' : 'REBUILD')}
+          </span>
+        </div>
+
+        {body ? (
+          <div>
+            {title.includes('REBUILD') && body.includes('<thought>') ? (
+              (() => {
+                const parts = body.split('</thought>');
+                const thoughtPart = parts[0].replace('<thought>', '').trim();
+                const finalRebuild = parts.length > 1 ? parts.slice(1).join('</thought>').trim() : '';
+                return (
+                  <>
+                    <ThinkingAccordion thoughtText={thoughtPart} />
+                    {finalRebuild ? renderMarkdown(finalRebuild) : (
+                      <div style={{ fontSize: '12.5px', color: '#c084fc', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Sparkles size={14} className="animate-spin" /> Sintetizando solución blindada...
+                      </div>
+                    )}
+                  </>
+                );
+              })()
+            ) : (
+              renderMarkdown(body)
+            )}
+            {isStreamingCurrent && <span className="lyaxis-cursor" />}
+          </div>
+        ) : isStreamingCurrent ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 0', color: color, fontSize: '12.5px', fontStyle: 'italic' }}>
+            <Sparkles size={14} className="animate-spin" /> Generando respuesta de núcleo...
+          </div>
+        ) : (
+          <div style={{ fontSize: '12px', color: '#52525b', fontStyle: 'italic', padding: '4px 0' }}>
+            Sincronizando núcleo...
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderTriadView = (triad: ParsedTriad) => {
+    const isCreateStreaming = message.isStreaming && !triad.breakText && !triad.rebuild;
+    const isBreakStreaming = message.isStreaming && Boolean(triad.create) && !triad.rebuild;
+    const isRebuildStreaming = message.isStreaming && Boolean(triad.breakText);
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', width: '100%' }}>
+        {/* Card 1: Núcleo I · CREATE (Speed) */}
+        {renderTriadCard(
+          '1',
+          'NÚCLEO I · CREATE (Speed)',
+          '#2563FF',
+          '#0A0D1A',
+          'rgba(37, 99, 255, 0.35)',
+          '⚡',
+          triad.create,
+          isCreateStreaming
+        )}
+
+        {/* Connector Line 1 */}
+        {renderConnector()}
+
+        {/* Card 2: Núcleo II · BREAK (Phantom) */}
+        {renderTriadCard(
+          '2',
+          'NÚCLEO II · BREAK (Phantom)',
+          '#EF4444',
+          '#1A0A0E',
+          'rgba(239, 68, 68, 0.35)',
+          '👻',
+          triad.breakText,
+          isBreakStreaming
+        )}
+
+        {/* Connector Line 2 */}
+        {renderConnector()}
+
+        {/* Card 3: Núcleo III · REBUILD (Cortex Pro) */}
+        {renderTriadCard(
+          '3',
+          'NÚCLEO III · REBUILD (Cortex Pro)',
+          '#7C3AED',
+          '#130A1F',
+          'rgba(124, 58, 237, 0.38)',
+          '🧠',
+          triad.rebuild,
+          isRebuildStreaming
+        )}
+      </div>
+    );
+  };
+
   const renderContent = (content: string) => {
+    if (parsedTriad.isTriad) {
+      return renderTriadView(parsedTriad);
+    }
+
     // Canvas Slide Deck Presentation
     if (content.includes('<slide')) {
       if (renderPresentation) return renderPresentation(content);
@@ -399,24 +617,29 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   return (
     <div
-      className="lyaxis-msg-bubble"
+      className={`lyaxis-msg-bubble ${isTriad ? 'lyaxis-triad-bubble' : ''}`}
       style={{
         display: 'flex',
         flexDirection: 'column',
         alignSelf: 'flex-start',
         maxWidth: '100%',
         width: '100%',
-        backgroundColor: isUser ? '#0d0d14' : 'rgba(7, 7, 12, 0.88)',
+        backgroundColor: isUser ? '#0d0d14' : (isTriad ? '#07070d' : 'rgba(7, 7, 12, 0.88)'),
         backdropFilter: 'blur(10px)',
-        border: isUser ? '1px solid #22222e' : `1px solid ${modelColor}33`,
+        border: isUser ? '1px solid #22222e' : (isTriad ? '1px solid rgba(124, 58, 237, 0.45)' : `1px solid ${modelColor}33`),
         borderRadius: '14px',
         padding: isMobile ? '12px 14px' : '16px 20px',
         fontSize: isMobile ? '13.5px' : '14.5px',
         lineHeight: '1.6',
-        boxShadow: isUser ? '0 4px 18px rgba(0,0,0,0.5)' : `0 4px 24px rgba(0,0,0,0.65), 0 0 16px ${modelColor}11`,
+        boxShadow: isUser 
+          ? '0 4px 18px rgba(0,0,0,0.5)' 
+          : (isTriad 
+              ? '0 4px 28px rgba(0,0,0,0.75), 0 0 20px rgba(124, 58, 237, 0.15), 0 0 15px rgba(37, 99, 255, 0.1)' 
+              : `0 4px 24px rgba(0,0,0,0.65), 0 0 16px ${modelColor}11`),
         overflowWrap: 'break-word',
         animation: 'fadeIn 0.25s ease-out',
         position: 'relative',
+        boxSizing: 'border-box',
       }}
     >
       {/* Message Header */}
@@ -430,23 +653,38 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           color: '#71717a',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
           <span
             style={{
               width: '7px',
               height: '7px',
               borderRadius: '50%',
-              backgroundColor: isUser ? '#94a3b8' : modelColor,
-              boxShadow: isUser ? 'none' : `0 0 8px ${modelColor}`,
+              backgroundColor: isUser ? '#94a3b8' : (isTriad ? '#7C3AED' : modelColor),
+              boxShadow: isUser ? 'none' : (isTriad ? '0 0 8px #7C3AED, 0 0 14px #2563FF' : `0 0 8px ${modelColor}`),
               display: 'inline-block',
             }}
           />
-          <span style={{ fontWeight: 700, color: isUser ? '#cbd5e1' : modelColor, letterSpacing: '0.3px' }}>
-            {isUser ? 'Tú' : `LYAXIS ${modelLabel}`}
+          <span style={{ fontWeight: 700, color: isUser ? '#cbd5e1' : (isTriad ? '#c084fc' : modelColor), letterSpacing: '0.3px' }}>
+            {isUser ? 'Tú' : (isTriad ? '⚡ LYAXIS TRIAD™' : `LYAXIS ${modelLabel}`)}
           </span>
+          {isTriad && (
+            <span
+              style={{
+                fontSize: '9.5px',
+                fontFamily: 'monospace',
+                backgroundColor: 'rgba(124, 58, 237, 0.2)',
+                border: '1px solid rgba(124, 58, 237, 0.45)',
+                color: '#d8b4fe',
+                padding: '1px 6px',
+                borderRadius: '4px',
+              }}
+            >
+              3 CORES SYNCED
+            </span>
+          )}
         </div>
 
-        {!isUser && message.content && !message.isStreaming && (
+        {!isUser && message.content && !message.isStreaming && !isTriad && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
               type="button"
@@ -550,12 +788,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         </div>
       )}
 
-      {/* Markdown / LaTeX Math Content */}
+      {/* Markdown / LaTeX Math / Triad Content */}
       <div
         className="markdown-content"
         style={{
           color: '#f1f5f9',
-          opacity: !isUser && message.isStreaming ? 0.85 : 1,
+          opacity: !isUser && message.isStreaming ? 0.92 : 1,
         }}
       >
         {!message.content && message.isStreaming ? (
@@ -569,13 +807,84 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         ) : (
           <>
             {renderContent(message.content)}
-            {message.isStreaming && <span className="lyaxis-cursor" />}
+            {message.isStreaming && !isTriad && <span className="lyaxis-cursor" />}
           </>
         )}
       </div>
 
-      {/* Footer bar for assistant message: "Copiar respuesta completa" */}
-      {!isUser && message.content && !message.isStreaming && (
+      {/* Footer bar for Triad assistant message */}
+      {!isUser && isTriad && !message.isStreaming && (
+        <div
+          style={{
+            marginTop: '14px',
+            paddingTop: '12px',
+            borderTop: '1px solid rgba(124, 58, 237, 0.25)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+            fontSize: '11px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handleCopyVerdict}
+              title="Copiar veredicto completo de los 3 núcleos"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                backgroundColor: copiedVerdict ? 'rgba(16, 185, 129, 0.15)' : 'rgba(124, 58, 237, 0.14)',
+                border: copiedVerdict ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(124, 58, 237, 0.4)',
+                color: copiedVerdict ? '#10b981' : '#c084fc',
+                cursor: 'pointer',
+                fontSize: '11.5px',
+                fontWeight: 600,
+                transition: 'all 0.2s ease',
+              }}
+            >
+              {copiedVerdict ? <Check size={13} color="#10B981" /> : <Copy size={13} />}
+              <span>{copiedVerdict ? '¡Veredicto copiado!' : 'Copiar Veredicto Completo'}</span>
+            </button>
+
+            {onExportPDF && (
+              <button
+                type="button"
+                onClick={() => onExportPDF('Veredicto LYAXIS TRIAD', 'LYAXIS TRIAD™', '#7C3AED', [message])}
+                title="Descargar veredicto en PDF"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(0, 217, 255, 0.08)',
+                  border: '1px solid rgba(0, 217, 255, 0.3)',
+                  color: '#00D9FF',
+                  cursor: 'pointer',
+                  fontSize: '11.5px',
+                  fontWeight: 600,
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <FileDown size={13} />
+                <span>Descargar PDF</span>
+              </button>
+            )}
+          </div>
+
+          <span style={{ fontSize: '10.5px', color: '#7C3AED', fontFamily: 'monospace', fontWeight: 600 }}>
+            LYAXIS TRIAD™ // SYNTHESIS VERIFIED
+          </span>
+        </div>
+      )}
+
+      {/* Footer bar for standard assistant message: "Copiar respuesta completa" */}
+      {!isUser && !isTriad && message.content && !message.isStreaming && (
         <div
           style={{
             marginTop: '12px',
