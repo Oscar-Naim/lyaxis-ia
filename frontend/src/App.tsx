@@ -930,18 +930,27 @@ export default function App() {
               width: '100%',
               minHeight: '46px',
               padding: '12px 14px',
-              backgroundColor: '#0a0a0e',
-              border: '1px solid #1c1c24',
+              background: 'linear-gradient(135deg, rgba(37, 99, 255, 0.18) 0%, rgba(0, 217, 255, 0.08) 100%)',
+              border: '1px solid rgba(0, 217, 255, 0.3)',
               borderRadius: '10px',
               color: '#ffffff',
-              fontSize: '14.5px',
-              fontWeight: 600,
+              fontSize: '14px',
+              fontWeight: 700,
               cursor: 'pointer',
               marginBottom: '12px',
+              boxShadow: '0 0 16px rgba(0, 217, 255, 0.1)',
               transition: 'all 0.2s ease',
             }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.55)';
+              e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 217, 255, 0.25)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.3)';
+              e.currentTarget.style.boxShadow = '0 0 16px rgba(0, 217, 255, 0.1)';
+            }}
           >
-            <Plus size={17} /> Nuevo Chat
+            <Plus size={18} color="#00D9FF" /> Nuevo Chat
           </button>
 
           {/* Indicador de Motor Activo con Selector Desplegable en Barra Lateral */}

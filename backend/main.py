@@ -1174,16 +1174,12 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         except Exception as err_db:
             print(f"Aviso DB mensaje: {err_db}")
 
-    # --- ORQUESTACION LYAXIS TRIAD (CREATE -> BREAK -> REBUILD) ---
+    # --- ORQUESTACION LYAXIS TRIAD CONCURRENTE (CREATE || BREAK || REBUILD A LA PAR) ---
     if triad_mode:
-        print("[LYAXIS TRIAD] Activando orquestacion triadica (Speed -> Phantom -> Cortex Pro)...")
-        speed_text = ""
-        phantom_text = ""
-        cortex_text = ""
-
+        print("[LYAXIS TRIAD] Activando orquestacion simultanea a la par (Speed || Phantom || Cortex Pro)...")
         user_query_text = (last_user_msg.content or "").strip() if last_user_msg else "Consulta técnica"
 
-        # FASE 1: NÚCLEO I · CREATE (Speed - #2563FF)
+        # NÚCLEO I · CREATE (Speed - #2563FF)
         candidate_create = [
             {"provider": "groq", "model": "qwen/qwen3.8-27b"},
             {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
@@ -1192,22 +1188,15 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         meta_create = {"core": "create", "core_name": "Speed", "color": "#2563FF"}
         create_prompt = (
             "Eres NÚCLEO I · CREATE (Speed) del sistema insignia LYAXIS TRIAD™. "
-            "Propón la solución técnica, código o respuesta directa a la consulta del usuario de forma ágil y concisa (máximo 120-150 palabras). "
-            "Redacta 100% en español con formato Markdown limpio y código funcional."
+            "Propón la solución técnica inmediata, código limpio y directo a la consulta del usuario de forma ágil y concisa (máximo 140 palabras). "
+            "Redacta 100% en español con formato Markdown y código funcional."
         )
         create_messages = [
             {"role": "system", "content": create_prompt},
             {"role": "user", "content": user_query_text}
         ]
-        async for sse_line, delta in _stream_candidate_configs(
-            candidate_create, create_messages, 0.6, nvidia_keys, metadata=meta_create
-        ):
-            speed_text += delta
-            yield sse_line
 
-        await asyncio.sleep(0.05)
-
-        # FASE 2: NÚCLEO II · BREAK (Phantom - #EF4444)
+        # NÚCLEO II · BREAK (Phantom - #EF4444)
         candidate_break = [
             {"provider": "groq", "model": "qwen/qwen3.8-27b"},
             {"provider": "nvidia", "model": "meta/llama-3.1-70b-instruct"},
@@ -1217,26 +1206,15 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         meta_break = {"core": "break", "core_name": "Phantom", "color": "#EF4444"}
         break_prompt = (
             "Eres NÚCLEO II · BREAK (Phantom) del sistema insignia LYAXIS TRIAD™. "
-            "Actúa como auditor implacable. Señala de forma estricta las 2 mayores vulnerabilidades, fallas de seguridad, casos de borde no contemplados o ineficiencias de la propuesta anterior en formato de viñetas claras (máximo 80 palabras). "
+            "Actúa como auditor implacable y Red Team. Analiza la consulta del usuario identificando los puntos críticos de falla, vectores de vulnerabilidad de seguridad, cuellos de botella y casos de borde que romperían cualquier implementación descuidada (máximo 120 palabras en viñetas claras). "
             "Redacta 100% en español."
         )
         break_messages = [
             {"role": "system", "content": break_prompt},
-            {"role": "user", "content": (
-                f"CONSULTA DEL USUARIO:\n{user_query_text}\n\n"
-                f"PROPUESTA NÚCLEO I (Speed):\n{speed_text}\n\n"
-                "Audita de forma implacable señalando las 2 mayores vulnerabilidades, fallas o ineficiencias en viñetas claras (máximo 80 palabras)."
-            )}
+            {"role": "user", "content": f"CONSULTA TÉCNICA DEL USUARIO:\n{user_query_text}\n\nAudita de forma implacable señalando vulnerabilidades, riesgos y fallas potenciales en viñetas claras."}
         ]
-        async for sse_line, delta in _stream_candidate_configs(
-            candidate_break, break_messages, 0.3, nvidia_keys, metadata=meta_break
-        ):
-            phantom_text += delta
-            yield sse_line
 
-        await asyncio.sleep(0.05)
-
-        # FASE 3: NÚCLEO III · REBUILD (Cortex Pro - #7C3AED)
+        # NÚCLEO III · REBUILD (Cortex Pro - #7C3AED)
         candidate_rebuild = [
             {"provider": "groq", "model": "openai/gpt-oss-120b"},
             {"provider": "nvidia", "model": "deepseek-ai/deepseek-r1"},
@@ -1246,24 +1224,61 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         meta_rebuild = {"core": "rebuild", "core_name": "Cortex Pro", "color": "#7C3AED"}
         rebuild_prompt = (
             "Eres NÚCLEO III · REBUILD (Cortex Pro) del sistema insignia LYAXIS TRIAD™. "
-            "Actúa como el arquitecto maestro. Analiza las objeciones de Phantom en un bloque <thought>...</thought> "
-            "y entrega la versión definitiva, optimizada, blindada y lista para producción, reconciliando los puntos anteriores. "
-            "Redacta 100% en español con formato Markdown impecable, arquitectura sólida y código robusto."
+            "Actúa como el arquitecto maestro. Analiza en un bloque <thought>...</thought> la arquitectura óptima, balanceando agilidad y robustez, "
+            "y entrega la solución definitiva, blindada, modular y lista para producción. "
+            "Redacta 100% en español con Markdown impecable y código de ingeniería sólida."
         )
         rebuild_messages = [
             {"role": "system", "content": rebuild_prompt},
-            {"role": "user", "content": (
-                f"CONSULTA ORIGINAL DEL USUARIO:\n{user_query_text}\n\n"
-                f"PROPUESTA NÚCLEO I (Speed):\n{speed_text}\n\n"
-                f"AUDITORÍA NÚCLEO II (Phantom):\n{phantom_text}\n\n"
-                "Analiza en <thought> las objeciones y sintetiza la solución definitiva blindada para producción."
-            )}
+            {"role": "user", "content": f"CONSULTA ORIGINAL DEL USUARIO:\n{user_query_text}\n\nDiseña y entrega la síntesis arquitectónica definitiva blindada para producción."}
         ]
-        async for sse_line, delta in _stream_candidate_configs(
-            candidate_rebuild, rebuild_messages, 0.2, nvidia_keys, metadata=meta_rebuild
-        ):
-            cortex_text += delta
-            yield sse_line
+
+        # Cola de eventos concurrente para transmitir los 3 flujos a la par
+        triad_queue = asyncio.Queue()
+
+        async def _core_worker(core_id: str, cfgs: list, msgs: list, temp: float, meta: dict):
+            accumulated = ""
+            try:
+                async for sse_line, delta in _stream_candidate_configs(
+                    cfgs, msgs, temp, nvidia_keys, metadata=meta
+                ):
+                    accumulated += delta
+                    await triad_queue.put((sse_line, delta, core_id))
+            except Exception as core_err:
+                print(f"[LYAXIS TRIAD] Error en núcleo {core_id}: {core_err}")
+            finally:
+                # Sentinel para avisar que este núcleo finalizó
+                await triad_queue.put((None, accumulated, core_id))
+
+        # Lanzar los 3 núcleos simultáneamente al mismo milisegundo
+        triad_tasks = [
+            asyncio.create_task(_core_worker("create", candidate_create, create_messages, 0.6, meta_create)),
+            asyncio.create_task(_core_worker("break", candidate_break, break_messages, 0.3, meta_break)),
+            asyncio.create_task(_core_worker("rebuild", candidate_rebuild, rebuild_messages, 0.2, meta_rebuild)),
+        ]
+
+        active_workers = len(triad_tasks)
+        speed_text = ""
+        phantom_text = ""
+        cortex_text = ""
+
+        # Consumir los tokens de los 3 núcleos conforme se producen en tiempo real
+        while active_workers > 0:
+            item = await triad_queue.get()
+            sse_line, delta, core_id = item
+            if sse_line is None:
+                active_workers -= 1
+                if core_id == "create":
+                    speed_text = delta
+                elif core_id == "break":
+                    phantom_text = delta
+                elif core_id == "rebuild":
+                    cortex_text = delta
+            else:
+                yield sse_line
+
+        # Asegurar que todas las tareas concurrentes concluyeron limpiamente
+        await asyncio.gather(*triad_tasks, return_exceptions=True)
 
         # Señal de finalización triádica
         yield f"data: {json.dumps({'done': True})}\n\n"

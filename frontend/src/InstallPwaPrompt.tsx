@@ -5,7 +5,13 @@ export const InstallPwaPrompt: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem('lyaxis_pwa_dismissed') === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
@@ -48,11 +54,11 @@ export const InstallPwaPrompt: React.FC = () => {
 
   return (
     <>
-      {/* Floating Cyber-HUD Install Prompt Bar */}
+      {/* Floating Cyber-HUD Install Prompt Bar — Positioned above bottom bar */}
       <div 
         style={{
           position: 'fixed',
-          bottom: '24px',
+          bottom: '90px',
           right: '24px',
           zIndex: 9990,
           maxWidth: '380px',
@@ -104,7 +110,12 @@ export const InstallPwaPrompt: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => setDismissed(true)}
+            onClick={() => {
+              setDismissed(true);
+              try {
+                localStorage.setItem('lyaxis_pwa_dismissed', 'true');
+              } catch {}
+            }}
             style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
             aria-label="Cerrar"
           >

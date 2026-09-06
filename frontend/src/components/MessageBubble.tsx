@@ -369,142 +369,231 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const renderTriadCard = (
     coreNum: string,
     title: string,
+    modelTag: string,
     color: string,
     bgColor: string,
     borderColor: string,
     iconEmoji: string,
     body: string,
-    isStreamingCurrent: boolean
+    isStreamingActive: boolean
   ) => {
+    const hasContent = Boolean(body && body.trim());
+    const isThisCoreWriting = isStreamingActive && hasContent;
+    const isWaitingForThisCore = isStreamingActive && !hasContent;
+
     return (
       <div
         className="lyaxis-triad-card"
         style={{
           backgroundColor: bgColor,
           border: `1px solid ${borderColor}`,
-          borderRadius: '12px',
-          padding: isMobile ? '12px 14px' : '15px 18px',
-          boxShadow: `0 4px 20px rgba(0, 0, 0, 0.7), 0 0 16px ${color}12`,
+          borderTop: `3px solid ${color}`,
+          borderRadius: '14px',
+          padding: isMobile ? '13px' : '15px 17px',
+          boxShadow: `0 8px 30px rgba(0, 0, 0, 0.8), 0 0 18px ${color}15`,
           width: '100%',
           boxSizing: 'border-box',
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: isMobile ? 'auto' : '260px',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
+        {/* Card Header */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            marginBottom: '10px',
-            paddingBottom: '8px',
+            marginBottom: '12px',
+            paddingBottom: '9px',
             borderBottom: `1px solid ${color}25`,
+            gap: '8px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '15px' }}>{iconEmoji}</span>
-            <span style={{ fontWeight: 800, fontSize: isMobile ? '12.5px' : '13.5px', color: color, letterSpacing: '0.3px' }}>
-              {title}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+            <span style={{ fontSize: '16px' }}>{iconEmoji}</span>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontWeight: 800, fontSize: isMobile ? '12px' : '12.5px', color: color, letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+                {title}
+              </span>
+              <span style={{ fontSize: '10px', color: '#94a3b8', fontFamily: 'monospace', fontWeight: 600 }}>
+                {modelTag}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {isThisCoreWriting && (
+              <span
+                style={{
+                  fontSize: '9px',
+                  fontFamily: 'monospace',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  backgroundColor: `${color}25`,
+                  border: `1px solid ${color}`,
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: color, boxShadow: `0 0 6px ${color}` }} />
+                EN VIVO
+              </span>
+            )}
+            <span
+              style={{
+                fontSize: '9.5px',
+                fontFamily: 'monospace',
+                padding: '2px 7px',
+                borderRadius: '6px',
+                backgroundColor: `${color}18`,
+                border: `1px solid ${color}45`,
+                color: color,
+                fontWeight: 800,
+                letterSpacing: '0.3px',
+              }}
+            >
+              {coreNum === '1' ? 'CREATE' : (coreNum === '2' ? 'BREAK' : 'REBUILD')}
             </span>
           </div>
-          <span
-            style={{
-              fontSize: '10px',
-              fontFamily: 'monospace',
-              padding: '2px 8px',
-              borderRadius: '6px',
-              backgroundColor: `${color}15`,
-              border: `1px solid ${color}40`,
-              color: color,
-              fontWeight: 700,
-            }}
-          >
-            {coreNum === '1' ? 'CREATE' : (coreNum === '2' ? 'BREAK' : 'REBUILD')}
-          </span>
         </div>
 
-        {body ? (
-          <div>
-            {title.includes('REBUILD') && body.includes('<thought>') ? (
-              (() => {
-                const parts = body.split('</thought>');
-                const thoughtPart = parts[0].replace('<thought>', '').trim();
-                const finalRebuild = parts.length > 1 ? parts.slice(1).join('</thought>').trim() : '';
-                return (
-                  <>
-                    <ThinkingAccordion thoughtText={thoughtPart} />
-                    {finalRebuild ? renderMarkdown(finalRebuild) : (
-                      <div style={{ fontSize: '12.5px', color: '#c084fc', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Sparkles size={14} className="animate-spin" /> Sintetizando solución blindada...
-                      </div>
-                    )}
-                  </>
-                );
-              })()
-            ) : (
-              renderMarkdown(body)
-            )}
-            {isStreamingCurrent && <span className="lyaxis-cursor" />}
-          </div>
-        ) : isStreamingCurrent ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 0', color: color, fontSize: '12.5px', fontStyle: 'italic' }}>
-            <Sparkles size={14} className="animate-spin" /> Generando respuesta de núcleo...
-          </div>
-        ) : (
-          <div style={{ fontSize: '12px', color: '#52525b', fontStyle: 'italic', padding: '4px 0' }}>
-            Sincronizando núcleo...
-          </div>
-        )}
+        {/* Card Body */}
+        <div style={{ flex: 1, overflowWrap: 'break-word', fontSize: isMobile ? '13px' : '13.5px', lineHeight: 1.55 }}>
+          {hasContent ? (
+            <div>
+              {title.includes('REBUILD') && body.includes('<thought>') ? (
+                (() => {
+                  const parts = body.split('</thought>');
+                  const thoughtPart = parts[0].replace('<thought>', '').trim();
+                  const finalRebuild = parts.length > 1 ? parts.slice(1).join('</thought>').trim() : '';
+                  return (
+                    <>
+                      <ThinkingAccordion thoughtText={thoughtPart} />
+                      {finalRebuild ? renderMarkdown(finalRebuild) : (
+                        <div style={{ fontSize: '12.5px', color: '#c084fc', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 0' }}>
+                          <Sparkles size={14} className="animate-spin" /> Sintetizando solución blindada...
+                        </div>
+                      )}
+                    </>
+                  );
+                })()
+              ) : (
+                renderMarkdown(body)
+              )}
+              {isStreamingActive && <span className="lyaxis-cursor" />}
+            </div>
+          ) : isWaitingForThisCore ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '24px 0', color: color, fontSize: '12px', fontStyle: 'italic' }}>
+              <Sparkles size={14} className="animate-spin" /> Transmitiendo a la par...
+            </div>
+          ) : (
+            <div style={{ fontSize: '12px', color: '#52525b', fontStyle: 'italic', padding: '12px 0' }}>
+              Sincronizando núcleo...
+            </div>
+          )}
+        </div>
       </div>
     );
   };
 
   const renderTriadView = (triad: ParsedTriad) => {
-    const isCreateStreaming = message.isStreaming && !triad.breakText && !triad.rebuild;
-    const isBreakStreaming = message.isStreaming && Boolean(triad.create) && !triad.rebuild;
-    const isRebuildStreaming = message.isStreaming && Boolean(triad.breakText);
+    const isStreaming = Boolean(message.isStreaming);
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', width: '100%' }}>
-        {/* Card 1: Núcleo I · CREATE (Speed) */}
-        {renderTriadCard(
-          '1',
-          'NÚCLEO I · CREATE (Speed)',
-          '#2563FF',
-          '#0A0D1A',
-          'rgba(37, 99, 255, 0.35)',
-          '⚡',
-          triad.create,
-          isCreateStreaming
-        )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
+        {/* Live Multi-Core Telemetry Strip */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '9px 14px',
+            borderRadius: '10px',
+            backgroundColor: 'rgba(124, 58, 237, 0.09)',
+            border: '1px solid rgba(124, 58, 237, 0.3)',
+            flexWrap: 'wrap',
+            gap: '8px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Zap size={15} color="#00D9FF" />
+            <span style={{ fontSize: '11.5px', fontFamily: 'monospace', fontWeight: 800, color: '#ffffff', letterSpacing: '0.4px' }}>
+              LYAXIS TRIAD™ // TRANSMISIÓN SIMULTÁNEA A LA PAR
+            </span>
+          </div>
 
-        {/* Connector Line 1 */}
-        {renderConnector()}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '10px', fontFamily: 'monospace' }}>
+            <span style={{ color: '#2563FF', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 700 }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#2563FF', boxShadow: '0 0 8px #2563FF' }} />
+              I: SPEED
+            </span>
+            <span style={{ color: '#EF4444', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 700 }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#EF4444', boxShadow: '0 0 8px #EF4444' }} />
+              II: PHANTOM
+            </span>
+            <span style={{ color: '#7C3AED', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 700 }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#7C3AED', boxShadow: '0 0 8px #7C3AED' }} />
+              III: CORTEX
+            </span>
+          </div>
+        </div>
 
-        {/* Card 2: Núcleo II · BREAK (Phantom) */}
-        {renderTriadCard(
-          '2',
-          'NÚCLEO II · BREAK (Phantom)',
-          '#EF4444',
-          '#1A0A0E',
-          'rgba(239, 68, 68, 0.35)',
-          '👻',
-          triad.breakText,
-          isBreakStreaming
-        )}
+        {/* 3-Column Side-by-Side Parallel Dashboard Grid */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))',
+            gap: '12px',
+            width: '100%',
+            alignItems: 'stretch',
+          }}
+        >
+          {/* Panel 1: CREATE (Speed) */}
+          {renderTriadCard(
+            '1',
+            'NÚCLEO I · CREATE',
+            'LYAXIS SPEED',
+            '#2563FF',
+            '#050814',
+            'rgba(37, 99, 255, 0.35)',
+            '⚡',
+            triad.create,
+            isStreaming
+          )}
 
-        {/* Connector Line 2 */}
-        {renderConnector()}
+          {/* Panel 2: BREAK (Phantom) */}
+          {renderTriadCard(
+            '2',
+            'NÚCLEO II · BREAK',
+            'LYAXIS PHANTOM',
+            '#EF4444',
+            '#120508',
+            'rgba(239, 68, 68, 0.35)',
+            '🎯',
+            triad.breakText,
+            isStreaming
+          )}
 
-        {/* Card 3: Núcleo III · REBUILD (Cortex Pro) */}
-        {renderTriadCard(
-          '3',
-          'NÚCLEO III · REBUILD (Cortex Pro)',
-          '#7C3AED',
-          '#130A1F',
-          'rgba(124, 58, 237, 0.38)',
-          '🧠',
-          triad.rebuild,
-          isRebuildStreaming
-        )}
+          {/* Panel 3: REBUILD (Cortex Pro) */}
+          {renderTriadCard(
+            '3',
+            'NÚCLEO III · REBUILD',
+            'LYAXIS CORTEX',
+            '#7C3AED',
+            '#0d0518',
+            'rgba(124, 58, 237, 0.38)',
+            '🧠',
+            triad.rebuild,
+            isStreaming
+          )}
+        </div>
       </div>
     );
   };

@@ -67,24 +67,24 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
     <div
       className="lyaxis-codeblock-container"
       style={{
-        margin: '18px 0',
+        margin: '16px 0',
         borderRadius: '12px',
         overflow: 'hidden',
-        border: '1px solid #1a1a24',
-        backgroundColor: '#050508',
-        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.75), 0 0 1px rgba(255, 255, 255, 0.1)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        backgroundColor: '#030306',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.85), 0 0 1px rgba(255, 255, 255, 0.1)',
         transition: 'border-color 0.2s ease',
       }}
     >
-      {/* Dark Top Bar */}
+      {/* Sleek Top Bar */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '9px 14px',
-          backgroundColor: '#0b0b12',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
+          padding: '8px 14px',
+          backgroundColor: '#07070c',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
           fontSize: '12px',
         }}
       >
@@ -173,12 +173,12 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
             userSelect: 'none',
             textAlign: 'right',
             padding: '14px 12px 14px 14px',
-            color: 'rgba(255, 255, 255, 0.2)',
-            fontSize: '12.5px',
+            color: 'rgba(255, 255, 255, 0.22)',
+            fontSize: '12px',
             fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
             lineHeight: '1.6',
             borderRight: '1px solid rgba(255, 255, 255, 0.06)',
-            backgroundColor: '#07070b',
+            backgroundColor: '#030306',
             flexShrink: 0,
             minWidth: '38px',
           }}
@@ -188,7 +188,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
           ))}
         </div>
 
-        {/* Code Content */}
+        {/* Code Content — Deep OLED Black with zero grey boxes */}
         <pre
           className="lyaxis-code-pre"
           style={{
@@ -199,14 +199,21 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
             fontSize: '13px',
             lineHeight: '1.6',
             fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-            backgroundColor: '#050508',
-            color: '#f1f5f9',
+            backgroundColor: '#030306',
+            color: '#f8fafc',
             whiteSpace: 'pre',
             wordWrap: 'normal',
           }}
         >
           <code
             className={`hljs language-${langStr}`}
+            style={{
+              background: 'transparent !important',
+              backgroundColor: 'transparent !important',
+              padding: 0,
+              fontFamily: 'inherit',
+              fontSize: 'inherit',
+            }}
             dangerouslySetInnerHTML={{ __html: highlightedCode }}
           />
         </pre>
