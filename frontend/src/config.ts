@@ -39,7 +39,7 @@ export const MODEL_META: Record<ModelType, { label: string; color: string; descr
     label: 'Architect',
     color: '#10B981',
     description: 'Módulo de arquitectura de prompts y mentoría técnica con Meta LLaMA 3.3 70B.',
-    temperature: 0.5
+    temperature: 0.3
   },
   magister: {
     label: 'Magister',
@@ -51,7 +51,7 @@ export const MODEL_META: Record<ModelType, { label: string; color: string; descr
     label: 'Classic',
     color: '#F59E0B',
     description: 'Tu compañero inteligente para el día a día. Pregunta lo que quieras.',
-    temperature: 0.7
+    temperature: 0.6
   },
   nexus: {
     label: 'Nexus',
@@ -72,9 +72,9 @@ export const MODEL_TEMPERATURES: Record<ModelType, number> = {
   root: 0.2,
   phantom: 0.3,
   speed: 0.6,
-  architect: 0.5,
+  architect: 0.3,
   magister: 0.6,
-  classic: 0.7,
+  classic: 0.6,
   nexus: 0.8,
   forge: 0.85,
 };

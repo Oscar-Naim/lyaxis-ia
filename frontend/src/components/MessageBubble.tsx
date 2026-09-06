@@ -571,6 +571,49 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </>
         )}
       </div>
+
+      {/* Footer bar for assistant message: "Copiar respuesta completa" */}
+      {!isUser && message.content && !message.isStreaming && (
+        <div
+          style={{
+            marginTop: '12px',
+            paddingTop: '10px',
+            borderTop: '1px solid rgba(255, 255, 255, 0.07)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '11px',
+            color: '#71717a',
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleCopyText}
+            title="Copiar respuesta completa"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '5px 11px',
+              borderRadius: '6px',
+              backgroundColor: copied ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+              border: copied ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
+              color: copied ? '#10b981' : '#a1a1aa',
+              cursor: 'pointer',
+              fontSize: '11px',
+              fontWeight: 500,
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {copied ? <Check size={13} color="#10B981" /> : <Copy size={13} />}
+            <span>{copied ? '¡Copiado al portapapeles!' : 'Copiar respuesta completa'}</span>
+          </button>
+
+          <span style={{ fontSize: '10.5px', color: '#52525b', fontFamily: 'monospace' }}>
+            LYAXIS labs™ // DETERMINISTIC
+          </span>
+        </div>
+      )}
     </div>
   );
 };

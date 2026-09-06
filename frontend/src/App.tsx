@@ -304,13 +304,22 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          setConversations(data.map((c: any) => ({
+          const loaded = data.map((c: any) => ({
             id: c.id,
             userId: c.user_id || uid,
             title: c.title || 'Nueva conversación',
             createdAt: c.created_at || new Date().toISOString(),
             model: c.model || 'speed'
-          })));
+          }));
+          setConversations(loaded);
+          setCurrentChatId((curr) => {
+            if (!curr && loaded.length > 0) {
+              loadMessages(loaded[0].id);
+              setSelectedModel(loaded[0].model || 'speed');
+              return loaded[0].id;
+            }
+            return curr;
+          });
         }
       }
     } catch (e) {

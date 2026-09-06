@@ -881,7 +881,7 @@ client_groq = openai.AsyncOpenAI(api_key=os.getenv("GROQ_API_KEY"), base_url="ht
 client_nvidia = openai.AsyncOpenAI(api_key=os.getenv("NVIDIA_API_KEY"), base_url="https://integrate.api.nvidia.com/v1")
 
 MODELS = {
-    # speed y classic: Primario Groq (qwen/qwen3.8-27b), Fallback NVIDIA (meta/llama-3.1-8b-instruct) con respaldo a meta/llama-3.2-11b-vision-instruct
+    # speed y classic: Primario qwen/qwen3.8-27b (Groq), Fallback meta/llama-3.1-8b-instruct (NVIDIA)
     "speed": [
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
         {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
@@ -892,14 +892,14 @@ MODELS = {
         {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
     ],
-    # cortex: Primario Groq (openai/gpt-oss-120b), Fallback NVIDIA (deepseek-ai/deepseek-r1 o meta/llama-3.3-70b-instruct)
+    # cortex: Primario openai/gpt-oss-120b (Groq), Fallback deepseek-ai/deepseek-r1 (NVIDIA)
     "cortex": [
         {"provider": "groq", "model": "openai/gpt-oss-120b"},
         {"provider": "nvidia", "model": "deepseek-ai/deepseek-r1"},
         {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
     ],
-    # phantom y architect: Primario Groq (qwen/qwen3.8-27b), Fallback NVIDIA (meta/llama-3.3-70b-instruct)
+    # phantom y architect: Primario qwen/qwen3.8-27b (Groq), Fallback meta/llama-3.3-70b-instruct (NVIDIA)
     "phantom": [
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
         {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
@@ -910,15 +910,15 @@ MODELS = {
         {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
     ],
-    # nexus (Visión): Primario NVIDIA NIM (meta/llama-3.2-11b-vision-instruct), Fallback Groq (qwen/qwen3.8-27b)
+    # nexus: Primario meta/llama-3.2-11b-vision-instruct (NVIDIA NIM), Fallback qwen/qwen3.8-27b (Groq)
     "nexus": [
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
     ],
-    # forge: Constructor práctico (Groq qwen/qwen3.8-27b, fallbacks Nemotron & Llama 70B)
+    # forge: Primario nvidia/llama-3.1-nemotron-70b-instruct (NVIDIA), Fallback qwen/qwen3.8-27b (Groq)
     "forge": [
-        {"provider": "groq", "model": "qwen/qwen3.8-27b"},
         {"provider": "nvidia", "model": "nvidia/llama-3.1-nemotron-70b-instruct"},
+        {"provider": "groq", "model": "qwen/qwen3.8-27b"},
         {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
     ],
@@ -929,25 +929,25 @@ MODELS = {
         {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
     ],
-    # root: Razonamiento técnico y código puro (Groq openai/gpt-oss-120b, fallbacks DeepSeek R1 & Llama 70B)
+    # root: Primario deepseek-ai/deepseek-r1 (NVIDIA), Fallback qwen/qwen3.8-27b (Groq)
     "root": [
-        {"provider": "groq", "model": "openai/gpt-oss-120b"},
         {"provider": "nvidia", "model": "deepseek-ai/deepseek-r1"},
+        {"provider": "groq", "model": "qwen/qwen3.8-27b"},
         {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
     ],
 }
 
 MODEL_TEMPERATURES = {
-    "cortex": 0.2,
-    "root": 0.2,
-    "phantom": 0.3,
     "speed": 0.6,
-    "architect": 0.5,
-    "classic": 0.7,
-    "magister": 0.6,
+    "classic": 0.6,
+    "cortex": 0.2,
+    "phantom": 0.3,
+    "architect": 0.3,
     "nexus": 0.8,
     "forge": 0.85,
+    "root": 0.2,
+    "magister": 0.6,
 }
 
 FALLBACK_MAP = {
