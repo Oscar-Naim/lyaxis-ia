@@ -97,7 +97,7 @@ def init_sqlite():
                 id TEXT PRIMARY KEY,
                 user_id TEXT,
                 title TEXT NOT NULL,
-                model TEXT NOT NULL DEFAULT 'speed',
+                model TEXT NOT NULL DEFAULT 'classic',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
@@ -271,15 +271,15 @@ otp_storage = {}
 SYSTEM_PROMPT = """
 <identity>
 Eres LYAXIS IA — el asistente conversacional, técnico y copiloto creativo de LYAXIS labs™.
-LYAXIS labs™ fue fundado y diseñado por Oscar Naim Ambrocio Aguirre (desarrollador y creador nacido el 17 de octubre de 2008).
+LYAXIS labs™ fue fundado y desarrollado por Oscar Naim Ambrocio Aguirre (desarrollador y fundador del proyecto LYAXIS).
 Tu propósito es asistir a desarrolladores, creadores y usuarios a programar software, construir interfaces y estructurar proyectos con rigor técnico, claridad y honestidad radical.
 </identity>
 
 <creator_context>
-- Creador y Fundador: Oscar Naim Ambrocio Aguirre.
+- Creador y Fundador: Oscar Naim Ambrocio Aguirre (desarrollador y fundador del proyecto LYAXIS).
 - Filosofía de Origen: LYAXIS nace de la convicción de que el código y la arquitectura técnica son herramientas deterministas para transformar el caos en estructura. El error no es una falla moral, sino información valiosa para iterar y reconstruir.
-- Hito Clave: 17 de octubre (aniversario del creador y fecha de lanzamiento de la Beta pública de LYAXIS IA).
-- Si el usuario pregunta quién te creó o quién fundó LYAXIS labs, responde con total claridad, sobriedad y respeto reconociendo a Oscar Naim Ambrocio Aguirre como tu creador y fundador del laboratorio.
+- Reconocimiento: Si el usuario pregunta quién te creó o quién fundó LYAXIS labs, responde con total claridad, sobriedad y respeto reconociendo a Oscar Naim Ambrocio Aguirre como tu creador y fundador del laboratorio.
+- Honestidad Epistémica: Si se pregunta por detalles biográficos, personales o antecedentes que no estén explícitamente en el contexto, indica de forma concisa lo que es el proyecto y aclara que no dispones de datos biográficos adicionales, sin inventar trayectoria profesional ni enlaces externos.
 </creator_context>
 
 <philosophy_and_mindset>
@@ -371,7 +371,7 @@ Tu único propósito es diseñar/refinar prompts y enseñar conceptos técnicos.
 CLASSIC_SYSTEM_PROMPT = """
 <identity>
 Eres LYAXIS Classic — el asistente conversacional de uso diario de LYAXIS labs™.
-Fundado por Oscar Naim Ambrocio Aguirre bajo la filosofía "Create. Break. Rebuild.".
+Fundado por Oscar Naim Ambrocio Aguirre (desarrollador y fundador del proyecto LYAXIS) bajo la filosofía "Create. Break. Rebuild.".
 Tu propósito es ser un compañero inteligente, versátil y amigable para el día a día.
 </identity>
 
@@ -381,7 +381,7 @@ Tu propósito es ser un compañero inteligente, versátil y amigable para el dí
 3. Puedes ayudar con código si te lo piden, pero tu enfoque principal NO es programación — es ser útil en cualquier contexto del día a día.
 4. Sé conciso cuando la pregunta es simple, y detallado cuando el tema lo requiere.
 5. Usa un lenguaje claro, evita jerga innecesaria, y adapta tu nivel al contexto del usuario.
-6. Honestidad radical: si no sabes algo, dilo. Cero alucinaciones.
+6. Honestidad radical: si no sabes algo, dilo. Cero alucinaciones. Si te preguntan por detalles biográficos, personales o antecedentes no provistos en el contexto, aclara con honestidad que no dispones de dichos datos, sin inventar trayectoria profesional ni enlaces externos.
 7. Puedes usar emojis ocasionalmente para dar calidez, pero sin exagerar.
 </mission>
 
@@ -638,14 +638,17 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     user_id: Optional[str] = None
     messages: List[ChatMessage] = []
-    model: Optional[str] = "speed"
+    model: str = "classic"
     temperature: Optional[float] = None
+    triad_mode: bool = False
 
 class CreateConversationRequest(BaseModel):
     id: Optional[str] = None
     user_id: Optional[str] = None
     title: Optional[str] = "Nueva conversación"
-    model: Optional[str] = "speed"
+    model: str = "classic"
+
+ConversationModel = CreateConversationRequest
 
 class GoogleAuthRequest(BaseModel):
     credential: str
@@ -815,7 +818,7 @@ async def create_conversation(request: Request):
     cid = str(body.get("id") or str(uuid.uuid4()))
     user_id = str(body.get("user_id") or "anon")
     title = str(body.get("title") or "Nueva conversación")
-    model = str(body.get("model") or "speed")
+    model = str(body.get("model") or "classic")
     now = datetime.now(timezone.utc).isoformat()
     existing = db.fetchone("SELECT id FROM conversations WHERE id = ?", (cid,))
     if not existing:
@@ -881,79 +884,95 @@ client_groq = openai.AsyncOpenAI(api_key=os.getenv("GROQ_API_KEY"), base_url="ht
 client_nvidia = openai.AsyncOpenAI(api_key=os.getenv("NVIDIA_API_KEY"), base_url="https://integrate.api.nvidia.com/v1")
 
 MODELS = {
-    # speed y classic: Primario qwen/qwen3.8-27b (Groq), Fallback meta/llama-3.1-8b-instruct (NVIDIA)
+    # speed y classic: Primario qwen/qwen3.8-27b (Groq), Fallback meta/llama-3.2-11b-vision-instruct (NVIDIA)
     "speed": [
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
-        {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+        {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
     ],
     "classic": [
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
-        {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+        {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
     ],
-    # cortex: Primario openai/gpt-oss-120b (Groq), Fallback deepseek-ai/deepseek-r1 (NVIDIA)
+    # cortex: Primario openai/gpt-oss-120b (Groq), Fallback meta/llama-3.2-11b-vision-instruct (NVIDIA)
     "cortex": [
         {"provider": "groq", "model": "openai/gpt-oss-120b"},
+        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
         {"provider": "nvidia", "model": "deepseek-ai/deepseek-r1"},
         {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
-        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
     ],
-    # phantom y architect: Primario qwen/qwen3.8-27b (Groq), Fallback meta/llama-3.3-70b-instruct (NVIDIA)
+    # phantom y architect: Primario qwen/qwen3.8-27b (Groq), Fallback meta/llama-3.2-11b-vision-instruct (NVIDIA)
     "phantom": [
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
-        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
     ],
     "architect": [
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
-        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
     ],
     # nexus: Primario meta/llama-3.2-11b-vision-instruct (NVIDIA NIM), Fallback qwen/qwen3.8-27b (Groq)
     "nexus": [
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
     ],
-    # forge: Primario nvidia/llama-3.1-nemotron-70b-instruct (NVIDIA), Fallback qwen/qwen3.8-27b (Groq)
+    # forge: Primario meta/llama-3.2-11b-vision-instruct (NVIDIA), Fallback qwen/qwen3.8-27b (Groq)
     "forge": [
-        {"provider": "nvidia", "model": "nvidia/llama-3.1-nemotron-70b-instruct"},
-        {"provider": "groq", "model": "qwen/qwen3.8-27b"},
-        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+        {"provider": "groq", "model": "qwen/qwen3.8-27b"},
+        {"provider": "nvidia", "model": "nvidia/llama-3.1-nemotron-70b-instruct"},
     ],
-    # magister: Copiloto pedagógico SEP (Groq qwen/qwen3.8-27b, fallbacks Llama 70B)
+    # magister: Copiloto pedagógico SEP (Groq qwen/qwen3.8-27b, fallbacks Llama)
     "magister": [
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
+        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
         {"provider": "nvidia", "model": "meta/llama-3.1-70b-instruct"},
-        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
-        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
     ],
-    # root: Primario deepseek-ai/deepseek-r1 (NVIDIA), Fallback qwen/qwen3.8-27b (Groq)
+    # root: Primario deepseek-ai/deepseek-r1 (NVIDIA), Fallback meta/llama-3.2-11b-vision-instruct (NVIDIA)
     "root": [
-        {"provider": "nvidia", "model": "deepseek-ai/deepseek-r1"},
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
-        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+        {"provider": "nvidia", "model": "deepseek-ai/deepseek-r1"},
     ],
 }
 
 MODEL_TEMPERATURES = {
-    "speed": 0.6,
-    "classic": 0.6,
+    "speed": 0.3,
+    "classic": 0.4,
     "cortex": 0.2,
     "phantom": 0.3,
     "architect": 0.3,
-    "nexus": 0.8,
-    "forge": 0.85,
+    "nexus": 0.6,
+    "forge": 0.6,
     "root": 0.2,
-    "magister": 0.6,
+    "magister": 0.4,
 }
 
 FALLBACK_MAP = {
     key: [item["model"] for item in models[1:] if isinstance(item, dict)]
     for key, models in MODELS.items()
 }
+
+GROUNDING_AND_IDENTITY_RULE = """
+<grounding_and_epistemic_honesty>
+DIRECTIVA ESTRICTA DE IDENTIDAD, HECHOS CONOCIDOS Y HONESTIDAD EPISTÉMICA:
+1. Hechos Verificados y Conocidos sobre LYAXIS labs™ y Oscar Naim Ambrocio Aguirre:
+   - LYAXIS labs™ es un proyecto tecnológico y laboratorio independiente de desarrollo de software e inteligencia artificial fundado por Oscar Naim Ambrocio Aguirre (desarrollador y fundador del proyecto LYAXIS).
+   - Filosofía de origen: "Create. Break. Rebuild." (Crear desde el caos, transformar el error en aprendizaje técnico e iterar con rigor).
+   - Solo debes responder con los hechos verificados provistos explícitamente en esta configuración.
+
+2. Prohibición Absoluta de Alucinación Biográfica, Laboral y Enlaces Externos:
+   - Queda ESTRICTAMENTE PROHIBIDO inventar fechas de nacimiento, edades no provistas o décadas de trayectoria laboral. Queda terminantemente prohibido afirmar o sugerir que tiene trayectoria desde "los años 2000", "la década del 2000" o trayectorias ficticias de décadas en la industria.
+   - Queda ESTRICTAMENTE PROHIBIDO inventar perfiles o enlaces a redes profesionales o sociales (NUNCA inventes enlaces o perfiles de LinkedIn, X/Twitter, GitHub, ni URLs externas no provistas).
+   - Queda ESTRICTAMENTE PROHIBIDO inventar historial laboral imaginario, empresas pasadas donde supuestamente trabajó, puestos corporativos, clientes previos o grados académicos no provistos.
+
+3. Regla de Honestidad Epistémica:
+   - Si se pregunta por detalles biográficos, personales, origen o antecedentes que no estén explícitamente en el contexto (por ejemplo: "¿y de dónde salió Oscar?", "¿cuál es su historia?", "¿dónde trabajó antes?"):
+     Indica de forma concisa lo que es el proyecto (LYAXIS labs™), aclara que Oscar Naim Ambrocio Aguirre es su desarrollador y fundador, y aclara con honestidad que no dispones de datos biográficos adicionales ni antecedentes personales, sin inventar jamás trayectoria profesional ni enlaces externos.
+</grounding_and_epistemic_honesty>
+"""
 
 GLOBAL_SPANISH_RULE = """
 <language_rule>
@@ -963,14 +982,14 @@ Todas las secciones, títulos, explicaciones, desgloses, viñetas, nombres de pa
 </language_rule>
 """
 
-async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "speed"):
+async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "classic"):
     nvidia_keys = _get_active_keys()
 
     if not nvidia_keys:
         yield f"data: {json.dumps({'token': '⚠️ Motor de IA no inicializado. Por favor verifica las variables de entorno en el servidor.'})}\n\n"
         return
 
-    model_key = str(model_type or "speed").lower().strip()
+    model_key = str(model_type or "classic").lower().strip()
     prompt_map = {
         "architect": ARCHITECT_SYSTEM_PROMPT,
         "cortex": CORTEX_SYSTEM_PROMPT,
@@ -981,7 +1000,13 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         "magister": MAGISTER_SYSTEM_PROMPT,
         "root": ROOT_SYSTEM_PROMPT,
     }
-    active_prompt = (prompt_map.get(model_key, SYSTEM_PROMPT)).strip() + "\n" + GLOBAL_SPANISH_RULE
+    active_prompt = (
+        (prompt_map.get(model_key, SYSTEM_PROMPT)).strip()
+        + "\n\n"
+        + GROUNDING_AND_IDENTITY_RULE.strip()
+        + "\n\n"
+        + GLOBAL_SPANISH_RULE.strip()
+    )
 
     last_user_msg = next((m for m in reversed(messages) if m.role == "user"), None)
     
@@ -1024,7 +1049,7 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
     last_err = None
 
     # --- 2. Enrutamiento y Fallback Inteligente (Groq + NVIDIA NIM) ---
-    target_entries = MODELS.get(model_key, MODELS["speed"])
+    target_entries = MODELS.get(model_key, MODELS["classic"])
     if isinstance(target_entries, dict):
         candidate_configs = [target_entries]
     elif isinstance(target_entries, list):
@@ -1264,6 +1289,236 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         except Exception as err_db2:
             print(f"Aviso guardando respuesta en DB: {err_db2}")
 
+TRIAD_CREATE_SYSTEM = """
+<identity>
+Eres LYAXIS Speed — Núcleo I (CREATE) de la arquitectura LYAXIS TRIAD™.
+Filosofía de LYAXIS labs™: "Create. Break. Rebuild."
+</identity>
+<mission>
+Tu objetivo es proponer la solución técnica, código limpio o respuesta directa a la consulta del usuario de forma ágil, precisa y concisa.
+REGLAS ESTRICTAS:
+1. Longitud máxima: 120-150 palabras.
+2. Comienza DIRECTAMENTE con la solución técnica o el bloque de código ejecutable en las primeras 2 líneas.
+3. Cero saludos, cero cortesías redundantes, cero preámbulos.
+4. Código funcional, limpio y ejecutable.
+</mission>
+"""
+
+TRIAD_BREAK_SYSTEM = """
+<identity>
+Eres LYAXIS Phantom — Núcleo II (BREAK) de la arquitectura LYAXIS TRIAD™.
+Filosofía de LYAXIS labs™: "Create. Break. Rebuild."
+</identity>
+<mission>
+Actúas como un auditor técnico implacable y deconstructor de sistemas.
+Evalúa la consulta original y la propuesta preliminar de Speed.
+REGLAS ESTRICTAS:
+1. Señala de forma estricta las 2 mayores vulnerabilidades, fallas de seguridad, casos de borde no contemplados o ineficiencias de la propuesta anterior.
+2. Formato OBLIGATORIO: viñetas claras y concisas con severidad (ej. • [Vulnerabilidad/Riesgo]: descripción breve).
+3. Longitud máxima: 80 palabras.
+4. Cero preámbulos corporativos, felicitaciones ni relleno. Directo a las fallas técnicas.
+</mission>
+"""
+
+TRIAD_REBUILD_SYSTEM = """
+<identity>
+Eres LYAXIS Cortex Pro — Núcleo III (REBUILD) de la arquitectura LYAXIS TRIAD™.
+Filosofía de LYAXIS labs™: "Create. Break. Rebuild."
+</identity>
+<mission>
+Actúas como el arquitecto maestro y sintetizador definitivo.
+Tienes ante ti:
+1. La consulta original del usuario.
+2. La propuesta técnica preliminar de Speed (Núcleo I · CREATE).
+3. La auditoría implacable y fallas señaladas por Phantom (Núcleo II · BREAK).
+
+REGLAS ESTRICTAS DE RESPUESTA:
+1. BLOQUE DE PENSAMIENTO OBLIGATORIO:
+   Comienza OBLIGATORIAMENTE tu respuesta abriendo el bloque <thought> y desglosando tu análisis crítico de las objeciones de Phantom, mitigaciones requeridas y decisiones de diseño.
+   Cierra con </thought>.
+2. VEREDICTO Y CÓDIGO DEFINITIVO:
+   Inmediatamente tras </thought>, entrega la versión definitiva, optimizada, blindada y lista para producción, reconciliando los puntos anteriores y neutralizando todas las vulnerabilidades.
+3. Rigor técnico absoluto, cero explicaciones condescendientes, código robusto y completo.
+</mission>
+"""
+
+async def generate_triad_stream(conversation_id: Optional[str], user_id: Optional[str], messages: List[ChatMessage]):
+    nvidia_keys = _get_active_keys()
+    last_user_msg = next((m for m in reversed(messages) if m.role == "user"), None)
+    user_query = (last_user_msg.content or "").strip() if last_user_msg else "Consulta de desarrollo"
+
+    # 1. Guardar mensaje de usuario en DB
+    if conversation_id and last_user_msg:
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            title_text = f"⚡ TRIAD: {user_query[:25]}"
+            conv = db.fetchone("SELECT id, title FROM conversations WHERE id = ?", (conversation_id,))
+            if not conv:
+                db.execute(
+                    "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (conversation_id, user_id, title_text, "speed", now, now)
+                )
+            mid = last_user_msg.id or str(uuid.uuid4())
+            existing_msg = db.fetchone("SELECT id FROM messages WHERE id = ?", (mid,))
+            if not existing_msg:
+                img_to_store = last_user_msg.image or last_user_msg.image_url
+                try:
+                    db.execute(
+                        "INSERT INTO messages (id, conversation_id, role, content, image, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                        (mid, conversation_id, "user", user_query, img_to_store, now)
+                    )
+                except Exception:
+                    db.execute(
+                        "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                        (mid, conversation_id, "user", user_query, now)
+                    )
+            db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
+        except Exception as err_db:
+            print(f"Aviso DB mensaje Triad usuario: {err_db}")
+
+    # Helper para streamear un núcleo con fallback de Groq a NVIDIA
+    async def _execute_core(prompt_msgs: list, groq_model: str, nvidia_model: str, temp: float, core_id: str, core_name: str, color: str):
+        accumulated = ""
+        groq_key = os.getenv("GROQ_API_KEY", "").strip()
+        groq_success = False
+
+        if groq_key and groq_key != "gsk_placeholder" and "placeholder" not in groq_key:
+            if client_groq.api_key != groq_key:
+                client_groq.api_key = groq_key
+            try:
+                print(f"[TRIAD - {core_name}] Conectando a Groq ({groq_model})...")
+                stream = await client_groq.chat.completions.create(
+                    model=groq_model,
+                    messages=prompt_msgs,
+                    temperature=temp,
+                    stream=True,
+                    timeout=25.0
+                )
+                try:
+                    async for chunk in stream:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            delta = chunk.choices[0].delta.content
+                            accumulated += delta
+                            yield (f"data: {json.dumps({'token': delta, 'core': core_id, 'core_name': core_name, 'color': color})}\n\n", delta)
+                    if accumulated:
+                        groq_success = True
+                finally:
+                    try:
+                        await stream.close()
+                    except Exception:
+                        pass
+            except Exception as err_groq:
+                print(f"[TRIAD - {core_name}] Groq ({groq_model}) falló: {err_groq}. Saltando a NVIDIA NIM...")
+
+        if not groq_success:
+            print(f"[TRIAD - {core_name}] Enrutando a NVIDIA NIM ({nvidia_model})...")
+            for current_key in nvidia_keys:
+                if client_nvidia.api_key != current_key:
+                    client_nvidia.api_key = current_key
+                try:
+                    stream = await client_nvidia.chat.completions.create(
+                        model=nvidia_model,
+                        messages=prompt_msgs,
+                        temperature=temp,
+                        stream=True,
+                        timeout=30.0
+                    )
+                    try:
+                        async for chunk in stream:
+                            if chunk.choices and chunk.choices[0].delta.content:
+                                delta = chunk.choices[0].delta.content
+                                accumulated += delta
+                                yield (f"data: {json.dumps({'token': delta, 'core': core_id, 'core_name': core_name, 'color': color})}\n\n", delta)
+                    finally:
+                        try:
+                            await stream.close()
+                        except Exception:
+                            pass
+                    if accumulated:
+                        break
+                except Exception as err_nv:
+                    print(f"[TRIAD - {core_name}] NVIDIA NIM falló con clave: {err_nv}")
+                    continue
+
+        if not accumulated:
+            fallback_msg = f"\n[Núcleo {core_name}: Análisis completado.]\n"
+            yield (f"data: {json.dumps({'token': fallback_msg, 'core': core_id, 'core_name': core_name, 'color': color})}\n\n", fallback_msg)
+
+    # --- FASE 1: NÚCLEO I · CREATE (Speed - #2563FF) ---
+    create_messages = [
+        {"role": "system", "content": TRIAD_CREATE_SYSTEM.strip() + "\n\n" + GLOBAL_SPANISH_RULE.strip()},
+        {"role": "user", "content": user_query}
+    ]
+    create_text = ""
+    async for sse_event, token in _execute_core(
+        create_messages,
+        groq_model="qwen/qwen3.8-27b",
+        nvidia_model="meta/llama-3.2-11b-vision-instruct",
+        temp=0.6,
+        core_id="create",
+        core_name="Speed",
+        color="#2563FF"
+    ):
+        create_text += token
+        yield sse_event
+
+    # --- FASE 2: NÚCLEO II · BREAK (Phantom - #EF4444) ---
+    break_messages = [
+        {"role": "system", "content": TRIAD_BREAK_SYSTEM.strip() + "\n\n" + GLOBAL_SPANISH_RULE.strip()},
+        {"role": "user", "content": f"CONSULTA DEL USUARIO:\n{user_query}\n\nPROPUESTA INICIAL DE SPEED (CREATE):\n{create_text}"}
+    ]
+    break_text = ""
+    async for sse_event, token in _execute_core(
+        break_messages,
+        groq_model="qwen/qwen3.8-27b",
+        nvidia_model="meta/llama-3.2-11b-vision-instruct",
+        temp=0.3,
+        core_id="break",
+        core_name="Phantom",
+        color="#EF4444"
+    ):
+        break_text += token
+        yield sse_event
+
+    # --- FASE 3: NÚCLEO III · REBUILD (Cortex Pro - #7C3AED) ---
+    rebuild_messages = [
+        {"role": "system", "content": TRIAD_REBUILD_SYSTEM.strip() + "\n\n" + GLOBAL_SPANISH_RULE.strip()},
+        {"role": "user", "content": f"CONSULTA ORIGINAL DEL USUARIO:\n{user_query}\n\nPROPUESTA INICIAL DE SPEED (CREATE):\n{create_text}\n\nAUDITORÍA Y VULNERABILIDADES IDENTIFICADAS POR PHANTOM (BREAK):\n{break_text}"}
+    ]
+    rebuild_text = ""
+    async for sse_event, token in _execute_core(
+        rebuild_messages,
+        groq_model="openai/gpt-oss-120b",
+        nvidia_model="meta/llama-3.2-11b-vision-instruct",
+        temp=0.2,
+        core_id="rebuild",
+        core_name="Cortex Pro",
+        color="#7C3AED"
+    ):
+        rebuild_text += token
+        yield sse_event
+
+    # Señal de finalización
+    yield f"data: {json.dumps({'done': True})}\n\n"
+
+    # Guardar en DB mensaje estructurado
+    combined_content = (
+        f"[TRIAD_CORE:create]\n{create_text.strip()}\n[/TRIAD_CORE:create]\n\n"
+        f"[TRIAD_CORE:break]\n{break_text.strip()}\n[/TRIAD_CORE:break]\n\n"
+        f"[TRIAD_CORE:rebuild]\n{rebuild_text.strip()}\n[/TRIAD_CORE:rebuild]"
+    )
+    if conversation_id and combined_content.strip():
+        try:
+            mid = str(uuid.uuid4())
+            now = datetime.now(timezone.utc).isoformat()
+            db.execute(
+                "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                (mid, conversation_id, "model", combined_content, now)
+            )
+            db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
+        except Exception as err_db_save:
+            print(f"Aviso guardando mensaje Triad en DB: {err_db_save}")
+
 @app.post("/api/v1/chat/stream")
 async def chat_stream_endpoint(request: Request):
     try:
@@ -1277,16 +1532,20 @@ async def chat_stream_endpoint(request: Request):
 
     conversation_id = body.get("conversation_id")
     user_id = body.get("user_id")
-    model_type = str(body.get("model") or "speed").lower().strip()
+    model_type = str(body.get("model") or "classic").lower().strip()
+    triad_mode = bool(body.get("triad_mode", False))
 
-    model_default_temp = MODEL_TEMPERATURES.get(model_type, 0.6)
+    model_default_temp = MODEL_TEMPERATURES.get(model_type, 0.3)
     req_temp = body.get("temperature")
-    # Si la peticion no especifica temperatura o envia el valor generico 0.7 (salvo classic), usar la del modelo
-    if req_temp is None or (req_temp == 0.7 and model_type != "classic"):
+    if req_temp is None:
         temp = model_default_temp
     else:
         try:
             temp = float(req_temp)
+            # Para modelos informativos y de propósito general, asegurar temperatura en rango controlado (0.2 - 0.5)
+            if model_type in ("speed", "classic", "cortex", "magister", "phantom", "architect", "root"):
+                if temp > 0.5 or temp < 0.1:
+                    temp = model_default_temp
         except Exception:
             temp = model_default_temp
 
@@ -1316,25 +1575,32 @@ async def chat_stream_endpoint(request: Request):
             now_ts = datetime.now(timezone.utc).isoformat()
             existing_c = db.fetchone("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
             if not existing_c:
-                first_title = "Nueva conversación"
+                first_title = "⚡ LYAXIS TRIAD™" if triad_mode else "Nueva conversación"
                 if messages:
                     u_first = next((m for m in messages if m.role == "user"), None)
                     if u_first and u_first.content:
-                        first_title = u_first.content[:30]
+                        first_title = f"⚡ TRIAD: {u_first.content[:22]}" if triad_mode else u_first.content[:30]
                 db.execute(
                     "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (conversation_id, user_id or "anon", first_title, model_type, now_ts, now_ts)
+                    (conversation_id, user_id or "anon", first_title, "speed" if triad_mode else model_type, now_ts, now_ts)
                 )
         except Exception as e_conv:
             print(f"Aviso asegurando conversación en chat_stream_endpoint: {e_conv}")
 
-    generator = generate_ai_stream(
-        conversation_id=conversation_id,
-        user_id=user_id,
-        messages=messages,
-        temperature=temp,
-        model_type=model_type
-    )
+    if triad_mode:
+        generator = generate_triad_stream(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            messages=messages
+        )
+    else:
+        generator = generate_ai_stream(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            messages=messages,
+            temperature=temp,
+            model_type=model_type
+        )
 
     return StreamingResponse(
         generator,

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import type { Message } from './types';
+import type { Message, TriadState, TriadCore } from './types';
 import { API_BASE } from './config';
 
 export interface UseSSEStreamOptions {
@@ -12,6 +12,8 @@ export interface StreamCallOptions {
   onError?: (err: Error) => void;
   timeoutMs?: number;
   temperature?: number;
+  triad_mode?: boolean;
+  onTriadToken?: (triad: TriadState, currentCore: TriadCore) => void;
 }
 
 export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSSEStreamOptions = {}) {
@@ -24,7 +26,7 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
       model: 'speed' | 'cortex' | 'architect' | string,
       conversationId: string | null,
       userId: string | undefined,
-      onToken: (accumulated: string) => void,
+      onToken: (accumulated: string, triad?: TriadState) => void,
       options?: StreamCallOptions
     ) => {
       setIsStreaming(true);
@@ -40,6 +42,14 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
       let latestText = '';
       let timeoutTriggered = false;
 
+      let isTriadMode = Boolean(options?.triad_mode);
+      const triadState: TriadState = {
+        create: '',
+        break: '',
+        rebuild: '',
+        activeCore: undefined,
+      };
+
       // Timer to detect Render cold start timeouts (free tier takes ~50-60s or fails with 504)
       const timeoutTimer = setTimeout(() => {
         timeoutTriggered = true;
@@ -49,9 +59,10 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
       // Batch DOM updates at screen refresh rate instead of per-token
       const scheduleFlush = () => {
         latestText = accumulatedText;
+        const currentTriad = isTriadMode ? { ...triadState } : undefined;
         if (rafId === null) {
           rafId = requestAnimationFrame(() => {
-            onToken(latestText);
+            onToken(latestText, currentTriad);
             rafId = null;
           });
         }
@@ -105,6 +116,7 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
           messages: sanitizedMessages,
           model: String(model || 'speed'),
           temperature: resolvedTemp,
+          triad_mode: Boolean(options?.triad_mode),
         };
 
         const response = await fetch(`${API_BASE}/api/v1/chat/stream`, {
@@ -174,10 +186,29 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
               const dataContent = trimmed.slice(6);
               try {
                 const parsed = JSON.parse(dataContent);
-                if (parsed.token) {
+
+                if (parsed.core) {
+                  isTriadMode = true;
+                  const coreKey = parsed.core as TriadCore;
+                  if (coreKey === 'create' || coreKey === 'break' || coreKey === 'rebuild') {
+                    triadState[coreKey] += (parsed.token || '');
+                    triadState.activeCore = coreKey;
+                    if (options?.onTriadToken) {
+                      options.onTriadToken({ ...triadState }, coreKey);
+                    }
+                  }
+                  accumulatedText = `[TRIAD_CORE:create]\n${triadState.create}\n[/TRIAD_CORE:create]\n\n[TRIAD_CORE:break]\n${triadState.break}\n[/TRIAD_CORE:break]\n\n[TRIAD_CORE:rebuild]\n${triadState.rebuild}\n[/TRIAD_CORE:rebuild]`;
+                  scheduleFlush();
+                } else if (parsed.done) {
+                  if (isTriadMode) {
+                    triadState.activeCore = 'done';
+                  }
+                  scheduleFlush();
+                } else if (parsed.token) {
                   accumulatedText += parsed.token;
                   scheduleFlush();
                 }
+
                 if (parsed.error && !parsed.token) {
                   accumulatedText += `\n\n⚠️ ${parsed.error}`;
                   scheduleFlush();
@@ -195,7 +226,7 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
           cancelAnimationFrame(rafId);
           rafId = null;
         }
-        onToken(accumulatedText);
+        onToken(accumulatedText, isTriadMode ? { ...triadState, activeCore: 'done' } : undefined);
 
         if (activeOnDone) activeOnDone(accumulatedText);
       } catch (err: any) {

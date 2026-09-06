@@ -182,3 +182,45 @@
     border-right-color: var(--border);
   }
 }
+
+/* ==========================================================================
+   Mobile Keyboard & Dynamic Viewport Height Compatibility (100dvh)
+   ========================================================================== */
+
+.lyaxis-chat-root,
+.lyaxis-main-layout {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lyaxis-chat-scroll-area {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+.lyaxis-bottom-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 40;
+  flex-shrink: 0;
+  background-color: rgba(4, 4, 8, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 10px));
+}
+
+@supports (height: 100dvh) {
+  .lyaxis-chat-root,
+  .lyaxis-main-layout {
+    height: 100dvh;
+  }
+}
+

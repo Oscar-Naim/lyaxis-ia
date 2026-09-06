@@ -82,6 +82,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showNexusSuggestion, setShowNexusSuggestion] = useState(false);
+  const [triadMode, setTriadMode] = useState<boolean>(false);
 
   const [isNotebookOpen, setIsNotebookOpen] = useState(false);
   const [notebookContent, setNotebookContent] = useState('');
@@ -265,8 +266,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
       role: 'model',
       content: '',
       timestamp: new Date().toISOString(),
-      model: currentActiveModel,
+      model: triadMode ? 'cortex' : currentActiveModel,
       isStreaming: true,
+      isTriad: triadMode,
+      triad: triadMode ? { create: '', break: '', rebuild: '', activeCore: 'create' } : undefined,
     };
 
     const updatedMessages = [...messages, userMessage];
@@ -274,7 +277,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
     // Active model individual temperature
     const activeMeta = modelMeta[currentActiveModel] || MODEL_META[currentActiveModel] || MODEL_META.speed;
-    const activeTemp = activeMeta.temperature ?? 0.6;
+    const activeTemp = activeMeta.temperature ?? 0.3;
 
     // Stream with sound ticks if unmuted
     await startStream(
@@ -282,20 +285,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
       currentActiveModel,
       targetChatId,
       activeUserId,
-      (accumulatedText) => {
+      (accumulatedText, triadState) => {
         if (!isMuted && Math.random() > 0.45) {
           triggerSound();
         }
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === assistantPlaceholderId
-              ? { ...msg, content: accumulatedText }
+              ? {
+                  ...msg,
+                  content: accumulatedText,
+                  triad: triadState || msg.triad,
+                  isTriad: Boolean(triadState) || msg.isTriad,
+                }
               : msg
           )
         );
       },
       {
         temperature: activeTemp,
+        triad_mode: triadMode,
         onError: (err) => {
           handleStreamError(err);
         },
@@ -336,7 +345,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const quickActions = MODEL_QUICK_ACTIONS[currentActiveModel] || MODEL_QUICK_ACTIONS.speed;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, position: 'relative', overflow: 'hidden' }}>
+    <div
+      className="lyaxis-chat-root"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        minHeight: '100dvh',
+        maxHeight: '100dvh',
+        flex: 1,
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
       
       {/* Header with Live In-Chat Model Switcher Dropdown, PDF export, and Mute Toggle */}
       <div
@@ -405,7 +426,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 position: 'absolute',
                 top: 'calc(100% + 6px)',
                 left: 0,
-                width: '270px',
+                width: isMobile ? 'calc(100vw - 28px)' : '300px',
+                maxWidth: '340px',
                 backgroundColor: '#0a0a0f',
                 border: '1px solid #22222e',
                 borderRadius: '12px',
@@ -422,7 +444,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 Cambiar Modelo en este Chat
               </div>
               {ALL_MODELS.map((m) => {
-                const itemMeta = modelMeta[m] || MODEL_META[m] || MODEL_META.speed;
+                const itemMeta = modelMeta[m] || MODEL_META[m] || MODEL_META.classic;
                 const isSelected = currentActiveModel === m;
                 return (
                   <button
@@ -441,17 +463,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       cursor: 'pointer',
                       textAlign: 'left',
                       transition: 'all 0.15s ease',
+                      gap: '8px',
                     }}
                     onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isSelected ? 'rgba(255, 255, 255, 0.08)' : 'transparent'; }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: itemMeta.color }} />
-                      <span style={{ fontSize: '12.5px', fontWeight: isSelected ? 700 : 500, color: isSelected ? '#ffffff' : '#d4d4d8' }}>
-                        {itemMeta.label}
-                      </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0, flex: 1 }}>
+                      <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: itemMeta.color, flexShrink: 0 }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+                        <span style={{ fontSize: '13px', fontWeight: isSelected ? 700 : 500, color: isSelected ? '#ffffff' : '#e2e8f0', lineHeight: 1.3 }}>
+                          {itemMeta.label}
+                        </span>
+                        <span style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {itemMeta.tagline}
+                        </span>
+                      </div>
                     </div>
-                    <span style={{ fontSize: '10.5px', color: '#71717a', fontFamily: 'monospace' }}>
+                    <span style={{ fontSize: '10.5px', color: '#71717a', fontFamily: 'monospace', flexShrink: 0 }}>
                       T:{itemMeta.temperature}
                     </span>
                   </button>
@@ -852,11 +880,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
       {/* Input Area with Image Attachment & Nexus Suggestion (4. Selector de Imágenes) */}
       <div
+        className="lyaxis-bottom-bar"
         style={{
           padding: isMobile ? '10px 12px max(14px, env(safe-area-inset-bottom, 14px))' : '16px 24px 20px',
           borderTop: '1px solid #121216',
-          backgroundColor: 'rgba(4, 4, 8, 0.95)',
+          backgroundColor: 'rgba(4, 4, 8, 0.96)',
           backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          position: 'sticky',
+          bottom: 0,
+          zIndex: 40,
           flexShrink: 0,
         }}
       >
@@ -983,13 +1016,84 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
           )}
 
+          {/* LYAXIS TRIAD™ Control Strip */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '10px',
+              flexWrap: 'wrap',
+              gap: '8px',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                const next = !triadMode;
+                setTriadMode(next);
+                triggerSound();
+              }}
+              title="Activar debate y síntesis multi-núcleo en tiempo real (Create ➔ Break ➔ Rebuild)"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '5px 13px',
+                borderRadius: '9999px',
+                background: triadMode
+                  ? 'linear-gradient(90deg, rgba(37, 99, 255, 0.22), rgba(239, 68, 68, 0.22), rgba(124, 58, 237, 0.22))'
+                  : 'rgba(255, 255, 255, 0.04)',
+                border: triadMode
+                  ? '1px solid rgba(124, 58, 237, 0.65)'
+                  : '1px solid rgba(255, 255, 255, 0.1)',
+                color: triadMode ? '#ffffff' : '#94a3b8',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                fontFamily: "'JetBrains Mono', Consolas, monospace",
+                letterSpacing: '0.4px',
+                cursor: 'pointer',
+                boxShadow: triadMode
+                  ? '0 0 16px rgba(124, 58, 237, 0.35), 0 0 8px rgba(37, 99, 255, 0.3)'
+                  : 'none',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <Zap size={13} color={triadMode ? '#00D9FF' : '#71717a'} />
+              <span>⚡ LYAXIS TRIAD™ : {triadMode ? 'ON' : 'OFF'}</span>
+              <span
+                style={{
+                  width: '7px',
+                  height: '7px',
+                  borderRadius: '50%',
+                  backgroundColor: triadMode ? '#10B981' : '#52525b',
+                  boxShadow: triadMode ? '0 0 8px #10B981' : 'none',
+                  display: 'inline-block',
+                  transition: 'all 0.2s ease',
+                }}
+              />
+            </button>
+
+            {triadMode && (
+              <div className="lyaxis-triad-badge">
+                <span>TRIAD ENGAGED // 3 CORES SYNCED</span>
+                <div className="lyaxis-triad-pips">
+                  <span className="lyaxis-triad-pip create" title="Speed (#2563FF)" />
+                  <span className="lyaxis-triad-pip break" title="Phantom (#EF4444)" />
+                  <span className="lyaxis-triad-pip rebuild" title="Cortex Pro (#7C3AED)" />
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Input Bar */}
           <div
+            className={triadMode ? 'lyaxis-triad-input-box' : ''}
             style={{
               display: 'flex',
               alignItems: 'flex-end',
               backgroundColor: '#08080c',
-              border: `1px solid ${selectedImage ? meta.color + '66' : '#1a1a24'}`,
+              border: triadMode ? '1.5px solid transparent' : `1px solid ${selectedImage ? meta.color + '66' : '#1a1a24'}`,
               borderRadius: '14px',
               padding: isMobile ? '8px 10px' : '12px 16px',
               gap: '10px',
@@ -1036,7 +1140,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={selectedImage ? 'Describe la imagen adjunta...' : `Mensaje a LYAXIS ${meta.label}...`}
+              onFocus={() => {
+                if (isMobile) {
+                  setTimeout(() => {
+                    textareaRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                  }, 150);
+                }
+              }}
+              placeholder={
+                triadMode
+                  ? 'Formula tu consulta para el debate y síntesis LYAXIS TRIAD™ (Create ➔ Break ➔ Rebuild)...'
+                  : selectedImage
+                  ? 'Describe la imagen adjunta...'
+                  : `Mensaje a LYAXIS ${meta.label}...`
+              }
               rows={1}
               style={{
                 flex: 1,

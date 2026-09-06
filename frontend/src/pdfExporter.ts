@@ -19,7 +19,7 @@ function markdownToPdfHtml(markdownText: string): string {
   const processTableBuffer = (buffer: string[]) => {
     if (buffer.length < 2) return buffer.join('\n');
 
-    let tableHtml = '<table style="width:100%; border-collapse:collapse; margin:14px 0; border:1px solid #cbd5e1; font-size:12px; background-color:#ffffff;">';
+    let tableHtml = '<table class="pdf-table" style="width:100%; border-collapse:collapse; margin:14px 0; border:1px solid #cbd5e1; font-size:12px; background-color:#ffffff; page-break-inside:auto; break-inside:auto;">';
     let isHeader = true;
 
     for (let i = 0; i < buffer.length; i++) {
@@ -42,7 +42,7 @@ function markdownToPdfHtml(markdownText: string): string {
       const textColor = isHeader ? '#0f172a' : '#334155';
       const fontWeight = isHeader ? 'bold' : 'normal';
 
-      tableHtml += `<tr style="background-color:${bgColor};">`;
+      tableHtml += `<tr style="background-color:${bgColor}; page-break-inside:avoid; break-inside:avoid;">`;
       cells.forEach(cell => {
         const tag = isHeader ? 'th' : 'td';
         // Parse inline formatting inside cell
@@ -50,7 +50,7 @@ function markdownToPdfHtml(markdownText: string): string {
           .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
           .replace(/\*(.*?)\*/g, '<em>$1</em>');
 
-        tableHtml += `<${tag} style="border:1px solid #cbd5e1; padding:8px 10px; text-align:left; color:${textColor}; font-weight:${fontWeight}; line-height:1.4;">${formattedCell}</${tag}>`;
+        tableHtml += `<${tag} style="border:1px solid #cbd5e1; padding:8px 10px; text-align:left; color:${textColor}; font-weight:${fontWeight}; line-height:1.4; page-break-inside:avoid; break-inside:avoid;">${formattedCell}</${tag}>`;
       });
       tableHtml += '</tr>';
 
@@ -85,23 +85,31 @@ function markdownToPdfHtml(markdownText: string): string {
 
   let html = resultLines.join('\n');
 
-  // Headers
-  html = html.replace(/^### (.*$)/gim, '<h3 style="font-size:14px; font-weight:700; color:#1e293b; margin:14px 0 6px;">$1</h3>');
-  html = html.replace(/^## (.*$)/gim, '<h2 style="font-size:16px; font-weight:800; color:#0f172a; margin:16px 0 8px; border-bottom:1px solid #e2e8f0; padding-bottom:4px;">$1</h2>');
-  html = html.replace(/^# (.*$)/gim, '<h1 style="font-size:18px; font-weight:800; color:#0f172a; margin:18px 0 10px;">$1</h1>');
+  // Headers with page-break-after avoid and inside avoid
+  html = html.replace(/^### (.*$)/gim, '<h3 style="font-size:14px; font-weight:700; color:#1e293b; margin:14px 0 6px; page-break-after:avoid; break-after:avoid; page-break-inside:avoid; break-inside:avoid;">$1</h3>');
+  html = html.replace(/^## (.*$)/gim, '<h2 style="font-size:16px; font-weight:800; color:#0f172a; margin:16px 0 8px; border-bottom:1px solid #e2e8f0; padding-bottom:4px; page-break-after:avoid; break-after:avoid; page-break-inside:avoid; break-inside:avoid;">$1</h2>');
+  html = html.replace(/^# (.*$)/gim, '<h1 style="font-size:18px; font-weight:800; color:#0f172a; margin:18px 0 10px; page-break-after:avoid; break-after:avoid; page-break-inside:avoid; break-inside:avoid;">$1</h1>');
 
   // Bold & Italic
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
 
   // Bullet points
-  html = html.replace(/^\s*[-*+]\s+(.*$)/gim, '<li style="margin-bottom:4px; color:#334155;">$1</li>');
+  html = html.replace(/^\s*[-*+]\s+(.*$)/gim, '<li style="margin-bottom:5px; color:#334155; page-break-inside:avoid; break-inside:avoid; line-height:1.5;">$1</li>');
 
   // Code blocks
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre style="background-color:#0f172a; color:#38bdf8; padding:12px; border-radius:6px; font-family:monospace; font-size:11px; overflow-x:auto; margin:10px 0;"><code>$2</code></pre>');
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre style="background-color:#0f172a; color:#38bdf8; padding:12px; border-radius:6px; font-family:monospace; font-size:11px; overflow-x:auto; margin:10px 0; page-break-inside:avoid; break-inside:avoid; white-space:pre-wrap;"><code>$2</code></pre>');
 
-  // Paragraph breaks
-  html = html.replace(/\n\n/g, '<br/><br/>');
+  // Wrap structured paragraphs avoiding mid-line cuts
+  const chunks = html.split(/\n\s*\n/);
+  html = chunks.map(chunk => {
+    const trimmed = chunk.trim();
+    if (!trimmed) return '';
+    if (trimmed.startsWith('<h') || trimmed.startsWith('<table') || trimmed.startsWith('<pre') || trimmed.startsWith('<li') || trimmed.startsWith('<div')) {
+      return trimmed;
+    }
+    return `<p style="margin:8px 0; line-height:1.6; color:#1e293b; page-break-inside:avoid; break-inside:avoid; orphans:3; widows:3;">${trimmed.replace(/\n/g, '<br/>')}</p>`;
+  }).join('\n');
 
   return html;
 }
@@ -115,7 +123,7 @@ export const exportChatToPDF = async (
   if (!messages || messages.length === 0) return;
 
   const container = document.createElement('div');
-  container.style.padding = '24px 30px';
+  container.style.padding = '20px 24px';
   container.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
   container.style.color = '#0f172a';
   container.style.backgroundColor = '#ffffff';
@@ -128,9 +136,28 @@ export const exportChatToPDF = async (
     minute: '2-digit'
   });
 
-  // Header Banner
+  // Global print CSS rules to avoid orphan lines and half-page cuts
   let htmlContent = `
-    <div style="border-bottom: 2px solid ${modelColor}; padding-bottom: 14px; margin-bottom: 22px; display: flex; justify-content: space-between; align-items: flex-end;">
+    <style>
+      @page {
+        margin: 15mm;
+      }
+      p, tr, pre, h1, h2, h3, li, blockquote, .pdf-avoid-break {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      h1, h2, h3 {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+      }
+      table {
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+      }
+    </style>
+
+    <!-- Header Banner -->
+    <div style="border-bottom: 2px solid ${modelColor}; padding-bottom: 14px; margin-bottom: 22px; display: flex; justify-content: space-between; align-items: flex-end; page-break-after: avoid; break-after: avoid;">
       <div>
         <div style="font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px;">LYAXIS labs™</div>
         <div style="font-size: 13px; font-weight: 700; color: ${modelColor}; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px;">Motor: LYAXIS ${modelLabel}</div>
@@ -154,8 +181,8 @@ export const exportChatToPDF = async (
     const parsedContent = markdownToPdfHtml(msg.content);
 
     htmlContent += `
-      <div style="margin-bottom: 18px; border: 1px solid ${roleBorder}; border-radius: 8px; overflow: hidden; background-color: ${roleBg};">
-        <div style="background-color: ${isUser ? '#f1f5f9' : '#f8fafc'}; padding: 8px 14px; border-bottom: 1px solid ${roleBorder}; font-size: 12px; font-weight: 800; color: ${titleColor}; display: flex; justify-content: space-between;">
+      <div class="pdf-msg-card" style="margin-bottom: 18px; border: 1px solid ${roleBorder}; border-radius: 8px; overflow: hidden; background-color: ${roleBg}; page-break-inside: auto; break-inside: auto;">
+        <div style="background-color: ${isUser ? '#f1f5f9' : '#f8fafc'}; padding: 8px 14px; border-bottom: 1px solid ${roleBorder}; font-size: 12px; font-weight: 800; color: ${titleColor}; display: flex; justify-content: space-between; page-break-after: avoid; break-after: avoid;">
           <span>${roleTitle}</span>
           <span style="font-size: 10px; font-weight: normal; color: #94a3b8;">LYAXIS IA</span>
         </div>
@@ -168,7 +195,7 @@ export const exportChatToPDF = async (
 
   // Footer
   htmlContent += `
-    <div style="margin-top: 28px; border-top: 1px solid #e2e8f0; padding-top: 12px; text-align: center; font-size: 10.5px; color: #94a3b8;">
+    <div style="margin-top: 28px; border-top: 1px solid #e2e8f0; padding-top: 12px; text-align: center; font-size: 10.5px; color: #94a3b8; page-break-inside: avoid; break-inside: avoid;">
       Documento generado oficialmente por <strong>LYAXIS IA</strong> • Creado por Oscar Naim Ambrocio Aguirre • LYAXIS labs™
     </div>
   `;
@@ -176,11 +203,15 @@ export const exportChatToPDF = async (
   container.innerHTML = htmlContent;
 
   const opt = {
-    margin: [10, 10, 10, 10],
+    margin: [15, 15, 15, 15],
     filename: `LYAXIS_${modelLabel.replace(/\s+/g, '_')}_${Date.now()}.pdf`,
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, logging: false },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak: {
+      mode: ['avoid-all', 'css', 'legacy'],
+      avoid: ['tr', '.pdf-avoid-break', 'p', 'pre', 'h1', 'h2', 'h3', 'li', 'blockquote']
+    }
   };
 
   try {

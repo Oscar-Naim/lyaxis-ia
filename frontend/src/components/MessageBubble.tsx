@@ -5,7 +5,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
-import { Copy, Check, FileDown, ChevronDown, ChevronRight, Sparkles, BookOpen } from 'lucide-react';
+import { Copy, Check, FileDown, ChevronDown, ChevronRight, Sparkles, BookOpen, Zap, Crosshair, Brain } from 'lucide-react';
 import type { Message, ModelType } from '../types';
 import { CodeBlock } from '../CodeBlock';
 import { SlideDeckViewer } from '../SlideDeckViewer';
@@ -177,6 +177,33 @@ const AiEnrichedImage: React.FC<{ src?: string; alt?: string; title?: string }> 
   );
 };
 
+function extractTriadData(msg: Message) {
+  if (msg.triad) {
+    const { create = '', break: breakStr = '', rebuild = '', activeCore } = msg.triad;
+    return {
+      isTriad: true,
+      create,
+      breakStr,
+      rebuild,
+      activeCore,
+    };
+  }
+  const content = msg.content || '';
+  if (content.includes('[TRIAD_CORE:') || content.includes('[/TRIAD_CORE:')) {
+    const createMatch = content.match(/\[TRIAD_CORE:create\]([\s\S]*?)(\[\/TRIAD_CORE:create\]|$)/);
+    const breakMatch = content.match(/\[TRIAD_CORE:break\]([\s\S]*?)(\[\/TRIAD_CORE:break\]|$)/);
+    const rebuildMatch = content.match(/\[TRIAD_CORE:rebuild\]([\s\S]*?)(\[\/TRIAD_CORE:rebuild\]|$)/);
+    return {
+      isTriad: true,
+      create: createMatch ? createMatch[1].trim() : '',
+      breakStr: breakMatch ? breakMatch[1].trim() : '',
+      rebuild: rebuildMatch ? rebuildMatch[1].trim() : '',
+      activeCore: undefined,
+    };
+  }
+  return { isTriad: false, create: '', breakStr: '', rebuild: '' };
+}
+
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   activeModel = 'speed',
@@ -191,6 +218,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const meta = MODEL_META[msgModel] || MODEL_META.speed;
   const modelColor = meta.color || '#2563FF';
   const modelLabel = meta.label || 'Speed';
+
+  const isUser = message.role === 'user';
+  const triadData = extractTriadData(message);
 
   const handleCopyText = async () => {
     if (!message.content) return;
@@ -393,7 +423,304 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     );
   };
 
-  const isUser = message.role === 'user';
+  // RENDERIZADO EXCLUSIVO: LYAXIS TRIAD™ (3 Tarjetas Modulares Conectadas por Pulso Neón)
+  if (triadData.isTriad && !isUser) {
+    const { create, breakStr, rebuild } = triadData;
+    const fullVerdict = `### ⚡ NÚCLEO I · CREATE (Speed)\n${create}\n\n### 👻 NÚCLEO II · BREAK (Phantom)\n${breakStr}\n\n### 🧠 NÚCLEO III · REBUILD (Cortex Pro)\n${rebuild}`;
+
+    const handleCopyFullVerdict = async () => {
+      try {
+        await navigator.clipboard.writeText(fullVerdict);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        const textArea = document.createElement('textarea');
+        textArea.value = fullVerdict;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    };
+
+    const handleExportTriadPDF = () => {
+      if (onExportPDF) {
+        onExportPDF('LYAXIS TRIAD™ - Veredicto de Síntesis', 'Triad', '#7C3AED', [
+          {
+            ...message,
+            content: fullVerdict,
+            model: 'cortex',
+          },
+        ]);
+      }
+    };
+
+    return (
+      <div
+        className="lyaxis-msg-bubble lyaxis-triad-wrapper"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignSelf: 'flex-start',
+          maxWidth: '100%',
+          width: '100%',
+          backgroundColor: 'rgba(6, 7, 14, 0.94)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '1px solid rgba(124, 58, 237, 0.28)',
+          borderRadius: '16px',
+          padding: isMobile ? '12px 10px' : '18px 20px',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.8), 0 0 24px rgba(37, 99, 255, 0.08), 0 0 28px rgba(124, 58, 237, 0.09)',
+          overflowWrap: 'break-word',
+          animation: 'fadeIn 0.25s ease-out',
+          position: 'relative',
+        }}
+      >
+        {/* Triad Top Header Banner */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '14px',
+            flexWrap: 'wrap',
+            gap: '8px',
+          }}
+        >
+          <div className="lyaxis-triad-badge">
+            <Zap size={13} color="#2563FF" />
+            <span>LYAXIS TRIAD™ // 3 CORES SYNCED</span>
+            <div className="lyaxis-triad-pips">
+              <span className="lyaxis-triad-pip create" title="Speed (#2563FF)" />
+              <span className="lyaxis-triad-pip break" title="Phantom (#EF4444)" />
+              <span className="lyaxis-triad-pip rebuild" title="Cortex Pro (#7C3AED)" />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={handleCopyFullVerdict}
+              title="Copiar veredicto completo"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 10px',
+                borderRadius: '8px',
+                backgroundColor: copied ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                border: copied ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                color: copied ? '#10b981' : '#cbd5e1',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {copied ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+              <span>{copied ? '¡Copiado!' : 'Copiar Veredicto Completo'}</span>
+            </button>
+
+            {onExportPDF && (
+              <button
+                type="button"
+                onClick={handleExportTriadPDF}
+                title="Descargar Veredicto en PDF"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '4px 10px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(124, 58, 237, 0.12)',
+                  border: '1px solid rgba(124, 58, 237, 0.35)',
+                  color: '#c084fc',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <FileDown size={12} />
+                <span>PDF</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 3 Modular Cards Connected by Neon Pulse Line */}
+        <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+          {/* TARJETA 1: CREATE (Speed - #2563FF) */}
+          <div className="lyaxis-triad-card card-create">
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 14px',
+                backgroundColor: 'rgba(37, 99, 255, 0.12)',
+                borderBottom: '1px solid rgba(37, 99, 255, 0.22)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Zap size={14} color="#2563FF" />
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#60a5fa', letterSpacing: '0.4px' }}>
+                  ⚡ NÚCLEO I · CREATE (Speed)
+                </span>
+              </div>
+              <span style={{ fontSize: '10px', color: '#93c5fd', fontFamily: 'monospace', opacity: 0.85 }}>
+                #2563FF // PROPUESTA ÁGIL
+              </span>
+            </div>
+            <div className="lyaxis-triad-card-content" style={{ padding: isMobile ? '12px 14px' : '14px 18px', color: '#f1f5f9' }}>
+              {create ? (
+                renderMarkdown(create)
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#60a5fa', fontStyle: 'italic', fontSize: '12.5px' }}>
+                  <Sparkles size={14} className="animate-spin" />
+                  <span>Generando propuesta técnica inicial...</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* LÍNEA CONECTORA 1 */}
+          <div className="lyaxis-triad-connector lyaxis-triad-connector-create-break">
+            <div className="lyaxis-triad-connector-dot" />
+          </div>
+
+          {/* TARJETA 2: BREAK (Phantom - #EF4444) */}
+          <div className="lyaxis-triad-card card-break">
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 14px',
+                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                borderBottom: '1px solid rgba(239, 68, 68, 0.22)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Crosshair size={14} color="#EF4444" />
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#f87171', letterSpacing: '0.4px' }}>
+                  👻 NÚCLEO II · BREAK (Phantom)
+                </span>
+              </div>
+              <span style={{ fontSize: '10px', color: '#fca5a5', fontFamily: 'monospace', opacity: 0.85 }}>
+                #EF4444 // AUDITORÍA CLÍNICA
+              </span>
+            </div>
+            <div className="lyaxis-triad-card-content" style={{ padding: isMobile ? '12px 14px' : '14px 18px', color: '#f1f5f9' }}>
+              {breakStr ? (
+                renderMarkdown(breakStr)
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f87171', fontStyle: 'italic', fontSize: '12.5px' }}>
+                  {create ? (
+                    <>
+                      <Crosshair size={14} className="animate-spin" />
+                      <span>Auditando vulnerabilidades y fallas de seguridad...</span>
+                    </>
+                  ) : (
+                    <span>En espera de finalización de Núcleo I...</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* LÍNEA CONECTORA 2 */}
+          <div className="lyaxis-triad-connector lyaxis-triad-connector-break-rebuild">
+            <div className="lyaxis-triad-connector-dot" />
+          </div>
+
+          {/* TARJETA 3: REBUILD (Cortex Pro - #7C3AED) */}
+          <div className="lyaxis-triad-card card-rebuild">
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 14px',
+                backgroundColor: 'rgba(124, 58, 237, 0.12)',
+                borderBottom: '1px solid rgba(124, 58, 237, 0.22)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Brain size={14} color="#7C3AED" />
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#c084fc', letterSpacing: '0.4px' }}>
+                  🧠 NÚCLEO III · REBUILD (Cortex Pro)
+                </span>
+              </div>
+              <span style={{ fontSize: '10px', color: '#d8b4fe', fontFamily: 'monospace', opacity: 0.85 }}>
+                #7C3AED // ARQUITECTO MAESTRO
+              </span>
+            </div>
+            <div className="lyaxis-triad-card-content" style={{ padding: isMobile ? '12px 14px' : '14px 18px', color: '#f1f5f9' }}>
+              {rebuild ? (
+                renderContent(rebuild)
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#c084fc', fontStyle: 'italic', fontSize: '12.5px' }}>
+                  {breakStr ? (
+                    <>
+                      <Brain size={14} className="animate-spin" />
+                      <span>Reconciliando objeciones y sintetizando arquitectura blindada...</span>
+                    </>
+                  ) : (
+                    <span>En espera de auditoría de Núcleo II...</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer info strip */}
+        <div
+          style={{
+            marginTop: '14px',
+            paddingTop: '10px',
+            borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '11px',
+            color: '#71717a',
+            flexWrap: 'wrap',
+            gap: '8px',
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleCopyFullVerdict}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '5px 12px',
+              borderRadius: '6px',
+              backgroundColor: copied ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+              border: copied ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
+              color: copied ? '#10b981' : '#a1a1aa',
+              cursor: 'pointer',
+              fontSize: '11px',
+              fontWeight: 500,
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {copied ? <Check size={13} color="#10B981" /> : <Copy size={13} />}
+            <span>{copied ? '¡Veredicto copiado al portapapeles!' : 'Copiar Veredicto Completo'}</span>
+          </button>
+
+          <span style={{ fontSize: '10px', color: '#52525b', fontFamily: 'monospace' }}>
+            LYAXIS labs™ // DETERMINISTIC TRIAD
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

@@ -1,12 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette, PanelLeft, PanelLeftClose, Hammer, GraduationCap, FileDown, Presentation, AlertTriangle, RefreshCw, Paperclip } from 'lucide-react';
 import { exportChatToPDF } from './pdfExporter';
 import { InstallPwaPrompt } from './InstallPwaPrompt';
 import { SlideDeckViewer } from './SlideDeckViewer';
-import type { ModelType } from './types';
+import type { ModelType, ModelId } from './types';
 import { ALL_MODELS, MODEL_META } from './config';
 
 const MODEL_PROMPTS: Record<ModelType, { icon: React.ReactNode; bg: string; border: string; text: string }[]> = {
@@ -154,7 +157,22 @@ export default function App() {
   }, [conversations]);
 
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<ModelType>('speed');
+  const [selectedModel, setSelectedModel] = useState<ModelId>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('lyaxis_selected_model');
+      if (saved && (ALL_MODELS as readonly string[]).includes(saved)) {
+        return saved as ModelId;
+      }
+    }
+    return 'classic';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('lyaxis_selected_model', selectedModel);
+    } catch (e) {}
+  }, [selectedModel]);
+
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
 
@@ -186,6 +204,7 @@ export default function App() {
     return typeof window !== 'undefined' ? !isSoundMuted() : true;
   });
   const [showNexusSuggestion, setShowNexusSuggestion] = useState(false);
+  const [triadMode, setTriadMode] = useState<boolean>(false);
 
   const [serverErrorBanner, setServerErrorBanner] = useState<string | null>(null);
   const [lastFailedUserText, setLastFailedUserText] = useState<string | null>(null);
@@ -309,13 +328,13 @@ export default function App() {
             userId: c.user_id || uid,
             title: c.title || 'Nueva conversación',
             createdAt: c.created_at || new Date().toISOString(),
-            model: c.model || 'speed'
+            model: c.model || 'classic'
           }));
           setConversations(loaded);
           setCurrentChatId((curr) => {
             if (!curr && loaded.length > 0) {
               loadMessages(loaded[0].id);
-              setSelectedModel(loaded[0].model || 'speed');
+              setSelectedModel(loaded[0].model || 'classic');
               return loaded[0].id;
             }
             return curr;
@@ -358,7 +377,7 @@ export default function App() {
     if (isStreaming) return;
     setCurrentChatId(chat.id);
     // Keep sidebar selection without overriding model — user controls model from header
-    updateLastChatPerModel(chat.model || 'speed', chat.id);
+    updateLastChatPerModel(chat.model || 'classic', chat.id);
     loadMessages(chat.id);
     if (isMobile) setIsSidebarOpen(false);
   };
@@ -543,8 +562,10 @@ export default function App() {
       role: 'model',
       content: '',
       timestamp: new Date().toISOString(),
-      model: selectedModel,
+      model: triadMode ? 'cortex' : selectedModel,
       isStreaming: true,
+      isTriad: triadMode,
+      triad: triadMode ? { create: '', break: '', rebuild: '', activeCore: 'create' } : undefined,
     };
 
     const updatedMessages = [...messages, userMessage];
@@ -553,28 +574,34 @@ export default function App() {
     setLastFailedUserText(userText);
 
     // Active model individual temperature
-    const activeMeta = MODEL_META[selectedModel] || MODEL_META.speed;
-    const activeTemp = activeMeta.temperature ?? 0.6;
+    const activeMeta = MODEL_META[selectedModel] || MODEL_META.classic;
+    const activeTemp = activeMeta.temperature ?? 0.4;
 
     await startStream(
       updatedMessages,
       selectedModel,
       targetChatId,
       user?.id || 'anon',
-      (accumulatedText) => {
+      (accumulatedText, triadState) => {
         if (soundEnabled && Math.random() > 0.4) {
           playCyberClick();
         }
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === assistantPlaceholderId
-              ? { ...msg, content: accumulatedText }
+              ? {
+                  ...msg,
+                  content: accumulatedText,
+                  triad: triadState || msg.triad,
+                  isTriad: Boolean(triadState) || msg.isTriad,
+                }
               : msg
           )
         );
       },
       {
         temperature: activeTemp,
+        triad_mode: triadMode,
         onError: (err) => {
           const friendly = '⚠️ El servidor tardó en responder o está iniciando. Por favor, reintenta en unos segundos.';
           const rawMsg = err?.message || '';
@@ -637,7 +664,8 @@ export default function App() {
               />
             ) : (
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
                 components={{
                   table({ children, ...props }) {
                     return (
@@ -670,7 +698,8 @@ export default function App() {
 
     return (
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
         components={{
           table({ children, ...props }) {
             return (
@@ -694,8 +723,8 @@ export default function App() {
     );
   };
 
-  const getModelLabel = (modelKey: ModelType) => MODEL_META[modelKey]?.label || 'Speed';
-  const getModelColor = (modelKey: ModelType) => MODEL_META[modelKey]?.color || '#2563FF';
+  const getModelLabel = (modelKey: ModelType) => MODEL_META[modelKey]?.label || 'Classic';
+  const getModelColor = (modelKey: ModelType) => MODEL_META[modelKey]?.color || '#F59E0B';
 
   const MODEL_ICONS: Record<ModelType, (size: number) => React.ReactNode> = {
     speed: (s) => <Sparkles size={s} color="#2563FF" />,
@@ -716,7 +745,19 @@ export default function App() {
       {/* 2. Micro-Animación Cinemática de Entrada ("Boot Sequence") */}
       {showBoot && <BootSplash onComplete={() => setShowBoot(false)} />}
 
-      <div className="cyber-grid-bg" style={{ display: 'flex', width: '100vw', height: '100vh', color: '#ffffff', position: 'relative', overflow: 'hidden' }}>
+    <div
+      className="cyber-grid-bg lyaxis-chat-root"
+      style={{
+        display: 'flex',
+        width: '100vw',
+        height: '100vh',
+        minHeight: '100dvh',
+        maxHeight: '100dvh',
+        color: '#ffffff',
+        position: 'relative',
+        overflow: 'hidden'
+      }}
+    >
         
         {/* Dynamic Ambient Aura */}
         <div style={{
@@ -880,6 +921,33 @@ export default function App() {
             <Plus size={17} /> Nuevo Chat
           </button>
 
+          {/* Indicador de Motor Activo con Subtítulo Descriptivo */}
+          <div
+            style={{
+              padding: '10px 12px',
+              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+              border: `1px solid ${getModelColor(selectedModel)}44`,
+              borderRadius: '10px',
+              marginBottom: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              boxShadow: `0 0 12px ${getModelColor(selectedModel)}15`,
+            }}
+          >
+            <div style={{ color: getModelColor(selectedModel), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              {MODEL_ICONS[selectedModel]?.(18)}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', lineHeight: 1.25 }}>
+                LYAXIS {getModelLabel(selectedModel)}
+              </span>
+              <span style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {MODEL_META[selectedModel]?.tagline}
+              </span>
+            </div>
+          </div>
+
           {/* Acceso Directo al Cuaderno / Mis Notas */}
           <button
             type="button"
@@ -994,9 +1062,16 @@ export default function App() {
                     transition: 'all 0.2s ease',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                    {getModelIcon(chat.model)}
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '14px' }}>{chat.title}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden', flex: 1, minWidth: 0 }}>
+                    <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                      {getModelIcon(chat.model)}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, flex: 1 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '13.5px', fontWeight: 600 }}>{chat.title}</span>
+                      <span style={{ fontSize: '12px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
+                        {MODEL_META[chat.model]?.label || 'Classic'} • {MODEL_META[chat.model]?.tagline || ''}
+                      </span>
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -1064,8 +1139,22 @@ export default function App() {
           </div>
         </aside>
 
-        {/* Main Chat Area */}
-        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'transparent', minWidth: 0, width: '100%', position: 'relative' }}>
+        {/* Main Content Area */}
+        <main
+          className="lyaxis-main-layout"
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100vh',
+            minHeight: '100dvh',
+            maxHeight: '100dvh',
+            backgroundColor: 'transparent',
+            minWidth: 0,
+            width: '100%',
+            position: 'relative'
+          }}
+        >
           {isScanlineActive && (
             <div
               className="lyaxis-laser-scanline"
@@ -1154,8 +1243,8 @@ export default function App() {
                       position: 'absolute',
                       top: 'calc(100% + 6px)',
                       left: 0,
-                      width: isMobile ? 'calc(100vw - 24px)' : '240px',
-                      maxWidth: '280px',
+                      width: isMobile ? 'calc(100vw - 24px)' : '300px',
+                      maxWidth: '340px',
                       backgroundColor: '#08080d',
                       border: '1px solid rgba(0, 217, 255, 0.35)',
                       borderRadius: '12px',
@@ -1180,25 +1269,30 @@ export default function App() {
                           style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px',
+                            gap: '9px',
                             padding: '8px 10px',
                             borderRadius: '8px',
                             border: 'none',
-                            fontSize: '12px',
-                            fontWeight: selectedModel === m ? 700 : 500,
                             cursor: 'pointer',
-                            backgroundColor: selectedModel === m ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
+                            backgroundColor: selectedModel === m ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
                             color: selectedModel === m ? '#ffffff' : '#a1a1aa',
                             transition: 'all 0.2s ease',
                             textAlign: 'left',
                           }}
                           onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = selectedModel === m ? 'rgba(255, 255, 255, 0.05)' : 'transparent'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = selectedModel === m ? 'rgba(255, 255, 255, 0.08)' : 'transparent'; }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: getModelColor(m) }}>
-                            {MODEL_ICONS[m]?.(14)}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: getModelColor(m), flexShrink: 0 }}>
+                            {MODEL_ICONS[m]?.(16)}
                           </div>
-                          {getModelLabel(m)}
+                          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+                            <span style={{ fontSize: '13px', fontWeight: selectedModel === m ? 700 : 500, color: selectedModel === m ? '#ffffff' : '#e2e8f0', lineHeight: 1.3 }}>
+                              {getModelLabel(m)}
+                            </span>
+                            <span style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {MODEL_META[m]?.tagline}
+                            </span>
+                          </div>
                         </button>
                       ))}
                     </div>
@@ -1656,7 +1750,20 @@ export default function App() {
             </div>
           </div>
                   {/* Input Area */}
-          <div style={{ padding: isMobile ? '10px 12px max(14px, env(safe-area-inset-bottom, 14px))' : '16px 24px 20px', borderTop: '1px solid #121216', backgroundColor: 'rgba(0, 0, 0, 0.95)', backdropFilter: 'blur(10px)', flexShrink: 0 }}>
+          <div
+            className="lyaxis-bottom-bar"
+            style={{
+              padding: isMobile ? '10px 12px max(14px, env(safe-area-inset-bottom, 14px))' : '16px 24px 20px',
+              borderTop: '1px solid #121216',
+              backgroundColor: 'rgba(4, 4, 8, 0.96)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              position: 'sticky',
+              bottom: 0,
+              zIndex: 40,
+              flexShrink: 0,
+            }}
+          >
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -1783,7 +1890,90 @@ export default function App() {
                 </div>
               )}
 
-              <div style={{ display: 'flex', alignItems: 'flex-end', backgroundColor: '#08080c', border: '1px solid #1a1a24', borderRadius: '14px', padding: isMobile ? '8px 10px' : '12px 16px', gap: '10px', boxShadow: '0 4px 25px rgba(0,0,0,0.8)' }}>
+              {/* LYAXIS TRIAD™ Control Strip */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '10px',
+                  flexWrap: 'wrap',
+                  gap: '8px',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !triadMode;
+                    setTriadMode(next);
+                    if (soundEnabled) playCyberClick();
+                  }}
+                  title="Activar debate y síntesis multi-núcleo en tiempo real (Create ➔ Break ➔ Rebuild)"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '5px 13px',
+                    borderRadius: '9999px',
+                    background: triadMode
+                      ? 'linear-gradient(90deg, rgba(37, 99, 255, 0.22), rgba(239, 68, 68, 0.22), rgba(124, 58, 237, 0.22))'
+                      : 'rgba(255, 255, 255, 0.04)',
+                    border: triadMode
+                      ? '1px solid rgba(124, 58, 237, 0.65)'
+                      : '1px solid rgba(255, 255, 255, 0.1)',
+                    color: triadMode ? '#ffffff' : '#94a3b8',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    fontFamily: "'JetBrains Mono', Consolas, monospace",
+                    letterSpacing: '0.4px',
+                    cursor: 'pointer',
+                    boxShadow: triadMode
+                      ? '0 0 16px rgba(124, 58, 237, 0.35), 0 0 8px rgba(37, 99, 255, 0.3)'
+                      : 'none',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <Zap size={13} color={triadMode ? '#00D9FF' : '#71717a'} />
+                  <span>⚡ LYAXIS TRIAD™ : {triadMode ? 'ON' : 'OFF'}</span>
+                  <span
+                    style={{
+                      width: '7px',
+                      height: '7px',
+                      borderRadius: '50%',
+                      backgroundColor: triadMode ? '#10B981' : '#52525b',
+                      boxShadow: triadMode ? '0 0 8px #10B981' : 'none',
+                      display: 'inline-block',
+                      transition: 'all 0.2s ease',
+                    }}
+                  />
+                </button>
+
+                {triadMode && (
+                  <div className="lyaxis-triad-badge">
+                    <span>TRIAD ENGAGED // 3 CORES SYNCED</span>
+                    <div className="lyaxis-triad-pips">
+                      <span className="lyaxis-triad-pip create" title="Speed (#2563FF)" />
+                      <span className="lyaxis-triad-pip break" title="Phantom (#EF4444)" />
+                      <span className="lyaxis-triad-pip rebuild" title="Cortex Pro (#7C3AED)" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div
+                className={triadMode ? 'lyaxis-triad-input-box' : ''}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  backgroundColor: '#08080c',
+                  border: triadMode ? '1.5px solid transparent' : '1px solid #1a1a24',
+                  borderRadius: '14px',
+                  padding: isMobile ? '8px 10px' : '12px 16px',
+                  gap: '10px',
+                  boxShadow: '0 4px 25px rgba(0,0,0,0.8)',
+                  transition: 'border-color 0.2s ease',
+                }}
+              >
                 
                 {/* Hidden File Input */}
                 <input
@@ -1824,7 +2014,20 @@ export default function App() {
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={selectedImage ? "Describe la imagen adjunta..." : "Escribe tu mensaje a LYAXIS IA..."}
+                  onFocus={() => {
+                    if (isMobile) {
+                      setTimeout(() => {
+                        textareaRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                      }, 150);
+                    }
+                  }}
+                  placeholder={
+                    triadMode
+                      ? 'Formula tu consulta para el debate y síntesis LYAXIS TRIAD™ (Create ➔ Break ➔ Rebuild)...'
+                      : selectedImage
+                      ? 'Describe la imagen adjunta...'
+                      : `Mensaje a LYAXIS ${getModelLabel(selectedModel)}...`
+                  }
                   rows={1}
                   style={{
                     flex: 1,

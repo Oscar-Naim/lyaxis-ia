@@ -1111,3 +1111,211 @@ textarea {
     touch-action: manipulation;
   }
 }
+
+/* ==========================================================================
+   Mobile Keyboard & Dynamic Viewport Height Compatibility (100dvh)
+   ========================================================================== */
+
+.lyaxis-chat-root,
+.lyaxis-main-layout {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lyaxis-chat-scroll-area {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+.lyaxis-bottom-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 40;
+  flex-shrink: 0;
+  background-color: rgba(4, 4, 8, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 10px));
+}
+
+@supports (height: 100dvh) {
+  .lyaxis-chat-root,
+  .lyaxis-main-layout {
+    height: 100dvh;
+  }
+}
+
+/* ==========================================================================
+   LYAXIS TRIAD™ Flagship Styling & Neon Pulse Animations
+   ========================================================================== */
+
+@keyframes triadGradientShift {
+  0% {
+    background-position: 0% 50%, 0% 50%;
+    box-shadow: 0 0 20px rgba(37, 99, 255, 0.25), 0 4px 25px rgba(0, 0, 0, 0.85);
+  }
+  50% {
+    background-position: 0% 50%, 100% 50%;
+    box-shadow: 0 0 24px rgba(239, 68, 68, 0.28), 0 4px 25px rgba(0, 0, 0, 0.85);
+  }
+  100% {
+    background-position: 0% 50%, 0% 50%;
+    box-shadow: 0 0 22px rgba(124, 58, 237, 0.25), 0 4px 25px rgba(0, 0, 0, 0.85);
+  }
+}
+
+.lyaxis-triad-input-box {
+  background: linear-gradient(#08080c, #08080c) padding-box,
+              linear-gradient(90deg, #2563FF, #EF4444, #7C3AED, #2563FF) border-box !important;
+  border: 1.5px solid transparent !important;
+  background-size: 100% 100%, 300% 300% !important;
+  animation: triadGradientShift 5s ease infinite !important;
+}
+
+@keyframes triadBadgePulse {
+  0%, 100% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
+
+.lyaxis-triad-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: rgba(15, 15, 26, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #f1f5f9;
+  box-shadow: 0 0 16px rgba(124, 58, 237, 0.2);
+  animation: triadBadgePulse 3s ease-in-out infinite;
+}
+
+.lyaxis-triad-pips {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lyaxis-triad-pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.lyaxis-triad-pip.create {
+  background-color: #2563FF;
+  box-shadow: 0 0 8px #2563FF;
+}
+
+.lyaxis-triad-pip.break {
+  background-color: #EF4444;
+  box-shadow: 0 0 8px #EF4444;
+}
+
+.lyaxis-triad-pip.rebuild {
+  background-color: #7C3AED;
+  box-shadow: 0 0 8px #7C3AED;
+}
+
+/* Neon Connector Line with Downward Pulse (↓) */
+@keyframes triadPulseFlow {
+  0% {
+    top: -10px;
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    top: 24px;
+    opacity: 0;
+  }
+}
+
+.lyaxis-triad-connector {
+  position: relative;
+  width: 2px;
+  height: 20px;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.lyaxis-triad-connector-create-break {
+  background: linear-gradient(180deg, #2563FF 0%, #EF4444 100%);
+  box-shadow: 0 0 8px rgba(37, 99, 255, 0.6);
+}
+
+.lyaxis-triad-connector-break-rebuild {
+  background: linear-gradient(180deg, #EF4444 0%, #7C3AED 100%);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+}
+
+.lyaxis-triad-connector-dot {
+  position: absolute;
+  left: -2px;
+  width: 6px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow: 0 0 10px #ffffff, 0 0 16px #00D9FF;
+  animation: triadPulseFlow 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Triad Modular Card */
+.lyaxis-triad-card {
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.25s ease;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.lyaxis-triad-card.card-create {
+  background-color: #0A0D1A;
+  border: 1px solid rgba(37, 99, 255, 0.35);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7), 0 0 14px rgba(37, 99, 255, 0.12);
+}
+
+.lyaxis-triad-card.card-break {
+  background-color: #1A0A0E;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7), 0 0 14px rgba(239, 68, 68, 0.12);
+}
+
+.lyaxis-triad-card.card-rebuild {
+  background-color: #130A1F;
+  border: 1px solid rgba(124, 58, 237, 0.35);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.75), 0 0 16px rgba(124, 58, 237, 0.14);
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .lyaxis-triad-card {
+    border-radius: 10px;
+    padding: 0 !important;
+  }
+  .lyaxis-triad-card-content {
+    padding: 12px 14px !important;
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+  }
+}

@@ -38,6 +38,7 @@ export interface SidebarProps {
   onDeleteConversation: (chatId: string, e: React.MouseEvent) => void;
   onDeleteAllConversations: () => void;
   selectedModel?: ModelType;
+  onSelectModel?: (model: ModelType) => void;
   soundMuted?: boolean;
   onToggleSoundMute?: () => void;
   onOpenNotebook?: () => void;
@@ -70,6 +71,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectConversation,
   onDeleteConversation,
   onDeleteAllConversations,
+  selectedModel,
+  onSelectModel,
   soundMuted: soundMutedProp,
   onToggleSoundMute,
   onOpenNotebook,
@@ -336,6 +339,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <Plus size={17} /> Nuevo Chat
       </button>
 
+      {/* Indicador / Selector de Motor Activo con Subtítulo Descriptivo */}
+      {selectedModel && (
+        <div
+          onClick={() => {
+            if (onSelectModel) {
+              // Si se provee selector, puede rotar o abrir diálogo
+            }
+          }}
+          style={{
+            padding: '10px 12px',
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            border: `1px solid ${getModelColor(selectedModel)}44`,
+            borderRadius: '10px',
+            marginBottom: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            boxShadow: `0 0 12px ${getModelColor(selectedModel)}15`,
+          }}
+        >
+          <div style={{ color: getModelColor(selectedModel), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            {MODEL_ICONS[selectedModel]?.(18, getModelColor(selectedModel))}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', lineHeight: 1.25 }}>
+              LYAXIS {MODEL_META[selectedModel]?.label}
+            </span>
+            <span style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {MODEL_META[selectedModel]?.tagline}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* 2. Acceso Directo al Cuaderno / Mis Notas */}
       {onOpenNotebook && (
         <button
@@ -467,11 +504,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   boxShadow: isSelected ? `0 0 14px ${modelColor}22` : 'none',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                  {MODEL_ICONS[chat.model]?.(16, modelColor) || <Sparkles size={16} color={modelColor} />}
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '14px' }}>
-                    {chat.title}
-                  </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden', flex: 1, minWidth: 0 }}>
+                  <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                    {MODEL_ICONS[chat.model]?.(16, modelColor) || <Sparkles size={16} color={modelColor} />}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, flex: 1 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '13.5px', fontWeight: 600 }}>
+                      {chat.title}
+                    </span>
+                    <span style={{ fontSize: '12px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
+                      {MODEL_META[chat.model]?.label || 'Classic'} • {MODEL_META[chat.model]?.tagline || ''}
+                    </span>
+                  </div>
                 </div>
                 <button
                   type="button"
