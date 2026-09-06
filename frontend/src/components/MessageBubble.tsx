@@ -5,11 +5,92 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
-import { Copy, Check, FileDown, ChevronDown, ChevronRight, Sparkles, BookOpen, Zap, Crosshair, Brain } from 'lucide-react';
+import { 
+  Copy, Check, FileDown, ChevronDown, ChevronRight, Sparkles, BookOpen, 
+  Zap, Crosshair, Brain, Compass, MessageCircle, Waypoints, Hammer, 
+  GraduationCap, Terminal, User as UserIcon, ShieldAlert, Cpu
+} from 'lucide-react';
 import type { Message, ModelType } from '../types';
 import { CodeBlock } from '../CodeBlock';
 import { SlideDeckViewer } from '../SlideDeckViewer';
 import { MODEL_META } from '../config';
+
+export const MODEL_ROLE_DETAILS: Record<ModelType, {
+  roleTag: string;
+  badgeText: string;
+  badgeBg: string;
+  badgeBorder: string;
+}> = {
+  speed: {
+    roleTag: '// MOTOR DE RESPUESTAS ÁGILES · STREAMING INMEDIATO',
+    badgeText: 'FAST ~14ms',
+    badgeBg: 'rgba(37, 99, 255, 0.14)',
+    badgeBorder: 'rgba(37, 99, 255, 0.4)',
+  },
+  cortex: {
+    roleTag: '// NÚCLEO DE RAZONAMIENTO PROFUNDO & ARQUITECTURA',
+    badgeText: 'DEEP THINKING',
+    badgeBg: 'rgba(124, 58, 237, 0.14)',
+    badgeBorder: 'rgba(124, 58, 237, 0.4)',
+  },
+  phantom: {
+    roleTag: '// AUDITOR IMPLACABLE DE VULNERABILIDADES & RIESGOS',
+    badgeText: 'SECURITY AUDIT',
+    badgeBg: 'rgba(239, 68, 68, 0.14)',
+    badgeBorder: 'rgba(239, 68, 68, 0.4)',
+  },
+  architect: {
+    roleTag: '// INGENIERO DE SYSTEM PROMPTS & MENTOR TÉCNICO',
+    badgeText: 'PROMPT ARCHITECT',
+    badgeBg: 'rgba(16, 185, 129, 0.14)',
+    badgeBorder: 'rgba(16, 185, 129, 0.4)',
+  },
+  classic: {
+    roleTag: '// ASISTENTE CONVERSACIONAL Y DE USO COTIDIANO',
+    badgeText: 'DAILY ASSISTANT',
+    badgeBg: 'rgba(245, 158, 11, 0.14)',
+    badgeBorder: 'rgba(245, 158, 11, 0.4)',
+  },
+  nexus: {
+    roleTag: '// SINTETIZADOR CREATIVO, ANALOGÍAS & MULTIMODAL',
+    badgeText: 'MULTIMODAL SYNTHESIS',
+    badgeBg: 'rgba(236, 72, 153, 0.14)',
+    badgeBorder: 'rgba(236, 72, 153, 0.4)',
+  },
+  forge: {
+    roleTag: '// CONSTRUCTOR PRÁCTICO · ATERRIZAJE DE MVPs & NEGOCIOS',
+    badgeText: 'MVP BUILDER',
+    badgeBg: 'rgba(249, 115, 22, 0.14)',
+    badgeBorder: 'rgba(249, 115, 22, 0.4)',
+  },
+  magister: {
+    roleTag: '// ASESOR PEDAGÓGICO SENIOR & PLANEACIONES SEP',
+    badgeText: 'SEP PEDAGOGY',
+    badgeBg: 'rgba(6, 182, 212, 0.14)',
+    badgeBorder: 'rgba(6, 182, 212, 0.4)',
+  },
+  root: {
+    roleTag: '// EJECUCIÓN BARE-METAL · CÓDIGO PURO 100% REAL',
+    badgeText: 'CODE COMPILER',
+    badgeBg: 'rgba(0, 255, 102, 0.14)',
+    badgeBorder: 'rgba(0, 255, 102, 0.4)',
+  },
+};
+
+export const getModelIconNode = (model: ModelType, size = 16) => {
+  switch (model) {
+    case 'speed': return <Zap size={size} />;
+    case 'cortex': return <Brain size={size} />;
+    case 'architect': return <Compass size={size} />;
+    case 'classic': return <MessageCircle size={size} />;
+    case 'phantom': return <Crosshair size={size} />;
+    case 'nexus': return <Waypoints size={size} />;
+    case 'forge': return <Hammer size={size} />;
+    case 'magister': return <GraduationCap size={size} />;
+    case 'root': return <Terminal size={size} />;
+    default: return <Sparkles size={size} />;
+  }
+};
 
 export interface MessageBubbleProps {
   message: Message;
@@ -624,9 +705,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         alignSelf: 'flex-start',
         maxWidth: '100%',
         width: '100%',
-        backgroundColor: isUser ? '#0d0d14' : (isTriad ? '#07070d' : 'rgba(7, 7, 12, 0.88)'),
-        backdropFilter: 'blur(10px)',
-        border: isUser ? '1px solid #22222e' : (isTriad ? '1px solid rgba(124, 58, 237, 0.45)' : `1px solid ${modelColor}33`),
+        backgroundColor: isUser ? '#0b0b12' : (isTriad ? '#06060c' : 'rgba(8, 8, 14, 0.94)'),
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: isUser 
+          ? '1px solid #1e1e2c' 
+          : (isTriad ? '1px solid rgba(124, 58, 237, 0.45)' : `1px solid ${modelColor}28`),
+        borderLeft: isUser
+          ? '1px solid #1e1e2c'
+          : (isTriad ? '4px solid #7C3AED' : `4px solid ${modelColor}`),
         borderRadius: '14px',
         padding: isMobile ? '12px 14px' : '16px 20px',
         fontSize: isMobile ? '13.5px' : '14.5px',
@@ -634,55 +721,119 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         boxShadow: isUser 
           ? '0 4px 18px rgba(0,0,0,0.5)' 
           : (isTriad 
-              ? '0 4px 28px rgba(0,0,0,0.75), 0 0 20px rgba(124, 58, 237, 0.15), 0 0 15px rgba(37, 99, 255, 0.1)' 
-              : `0 4px 24px rgba(0,0,0,0.65), 0 0 16px ${modelColor}11`),
+              ? '0 10px 35px rgba(0,0,0,0.85), 0 0 25px rgba(124, 58, 237, 0.2), 0 0 16px rgba(37, 99, 255, 0.12)' 
+              : `0 8px 30px rgba(0,0,0,0.7), 0 0 22px ${modelColor}18`),
         overflowWrap: 'break-word',
         animation: 'fadeIn 0.25s ease-out',
         position: 'relative',
         boxSizing: 'border-box',
       }}
     >
-      {/* Message Header */}
+      {/* Message Header — Core Identity & Actions */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: '8px',
-          fontSize: '11px',
-          color: '#71717a',
+          marginBottom: '14px',
+          paddingBottom: '10px',
+          borderBottom: isUser ? '1px solid rgba(255, 255, 255, 0.05)' : (isTriad ? '1px solid rgba(124, 58, 237, 0.25)' : `1px solid ${modelColor}20`),
+          gap: '10px',
+          flexWrap: 'wrap',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
-          <span
-            style={{
-              width: '7px',
-              height: '7px',
-              borderRadius: '50%',
-              backgroundColor: isUser ? '#94a3b8' : (isTriad ? '#7C3AED' : modelColor),
-              boxShadow: isUser ? 'none' : (isTriad ? '0 0 8px #7C3AED, 0 0 14px #2563FF' : `0 0 8px ${modelColor}`),
-              display: 'inline-block',
-            }}
-          />
-          <span style={{ fontWeight: 700, color: isUser ? '#cbd5e1' : (isTriad ? '#c084fc' : modelColor), letterSpacing: '0.3px' }}>
-            {isUser ? 'Tú' : (isTriad ? '⚡ LYAXIS TRIAD™' : `LYAXIS ${modelLabel}`)}
-          </span>
-          {isTriad && (
-            <span
+        {isUser ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+            <div
               style={{
-                fontSize: '9.5px',
-                fontFamily: 'monospace',
-                backgroundColor: 'rgba(124, 58, 237, 0.2)',
-                border: '1px solid rgba(124, 58, 237, 0.45)',
-                color: '#d8b4fe',
-                padding: '1px 6px',
-                borderRadius: '4px',
+                width: '28px',
+                height: '28px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#cbd5e1',
+                flexShrink: 0,
               }}
             >
-              3 CORES SYNCED
-            </span>
-          )}
-        </div>
+              <UserIcon size={15} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontWeight: 700, fontSize: '13px', color: '#ffffff', letterSpacing: '0.3px' }}>Tú</span>
+              <span style={{ fontSize: '10px', color: '#71717a', fontFamily: 'monospace' }}>// PROMPT ENVIADO</span>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                width: isMobile ? '32px' : '36px',
+                height: isMobile ? '32px' : '36px',
+                borderRadius: '10px',
+                backgroundColor: isTriad ? 'rgba(124, 58, 237, 0.16)' : `${modelColor}16`,
+                border: `1px solid ${isTriad ? '#7C3AED' : modelColor}66`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: isTriad ? '#00D9FF' : modelColor,
+                boxShadow: `0 0 16px ${isTriad ? '#7C3AED' : modelColor}35`,
+                flexShrink: 0,
+              }}
+            >
+              {isTriad ? <Zap size={18} color="#00D9FF" /> : getModelIconNode(msgModel, 18)}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    fontWeight: 800,
+                    fontSize: isMobile ? '13px' : '14px',
+                    color: '#ffffff',
+                    letterSpacing: '0.4px',
+                    lineHeight: 1.25,
+                  }}
+                >
+                  {isTriad ? 'LYAXIS TRIAD™' : `LYAXIS ${modelLabel.toUpperCase()}`}
+                </span>
+
+                <span
+                  style={{
+                    fontSize: '9.5px',
+                    fontWeight: 700,
+                    fontFamily: 'monospace',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    backgroundColor: isTriad ? 'rgba(124, 58, 237, 0.22)' : (MODEL_ROLE_DETAILS[msgModel]?.badgeBg || 'rgba(37,99,255,0.12)'),
+                    border: `1px solid ${isTriad ? 'rgba(124, 58, 237, 0.55)' : (MODEL_ROLE_DETAILS[msgModel]?.badgeBorder || 'rgba(37,99,255,0.35)')}`,
+                    color: isTriad ? '#d8b4fe' : modelColor,
+                    letterSpacing: '0.4px',
+                    boxShadow: isTriad ? '0 0 8px rgba(124, 58, 237, 0.3)' : `0 0 8px ${modelColor}22`,
+                  }}
+                >
+                  {isTriad ? '3 CORES SYNCED' : (MODEL_ROLE_DETAILS[msgModel]?.badgeText || 'AI CORE')}
+                </span>
+              </div>
+
+              <span
+                style={{
+                  fontSize: '10.5px',
+                  fontFamily: 'monospace',
+                  color: isTriad ? '#c084fc' : '#94a3b8',
+                  letterSpacing: '0.2px',
+                  lineHeight: 1.3,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {isTriad ? '// ORQUESTACIÓN TRIÁDICA: CREATE ➔ BREAK ➔ REBUILD' : (MODEL_ROLE_DETAILS[msgModel]?.roleTag || '// MOTOR INTELIGENTE DE LYAXIS LABS')}
+              </span>
+            </div>
+          </div>
+        )}
 
         {!isUser && message.content && !message.isStreaming && !isTriad && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
