@@ -145,11 +145,11 @@ const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) =
   return (
     <div
       style={{
-        marginBottom: '14px',
+        marginBottom: '12px',
         borderRadius: '10px',
-        border: '1px solid rgba(0, 217, 255, 0.3)',
-        backgroundColor: 'rgba(0, 217, 255, 0.03)',
-        boxShadow: '0 0 20px rgba(0, 217, 255, 0.06)',
+        border: '1px solid rgba(168, 85, 247, 0.28)',
+        backgroundColor: '#000000',
+        boxShadow: '0 0 20px rgba(168, 85, 247, 0.08)',
         overflow: 'hidden',
       }}
     >
@@ -161,47 +161,66 @@ const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) =
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '9px 14px',
-          background: 'none',
+          padding: '8px 12px',
+          backgroundColor: 'rgba(168, 85, 247, 0.08)',
           border: 'none',
-          color: '#00D9FF',
-          fontSize: '12px',
+          borderBottom: isOpen ? '1px solid rgba(168, 85, 247, 0.18)' : 'none',
+          color: '#c084fc',
+          fontSize: '11px',
           fontWeight: 700,
+          fontFamily: 'monospace',
           letterSpacing: '0.4px',
           cursor: 'pointer',
         }}
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span
-            style={{
-              display: 'inline-block',
-              width: '7px',
-              height: '7px',
-              borderRadius: '50%',
-              backgroundColor: '#00D9FF',
-              boxShadow: '0 0 8px #00D9FF',
-            }}
-          />
-          PROCESO DE RAZONAMIENTO NEURAL
+          <Brain size={14} color="#c084fc" />
+          RAZONAMIENTO ARQUITECTÓNICO
         </span>
-        {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
       </button>
 
       {isOpen && (
         <div
           style={{
-            padding: '10px 14px 14px 14px',
-            fontSize: '12.5px',
-            color: '#94a3b8',
+            padding: '10px 14px',
+            fontSize: '12px',
+            color: '#cbd5e1',
             lineHeight: '1.6',
-            borderTop: '1px solid rgba(0, 217, 255, 0.12)',
-            whiteSpace: 'pre-wrap',
-            maxHeight: '280px',
+            maxHeight: '260px',
             overflowY: 'auto',
-            fontFamily: 'inherit',
           }}
         >
-          {thoughtText}
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[rehypeKatex]}
+            components={{
+              p({ children }: any) {
+                return <p style={{ margin: '4px 0' }}>{children}</p>;
+              },
+              strong({ children }: any) {
+                return <strong style={{ color: '#d8b4fe', fontWeight: 700 }}>{children}</strong>;
+              },
+              code({ children }: any) {
+                return (
+                  <code
+                    style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                      color: '#c084fc',
+                      padding: '2px 5px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontFamily: "'JetBrains Mono', monospace",
+                    }}
+                  >
+                    {children}
+                  </code>
+                );
+              },
+            }}
+          >
+            {thoughtText}
+          </ReactMarkdown>
         </div>
       )}
     </div>
@@ -371,34 +390,31 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     title: string,
     modelTag: string,
     color: string,
-    bgColor: string,
-    borderColor: string,
+    accentGlow: string,
     iconEmoji: string,
     body: string,
     isStreamingActive: boolean
   ) => {
     const hasContent = Boolean(body && body.trim());
     const isThisCoreWriting = isStreamingActive && hasContent;
-    const isWaitingForThisCore = isStreamingActive && !hasContent;
 
     return (
       <div
         className="lyaxis-triad-card"
         style={{
-          backgroundColor: bgColor,
-          border: `1px solid ${borderColor}`,
-          borderTop: `3px solid ${color}`,
+          backgroundColor: '#000000',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderTop: `2px solid ${color}`,
           borderRadius: '14px',
           padding: isMobile ? '13px' : '15px 17px',
-          boxShadow: `0 8px 30px rgba(0, 0, 0, 0.8), 0 0 18px ${color}15`,
+          boxShadow: `0 8px 30px rgba(0, 0, 0, 0.95), 0 0 20px ${accentGlow}`,
           width: '100%',
           boxSizing: 'border-box',
           display: 'flex',
           flexDirection: 'column',
-          minHeight: isMobile ? 'auto' : '260px',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          transition: 'all 0.25s ease',
         }}
       >
         {/* Card Header */}
@@ -409,17 +425,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             justifyContent: 'space-between',
             marginBottom: '12px',
             paddingBottom: '9px',
-            borderBottom: `1px solid ${color}25`,
+            borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
             gap: '8px',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-            <span style={{ fontSize: '16px' }}>{iconEmoji}</span>
+            <span style={{ fontSize: '15px' }}>{iconEmoji}</span>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontWeight: 800, fontSize: isMobile ? '12px' : '12.5px', color: color, letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+              <span style={{ fontWeight: 800, fontSize: isMobile ? '12px' : '12.5px', color: color, letterSpacing: '0.4px' }}>
                 {title}
               </span>
-              <span style={{ fontSize: '10px', color: '#94a3b8', fontFamily: 'monospace', fontWeight: 600 }}>
+              <span style={{ fontSize: '10px', color: '#71717a', fontFamily: 'monospace', fontWeight: 600 }}>
                 {modelTag}
               </span>
             </div>
@@ -452,7 +468,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 fontFamily: 'monospace',
                 padding: '2px 7px',
                 borderRadius: '6px',
-                backgroundColor: `${color}18`,
+                backgroundColor: `${color}15`,
                 border: `1px solid ${color}45`,
                 color: color,
                 fontWeight: 800,
@@ -465,7 +481,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         </div>
 
         {/* Card Body */}
-        <div style={{ flex: 1, overflowWrap: 'break-word', fontSize: isMobile ? '13px' : '13.5px', lineHeight: 1.55 }}>
+        <div style={{ flex: 1, overflowWrap: 'break-word', fontSize: isMobile ? '13px' : '13.5px', lineHeight: 1.6, color: '#f1f5f9' }}>
           {hasContent ? (
             <div>
               {title.includes('REBUILD') && body.includes('<thought>') ? (
@@ -477,8 +493,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     <>
                       <ThinkingAccordion thoughtText={thoughtPart} />
                       {finalRebuild ? renderMarkdown(finalRebuild) : (
-                        <div style={{ fontSize: '12.5px', color: '#c084fc', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 0' }}>
-                          <Sparkles size={14} className="animate-spin" /> Sintetizando solución blindada...
+                        <div style={{ fontSize: '12px', color: '#c084fc', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 0' }}>
+                          <Sparkles size={14} className="animate-spin" /> Sintetizando solución final...
                         </div>
                       )}
                     </>
@@ -489,12 +505,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               )}
               {isStreamingActive && <span className="lyaxis-cursor" />}
             </div>
-          ) : isWaitingForThisCore ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '24px 0', color: color, fontSize: '12px', fontStyle: 'italic' }}>
-              <Sparkles size={14} className="animate-spin" /> Transmitiendo a la par...
+          ) : isStreamingActive ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '16px 0', color: color, fontSize: '12px', fontStyle: 'italic' }}>
+              <Sparkles size={14} className="animate-spin" /> Procesando en vivo a la par...
             </div>
           ) : (
-            <div style={{ fontSize: '12px', color: '#52525b', fontStyle: 'italic', padding: '12px 0' }}>
+            <div style={{ fontSize: '12px', color: '#52525b', fontStyle: 'italic', padding: '8px 0' }}>
               Sincronizando núcleo...
             </div>
           )}
@@ -507,52 +523,72 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     const isStreaming = Boolean(message.isStreaming);
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
-        {/* Live Multi-Core Telemetry Strip */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
+        {/* Live Multi-Core Telemetry Strip — Full OLED Black */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '9px 14px',
-            borderRadius: '10px',
-            backgroundColor: 'rgba(124, 58, 237, 0.09)',
-            border: '1px solid rgba(124, 58, 237, 0.3)',
+            padding: '10px 16px',
+            borderRadius: '12px',
+            backgroundColor: '#000000',
+            border: '1px solid rgba(124, 58, 237, 0.35)',
+            boxShadow: '0 0 24px rgba(124, 58, 237, 0.12)',
             flexWrap: 'wrap',
-            gap: '8px',
+            gap: '10px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Zap size={15} color="#00D9FF" />
-            <span style={{ fontSize: '11.5px', fontFamily: 'monospace', fontWeight: 800, color: '#ffffff', letterSpacing: '0.4px' }}>
-              LYAXIS TRIAD™ // TRANSMISIÓN SIMULTÁNEA A LA PAR
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(124, 58, 237, 0.15)',
+                border: '1px solid #7C3AED',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 0 10px rgba(124, 58, 237, 0.4)',
+              }}
+            >
+              <Zap size={15} color="#00D9FF" />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '12.5px', fontFamily: 'monospace', fontWeight: 800, color: '#ffffff', letterSpacing: '0.4px' }}>
+                LYAXIS TRIAD™ // TRANSMISIÓN SIMULTÁNEA EN PARALELO
+              </span>
+              <span style={{ fontSize: '10px', color: '#a78bfa', fontFamily: 'monospace' }}>
+                3 NÚCLEOS EJECUTANDO A LA PAR · LATENCIA REDUCIDA
+              </span>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '10px', fontFamily: 'monospace' }}>
-            <span style={{ color: '#2563FF', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 700 }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#2563FF', boxShadow: '0 0 8px #2563FF' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '10.5px', fontFamily: 'monospace' }}>
+            <span style={{ color: '#00D9FF', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 700 }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#00D9FF', boxShadow: '0 0 8px #00D9FF' }} />
               I: SPEED
             </span>
-            <span style={{ color: '#EF4444', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 700 }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#EF4444', boxShadow: '0 0 8px #EF4444' }} />
+            <span style={{ color: '#FF3366', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 700 }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#FF3366', boxShadow: '0 0 8px #FF3366' }} />
               II: PHANTOM
             </span>
-            <span style={{ color: '#7C3AED', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 700 }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#7C3AED', boxShadow: '0 0 8px #7C3AED' }} />
+            <span style={{ color: '#C084FC', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 700 }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#C084FC', boxShadow: '0 0 8px #C084FC' }} />
               III: CORTEX
             </span>
           </div>
         </div>
 
-        {/* 3-Column Side-by-Side Parallel Dashboard Grid */}
+        {/* 3-Column Side-by-Side Parallel Dashboard Grid — Hugs Content (No Empty Dead Boxes) */}
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))',
             gap: '12px',
             width: '100%',
-            alignItems: 'stretch',
+            alignItems: 'start',
           }}
         >
           {/* Panel 1: CREATE (Speed) */}
@@ -560,9 +596,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             '1',
             'NÚCLEO I · CREATE',
             'LYAXIS SPEED',
-            '#2563FF',
-            '#050814',
-            'rgba(37, 99, 255, 0.35)',
+            '#00D9FF',
+            'rgba(0, 217, 255, 0.15)',
             '⚡',
             triad.create,
             isStreaming
@@ -573,9 +608,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             '2',
             'NÚCLEO II · BREAK',
             'LYAXIS PHANTOM',
-            '#EF4444',
-            '#120508',
-            'rgba(239, 68, 68, 0.35)',
+            '#FF3366',
+            'rgba(255, 51, 102, 0.15)',
             '🎯',
             triad.breakText,
             isStreaming
@@ -586,9 +620,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             '3',
             'NÚCLEO III · REBUILD',
             'LYAXIS CORTEX',
-            '#7C3AED',
-            '#0d0518',
-            'rgba(124, 58, 237, 0.38)',
+            '#C084FC',
+            'rgba(192, 132, 252, 0.15)',
             '🧠',
             triad.rebuild,
             isStreaming
@@ -721,17 +754,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             if (match) {
               return <CodeBlock language={match[1]} codeString={codeString} />;
             }
-            // Inline code
+            // Inline code — High contrast OLED styling
             return (
               <code
                 style={{
-                  backgroundColor: '#111118',
-                  color: '#00D9FF',
-                  padding: '2px 7px',
-                  borderRadius: '5px',
-                  fontSize: '12.5px',
-                  border: '1px solid rgba(0, 217, 255, 0.18)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                  color: '#ffffff',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  border: '1px solid rgba(255, 255, 255, 0.14)',
                   fontFamily: "'JetBrains Mono', Consolas, monospace",
+                  fontWeight: 600,
+                  letterSpacing: '0.2px',
                 }}
                 {...props}
               >
@@ -794,24 +829,24 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         alignSelf: 'flex-start',
         maxWidth: '100%',
         width: '100%',
-        backgroundColor: isUser ? '#0b0b12' : (isTriad ? '#06060c' : 'rgba(8, 8, 14, 0.94)'),
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        border: isUser 
-          ? '1px solid #1e1e2c' 
-          : (isTriad ? '1px solid rgba(124, 58, 237, 0.45)' : `1px solid ${modelColor}28`),
-        borderLeft: isUser
-          ? '1px solid #1e1e2c'
-          : (isTriad ? '4px solid #7C3AED' : `4px solid ${modelColor}`),
+        backgroundColor: isTriad ? 'transparent' : (isUser ? '#07070a' : '#000000'),
+        backdropFilter: isTriad ? 'none' : 'blur(16px)',
+        WebkitBackdropFilter: isTriad ? 'none' : 'blur(16px)',
+        border: isTriad 
+          ? 'none' 
+          : (isUser ? '1px solid #1a1a24' : '1px solid rgba(255, 255, 255, 0.08)'),
+        borderLeft: isTriad
+          ? 'none'
+          : (isUser ? '1px solid #1a1a24' : `3px solid ${modelColor}`),
         borderRadius: '14px',
-        padding: isMobile ? '12px 14px' : '16px 20px',
+        padding: isTriad ? 0 : (isMobile ? '12px 14px' : '16px 20px'),
         fontSize: isMobile ? '13.5px' : '14.5px',
         lineHeight: '1.6',
-        boxShadow: isUser 
-          ? '0 4px 18px rgba(0,0,0,0.5)' 
-          : (isTriad 
-              ? '0 10px 35px rgba(0,0,0,0.85), 0 0 25px rgba(124, 58, 237, 0.2), 0 0 16px rgba(37, 99, 255, 0.12)' 
-              : `0 8px 30px rgba(0,0,0,0.7), 0 0 22px ${modelColor}18`),
+        boxShadow: isTriad 
+          ? 'none' 
+          : (isUser 
+              ? '0 4px 18px rgba(0,0,0,0.5)' 
+              : `0 8px 30px rgba(0,0,0,0.8), 0 0 20px ${modelColor}14`),
         overflowWrap: 'break-word',
         animation: 'fadeIn 0.25s ease-out',
         position: 'relative',
@@ -819,10 +854,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       }}
     >
       {/* Message Header — Core Identity & Actions */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
+      {!isTriad && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
           justifyContent: 'space-between',
           marginBottom: '14px',
           paddingBottom: '10px',
@@ -1007,6 +1043,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* Multimodal Attached Image */}
       {message.image && (
