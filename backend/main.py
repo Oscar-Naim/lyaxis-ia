@@ -640,7 +640,6 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage] = []
     model: str = "classic"
     temperature: Optional[float] = None
-    triad_mode: bool = False
 
 class CreateConversationRequest(BaseModel):
     id: Optional[str] = None
@@ -1289,236 +1288,6 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         except Exception as err_db2:
             print(f"Aviso guardando respuesta en DB: {err_db2}")
 
-TRIAD_CREATE_SYSTEM = """
-<identity>
-Eres LYAXIS Speed — Núcleo I (CREATE) de la arquitectura LYAXIS TRIAD™.
-Filosofía de LYAXIS labs™: "Create. Break. Rebuild."
-</identity>
-<mission>
-Tu objetivo es proponer la solución técnica, código limpio o respuesta directa a la consulta del usuario de forma ágil, precisa y concisa.
-REGLAS ESTRICTAS:
-1. Longitud máxima: 120-150 palabras.
-2. Comienza DIRECTAMENTE con la solución técnica o el bloque de código ejecutable en las primeras 2 líneas.
-3. Cero saludos, cero cortesías redundantes, cero preámbulos.
-4. Código funcional, limpio y ejecutable.
-</mission>
-"""
-
-TRIAD_BREAK_SYSTEM = """
-<identity>
-Eres LYAXIS Phantom — Núcleo II (BREAK) de la arquitectura LYAXIS TRIAD™.
-Filosofía de LYAXIS labs™: "Create. Break. Rebuild."
-</identity>
-<mission>
-Actúas como un auditor técnico implacable y deconstructor de sistemas.
-Evalúa la consulta original y la propuesta preliminar de Speed.
-REGLAS ESTRICTAS:
-1. Señala de forma estricta las 2 mayores vulnerabilidades, fallas de seguridad, casos de borde no contemplados o ineficiencias de la propuesta anterior.
-2. Formato OBLIGATORIO: viñetas claras y concisas con severidad (ej. • [Vulnerabilidad/Riesgo]: descripción breve).
-3. Longitud máxima: 80 palabras.
-4. Cero preámbulos corporativos, felicitaciones ni relleno. Directo a las fallas técnicas.
-</mission>
-"""
-
-TRIAD_REBUILD_SYSTEM = """
-<identity>
-Eres LYAXIS Cortex Pro — Núcleo III (REBUILD) de la arquitectura LYAXIS TRIAD™.
-Filosofía de LYAXIS labs™: "Create. Break. Rebuild."
-</identity>
-<mission>
-Actúas como el arquitecto maestro y sintetizador definitivo.
-Tienes ante ti:
-1. La consulta original del usuario.
-2. La propuesta técnica preliminar de Speed (Núcleo I · CREATE).
-3. La auditoría implacable y fallas señaladas por Phantom (Núcleo II · BREAK).
-
-REGLAS ESTRICTAS DE RESPUESTA:
-1. BLOQUE DE PENSAMIENTO OBLIGATORIO:
-   Comienza OBLIGATORIAMENTE tu respuesta abriendo el bloque <thought> y desglosando tu análisis crítico de las objeciones de Phantom, mitigaciones requeridas y decisiones de diseño.
-   Cierra con </thought>.
-2. VEREDICTO Y CÓDIGO DEFINITIVO:
-   Inmediatamente tras </thought>, entrega la versión definitiva, optimizada, blindada y lista para producción, reconciliando los puntos anteriores y neutralizando todas las vulnerabilidades.
-3. Rigor técnico absoluto, cero explicaciones condescendientes, código robusto y completo.
-</mission>
-"""
-
-async def generate_triad_stream(conversation_id: Optional[str], user_id: Optional[str], messages: List[ChatMessage]):
-    nvidia_keys = _get_active_keys()
-    last_user_msg = next((m for m in reversed(messages) if m.role == "user"), None)
-    user_query = (last_user_msg.content or "").strip() if last_user_msg else "Consulta de desarrollo"
-
-    # 1. Guardar mensaje de usuario en DB
-    if conversation_id and last_user_msg:
-        try:
-            now = datetime.now(timezone.utc).isoformat()
-            title_text = f"⚡ TRIAD: {user_query[:25]}"
-            conv = db.fetchone("SELECT id, title FROM conversations WHERE id = ?", (conversation_id,))
-            if not conv:
-                db.execute(
-                    "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (conversation_id, user_id, title_text, "speed", now, now)
-                )
-            mid = last_user_msg.id or str(uuid.uuid4())
-            existing_msg = db.fetchone("SELECT id FROM messages WHERE id = ?", (mid,))
-            if not existing_msg:
-                img_to_store = last_user_msg.image or last_user_msg.image_url
-                try:
-                    db.execute(
-                        "INSERT INTO messages (id, conversation_id, role, content, image, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                        (mid, conversation_id, "user", user_query, img_to_store, now)
-                    )
-                except Exception:
-                    db.execute(
-                        "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                        (mid, conversation_id, "user", user_query, now)
-                    )
-            db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
-        except Exception as err_db:
-            print(f"Aviso DB mensaje Triad usuario: {err_db}")
-
-    # Helper para streamear un núcleo con fallback de Groq a NVIDIA
-    async def _execute_core(prompt_msgs: list, groq_model: str, nvidia_model: str, temp: float, core_id: str, core_name: str, color: str):
-        accumulated = ""
-        groq_key = os.getenv("GROQ_API_KEY", "").strip()
-        groq_success = False
-
-        if groq_key and groq_key != "gsk_placeholder" and "placeholder" not in groq_key:
-            if client_groq.api_key != groq_key:
-                client_groq.api_key = groq_key
-            try:
-                print(f"[TRIAD - {core_name}] Conectando a Groq ({groq_model})...")
-                stream = await client_groq.chat.completions.create(
-                    model=groq_model,
-                    messages=prompt_msgs,
-                    temperature=temp,
-                    stream=True,
-                    timeout=25.0
-                )
-                try:
-                    async for chunk in stream:
-                        if chunk.choices and chunk.choices[0].delta.content:
-                            delta = chunk.choices[0].delta.content
-                            accumulated += delta
-                            yield (f"data: {json.dumps({'token': delta, 'core': core_id, 'core_name': core_name, 'color': color})}\n\n", delta)
-                    if accumulated:
-                        groq_success = True
-                finally:
-                    try:
-                        await stream.close()
-                    except Exception:
-                        pass
-            except Exception as err_groq:
-                print(f"[TRIAD - {core_name}] Groq ({groq_model}) falló: {err_groq}. Saltando a NVIDIA NIM...")
-
-        if not groq_success:
-            print(f"[TRIAD - {core_name}] Enrutando a NVIDIA NIM ({nvidia_model})...")
-            for current_key in nvidia_keys:
-                if client_nvidia.api_key != current_key:
-                    client_nvidia.api_key = current_key
-                try:
-                    stream = await client_nvidia.chat.completions.create(
-                        model=nvidia_model,
-                        messages=prompt_msgs,
-                        temperature=temp,
-                        stream=True,
-                        timeout=30.0
-                    )
-                    try:
-                        async for chunk in stream:
-                            if chunk.choices and chunk.choices[0].delta.content:
-                                delta = chunk.choices[0].delta.content
-                                accumulated += delta
-                                yield (f"data: {json.dumps({'token': delta, 'core': core_id, 'core_name': core_name, 'color': color})}\n\n", delta)
-                    finally:
-                        try:
-                            await stream.close()
-                        except Exception:
-                            pass
-                    if accumulated:
-                        break
-                except Exception as err_nv:
-                    print(f"[TRIAD - {core_name}] NVIDIA NIM falló con clave: {err_nv}")
-                    continue
-
-        if not accumulated:
-            fallback_msg = f"\n[Núcleo {core_name}: Análisis completado.]\n"
-            yield (f"data: {json.dumps({'token': fallback_msg, 'core': core_id, 'core_name': core_name, 'color': color})}\n\n", fallback_msg)
-
-    # --- FASE 1: NÚCLEO I · CREATE (Speed - #2563FF) ---
-    create_messages = [
-        {"role": "system", "content": TRIAD_CREATE_SYSTEM.strip() + "\n\n" + GLOBAL_SPANISH_RULE.strip()},
-        {"role": "user", "content": user_query}
-    ]
-    create_text = ""
-    async for sse_event, token in _execute_core(
-        create_messages,
-        groq_model="qwen/qwen3.8-27b",
-        nvidia_model="meta/llama-3.2-11b-vision-instruct",
-        temp=0.6,
-        core_id="create",
-        core_name="Speed",
-        color="#2563FF"
-    ):
-        create_text += token
-        yield sse_event
-
-    # --- FASE 2: NÚCLEO II · BREAK (Phantom - #EF4444) ---
-    break_messages = [
-        {"role": "system", "content": TRIAD_BREAK_SYSTEM.strip() + "\n\n" + GLOBAL_SPANISH_RULE.strip()},
-        {"role": "user", "content": f"CONSULTA DEL USUARIO:\n{user_query}\n\nPROPUESTA INICIAL DE SPEED (CREATE):\n{create_text}"}
-    ]
-    break_text = ""
-    async for sse_event, token in _execute_core(
-        break_messages,
-        groq_model="qwen/qwen3.8-27b",
-        nvidia_model="meta/llama-3.2-11b-vision-instruct",
-        temp=0.3,
-        core_id="break",
-        core_name="Phantom",
-        color="#EF4444"
-    ):
-        break_text += token
-        yield sse_event
-
-    # --- FASE 3: NÚCLEO III · REBUILD (Cortex Pro - #7C3AED) ---
-    rebuild_messages = [
-        {"role": "system", "content": TRIAD_REBUILD_SYSTEM.strip() + "\n\n" + GLOBAL_SPANISH_RULE.strip()},
-        {"role": "user", "content": f"CONSULTA ORIGINAL DEL USUARIO:\n{user_query}\n\nPROPUESTA INICIAL DE SPEED (CREATE):\n{create_text}\n\nAUDITORÍA Y VULNERABILIDADES IDENTIFICADAS POR PHANTOM (BREAK):\n{break_text}"}
-    ]
-    rebuild_text = ""
-    async for sse_event, token in _execute_core(
-        rebuild_messages,
-        groq_model="openai/gpt-oss-120b",
-        nvidia_model="meta/llama-3.2-11b-vision-instruct",
-        temp=0.2,
-        core_id="rebuild",
-        core_name="Cortex Pro",
-        color="#7C3AED"
-    ):
-        rebuild_text += token
-        yield sse_event
-
-    # Señal de finalización
-    yield f"data: {json.dumps({'done': True})}\n\n"
-
-    # Guardar en DB mensaje estructurado
-    combined_content = (
-        f"[TRIAD_CORE:create]\n{create_text.strip()}\n[/TRIAD_CORE:create]\n\n"
-        f"[TRIAD_CORE:break]\n{break_text.strip()}\n[/TRIAD_CORE:break]\n\n"
-        f"[TRIAD_CORE:rebuild]\n{rebuild_text.strip()}\n[/TRIAD_CORE:rebuild]"
-    )
-    if conversation_id and combined_content.strip():
-        try:
-            mid = str(uuid.uuid4())
-            now = datetime.now(timezone.utc).isoformat()
-            db.execute(
-                "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                (mid, conversation_id, "model", combined_content, now)
-            )
-            db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
-        except Exception as err_db_save:
-            print(f"Aviso guardando mensaje Triad en DB: {err_db_save}")
-
 @app.post("/api/v1/chat/stream")
 async def chat_stream_endpoint(request: Request):
     try:
@@ -1533,7 +1302,6 @@ async def chat_stream_endpoint(request: Request):
     conversation_id = body.get("conversation_id")
     user_id = body.get("user_id")
     model_type = str(body.get("model") or "classic").lower().strip()
-    triad_mode = bool(body.get("triad_mode", False))
 
     model_default_temp = MODEL_TEMPERATURES.get(model_type, 0.3)
     req_temp = body.get("temperature")
@@ -1575,32 +1343,25 @@ async def chat_stream_endpoint(request: Request):
             now_ts = datetime.now(timezone.utc).isoformat()
             existing_c = db.fetchone("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
             if not existing_c:
-                first_title = "⚡ LYAXIS TRIAD™" if triad_mode else "Nueva conversación"
+                first_title = "Nueva conversación"
                 if messages:
                     u_first = next((m for m in messages if m.role == "user"), None)
                     if u_first and u_first.content:
-                        first_title = f"⚡ TRIAD: {u_first.content[:22]}" if triad_mode else u_first.content[:30]
+                        first_title = u_first.content[:30]
                 db.execute(
                     "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (conversation_id, user_id or "anon", first_title, "speed" if triad_mode else model_type, now_ts, now_ts)
+                    (conversation_id, user_id or "anon", first_title, model_type, now_ts, now_ts)
                 )
         except Exception as e_conv:
             print(f"Aviso asegurando conversación en chat_stream_endpoint: {e_conv}")
 
-    if triad_mode:
-        generator = generate_triad_stream(
-            conversation_id=conversation_id,
-            user_id=user_id,
-            messages=messages
-        )
-    else:
-        generator = generate_ai_stream(
-            conversation_id=conversation_id,
-            user_id=user_id,
-            messages=messages,
-            temperature=temp,
-            model_type=model_type
-        )
+    generator = generate_ai_stream(
+        conversation_id=conversation_id,
+        user_id=user_id,
+        messages=messages,
+        temperature=temp,
+        model_type=model_type
+    )
 
     return StreamingResponse(
         generator,
