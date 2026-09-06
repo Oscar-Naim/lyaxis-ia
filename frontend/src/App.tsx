@@ -177,6 +177,7 @@ export default function App() {
   }, [selectedModel]);
 
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [isSidebarModelPickerOpen, setIsSidebarModelPickerOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
 
   useEffect(() => {
@@ -398,7 +399,9 @@ export default function App() {
   const selectConversation = (chat: Conversation) => {
     if (isStreaming) return;
     setCurrentChatId(chat.id);
-    // Keep sidebar selection without overriding model — user controls model from header
+    if (chat.model && (ALL_MODELS as readonly string[]).includes(chat.model)) {
+      setSelectedModel(chat.model as ModelId);
+    }
     updateLastChatPerModel(chat.model || 'classic', chat.id);
     loadMessages(chat.id);
     if (isMobile) setIsSidebarOpen(false);
@@ -941,31 +944,104 @@ export default function App() {
             <Plus size={17} /> Nuevo Chat
           </button>
 
-          {/* Indicador de Motor Activo con Subtítulo Descriptivo */}
-          <div
-            style={{
-              padding: '10px 12px',
-              backgroundColor: 'rgba(255, 255, 255, 0.03)',
-              border: `1px solid ${getModelColor(selectedModel)}44`,
-              borderRadius: '10px',
-              marginBottom: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              boxShadow: `0 0 12px ${getModelColor(selectedModel)}15`,
-            }}
-          >
-            <div style={{ color: getModelColor(selectedModel), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              {MODEL_ICONS[selectedModel]?.(18)}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', lineHeight: 1.25 }}>
-                LYAXIS {getModelLabel(selectedModel)}
-              </span>
-              <span style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {MODEL_META[selectedModel]?.tagline}
-              </span>
-            </div>
+          {/* Indicador de Motor Activo con Selector Desplegable en Barra Lateral */}
+          <div style={{ marginBottom: '14px' }}>
+            <button
+              type="button"
+              onClick={() => setIsSidebarModelPickerOpen(!isSidebarModelPickerOpen)}
+              title="Clic para cambiar de motor de IA"
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                backgroundColor: isSidebarModelPickerOpen ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+                border: `1px solid ${getModelColor(selectedModel)}${isSidebarModelPickerOpen ? 'aa' : '44'}`,
+                borderRadius: isSidebarModelPickerOpen ? '10px 10px 0 0' : '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '10px',
+                cursor: 'pointer',
+                boxShadow: `0 0 14px ${getModelColor(selectedModel)}20`,
+                transition: 'all 0.2s ease',
+                textAlign: 'left',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                <div style={{ color: getModelColor(selectedModel), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {MODEL_ICONS[selectedModel]?.(18)}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', lineHeight: 1.25 }}>
+                    LYAXIS {getModelLabel(selectedModel)}
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#94a3b8', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {MODEL_META[selectedModel]?.tagline} • Cambiar
+                  </span>
+                </div>
+              </div>
+              <ChevronDown size={14} color="#a1a1aa" style={{ transform: isSidebarModelPickerOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            </button>
+
+            {isSidebarModelPickerOpen && (
+              <div
+                style={{
+                  backgroundColor: '#07070c',
+                  border: `1px solid ${getModelColor(selectedModel)}66`,
+                  borderTop: 'none',
+                  borderRadius: '0 0 10px 10px',
+                  padding: '6px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '3px',
+                  maxHeight: '260px',
+                  overflowY: 'auto',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.85)',
+                  animation: 'fadeIn 0.2s ease-out',
+                }}
+              >
+                {ALL_MODELS.map((m) => {
+                  const isSelected = selectedModel === m;
+                  const color = getModelColor(m);
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        switchModel(m);
+                        setIsSidebarModelPickerOpen(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '7px 8px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        backgroundColor: isSelected ? `${color}22` : 'transparent',
+                        color: isSelected ? '#ffffff' : '#cbd5e1',
+                        textAlign: 'left',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = `${color}18`; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isSelected ? `${color}22` : 'transparent'; }}
+                    >
+                      <div style={{ color: color, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                        {MODEL_ICONS[m]?.(15)}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+                        <span style={{ fontSize: '12px', fontWeight: isSelected ? 700 : 500, color: isSelected ? '#ffffff' : '#e2e8f0', lineHeight: 1.2 }}>
+                          {getModelLabel(m)}
+                        </span>
+                        <span style={{ fontSize: '10px', color: '#71717a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {MODEL_META[m]?.tagline}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Acceso Directo al Cuaderno / Mis Notas */}
