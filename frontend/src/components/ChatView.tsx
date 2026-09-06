@@ -383,33 +383,44 @@ export const ChatView: React.FC<ChatViewProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              backgroundColor: 'rgba(255, 255, 255, 0.04)',
-              border: `1px solid ${meta.color}55`,
+              backgroundColor: triadMode ? 'rgba(124, 58, 237, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+              border: triadMode ? '1px solid #7C3AED' : `1px solid ${meta.color}55`,
               borderRadius: '10px',
               padding: isMobile ? '8px 14px' : '6px 12px',
               minHeight: isMobile ? '44px' : '36px',
               color: '#ffffff',
               cursor: 'pointer',
-              boxShadow: `0 0 14px ${meta.color}22`,
+              boxShadow: triadMode ? '0 0 16px rgba(124, 58, 237, 0.35)' : `0 0 14px ${meta.color}22`,
               transition: 'all 0.2s ease',
             }}
           >
-            <span
-              style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                backgroundColor: meta.color,
-                boxShadow: `0 0 8px ${meta.color}`,
-                display: 'inline-block',
-              }}
-            />
-            <span style={{ fontSize: isMobile ? '14px' : '13px', fontWeight: 700, letterSpacing: '0.3px' }}>
-              LYAXIS {meta.label}
-            </span>
-            <span style={{ fontSize: isMobile ? '12px' : '11px', color: '#71717a', marginLeft: '2px', fontFamily: 'monospace' }}>
-              T:{meta.temperature}
-            </span>
+            {triadMode ? (
+              <>
+                <Zap size={14} color="#00D9FF" />
+                <span style={{ fontSize: isMobile ? '14px' : '13px', fontWeight: 800, background: 'linear-gradient(90deg, #2563FF, #EF4444, #7C3AED)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  LYAXIS TRIAD™
+                </span>
+              </>
+            ) : (
+              <>
+                <span
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: meta.color,
+                    boxShadow: `0 0 8px ${meta.color}`,
+                    display: 'inline-block',
+                  }}
+                />
+                <span style={{ fontSize: isMobile ? '14px' : '13px', fontWeight: 700, letterSpacing: '0.3px' }}>
+                  LYAXIS {meta.label}
+                </span>
+                <span style={{ fontSize: isMobile ? '12px' : '11px', color: '#71717a', marginLeft: '2px', fontFamily: 'monospace' }}>
+                  T:{meta.temperature}
+                </span>
+              </>
+            )}
             <ChevronDown
               size={14}
               color="#a1a1aa"
@@ -426,7 +437,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 position: 'absolute',
                 top: 'calc(100% + 6px)',
                 left: 0,
-                width: isMobile ? 'calc(100vw - 28px)' : '300px',
+                width: isMobile ? 'calc(100vw - 28px)' : '310px',
                 maxWidth: '340px',
                 backgroundColor: '#0a0a0f',
                 border: '1px solid #22222e',
@@ -437,11 +448,52 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 backdropFilter: 'blur(16px)',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '2px',
+                gap: '3px',
               }}
             >
-              <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 800, color: '#71717a', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
-                Cambiar Modelo en este Chat
+              {/* Flagship LYAXIS TRIAD™ VIP Dropdown Entry */}
+              <button
+                type="button"
+                onClick={() => {
+                  setTriadMode(true);
+                  setIsModelDropdownOpen(false);
+                  if (soundEnabled && playCyberClick) playCyberClick();
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '10px 10px',
+                  borderRadius: '8px',
+                  border: triadMode ? '1px solid #7C3AED' : '1px solid rgba(124, 58, 237, 0.45)',
+                  cursor: 'pointer',
+                  background: triadMode
+                    ? 'linear-gradient(90deg, rgba(37, 99, 255, 0.28), rgba(239, 68, 68, 0.28), rgba(124, 58, 237, 0.28))'
+                    : 'rgba(124, 58, 237, 0.12)',
+                  color: '#ffffff',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'left',
+                  marginBottom: '4px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#00D9FF', flexShrink: 0 }}>
+                  <Zap size={18} color="#00D9FF" />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff' }}>LYAXIS TRIAD™</span>
+                    <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#00D9FF', backgroundColor: 'rgba(0, 217, 255, 0.15)', padding: '1px 5px', borderRadius: '4px' }}>
+                      {triadMode ? 'ACTIVO' : 'INSIGNIA'}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '11px', color: '#c084fc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    Create ➔ Break ➔ Rebuild (3 Núcleos)
+                  </span>
+                </div>
+              </button>
+
+              <div style={{ padding: '6px 8px 2px', fontSize: '10px', fontWeight: 800, color: '#71717a', letterSpacing: '0.8px', textTransform: 'uppercase', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                Cambiar Modelo Individual
               </div>
               {ALL_MODELS.map((m) => {
                 const itemMeta = modelMeta[m] || MODEL_META[m] || MODEL_META.classic;

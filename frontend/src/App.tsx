@@ -68,6 +68,14 @@ const MODEL_PROMPTS: Record<ModelType, { icon: React.ReactNode; bg: string; bord
     { icon: <Zap size={16} color="#00FF66" />, bg: 'rgba(0, 255, 102, 0.12)', border: 'rgba(0, 255, 102, 0.25)', text: 'Escribe un parser AST en TypeScript para un mini lenguaje' },
   ],
 };
+
+const TRIAD_PROMPTS = [
+  { icon: <Sparkles size={16} color="#2563FF" />, bg: 'rgba(37, 99, 255, 0.15)', border: 'rgba(37, 99, 255, 0.35)', text: 'Diseña una arquitectura SaaS escalable a 1M usuarios y audita sus cuellos de botella' },
+  { icon: <Crosshair size={16} color="#EF4444" />, bg: 'rgba(239, 68, 68, 0.15)', border: 'rgba(239, 68, 68, 0.35)', text: 'Propón un sistema de autenticación Zero-Trust y encuentra sus vectores de vulnerabilidad' },
+  { icon: <Zap size={16} color="#00D9FF" />, bg: 'rgba(0, 217, 255, 0.15)', border: 'rgba(0, 217, 255, 0.35)', text: 'Construye un motor de caché distribuido y analiza riesgos de concurrencia' },
+  { icon: <Brain size={16} color="#7C3AED" />, bg: 'rgba(124, 58, 237, 0.15)', border: 'rgba(124, 58, 237, 0.35)', text: 'Estructura un modelo de monetización B2B y deconstruye sus debilidades económicas' },
+];
+
 import type { Message, Conversation, User } from './types';
 import { useSSEStream } from './useSSEStream';
 import { CodeBlock } from './CodeBlock';
@@ -1215,20 +1223,33 @@ export default function App() {
                     padding: isMobile ? '8px 14px' : '8px 14px',
                     minHeight: isMobile ? '44px' : '36px',
                     borderRadius: '10px',
-                    border: '1px solid #181822',
-                    backgroundColor: '#08080c',
+                    border: triadMode ? '1px solid #7C3AED' : '1px solid #181822',
+                    backgroundColor: triadMode ? 'rgba(124, 58, 237, 0.18)' : '#08080c',
                     color: '#ffffff',
                     fontSize: isMobile ? '13.5px' : '12px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+                    boxShadow: triadMode ? '0 0 16px rgba(124, 58, 237, 0.35)' : '0 4px 12px rgba(0, 0, 0, 0.2)',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: getModelColor(selectedModel) }}>
-                    {MODEL_ICONS[selectedModel]?.(15)}
-                  </div>
-                  {getModelLabel(selectedModel)}
+                  {triadMode ? (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#00D9FF' }}>
+                        <Zap size={15} color="#00D9FF" />
+                      </div>
+                      <span style={{ fontWeight: 800, background: 'linear-gradient(90deg, #2563FF, #EF4444, #7C3AED)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                        LYAXIS TRIAD™
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: getModelColor(selectedModel) }}>
+                        {MODEL_ICONS[selectedModel]?.(15)}
+                      </div>
+                      {getModelLabel(selectedModel)}
+                    </>
+                  )}
                   <ChevronDown size={14} style={{ color: '#71717a', transform: isModelDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                 </button>
 
@@ -1243,7 +1264,7 @@ export default function App() {
                       position: 'absolute',
                       top: 'calc(100% + 6px)',
                       left: 0,
-                      width: isMobile ? 'calc(100vw - 24px)' : '300px',
+                      width: isMobile ? 'calc(100vw - 24px)' : '310px',
                       maxWidth: '340px',
                       backgroundColor: '#08080d',
                       border: '1px solid rgba(0, 217, 255, 0.35)',
@@ -1251,15 +1272,56 @@ export default function App() {
                       padding: '6px',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '2px',
+                      gap: '3px',
                       zIndex: 9999,
                       boxShadow: '0 15px 50px rgba(0, 0, 0, 0.95), 0 0 24px rgba(0, 217, 255, 0.18)',
                       animation: 'cyberTitleEntrance 0.2s ease-out forwards',
                       maxHeight: '75vh',
                       overflowY: 'auto',
                     }}>
-                      <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        Modelos Lyaxis IA
+                      {/* Flagship LYAXIS TRIAD™ VIP Dropdown Entry */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTriadMode(true);
+                          setIsModelDropdownOpen(false);
+                          if (soundEnabled) playCyberClick();
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '10px 10px',
+                          borderRadius: '8px',
+                          border: triadMode ? '1px solid #7C3AED' : '1px solid rgba(124, 58, 237, 0.45)',
+                          cursor: 'pointer',
+                          background: triadMode
+                            ? 'linear-gradient(90deg, rgba(37, 99, 255, 0.28), rgba(239, 68, 68, 0.28), rgba(124, 58, 237, 0.28))'
+                            : 'rgba(124, 58, 237, 0.12)',
+                          color: '#ffffff',
+                          transition: 'all 0.2s ease',
+                          textAlign: 'left',
+                          marginBottom: '4px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#00D9FF', flexShrink: 0 }}>
+                          <Zap size={18} color="#00D9FF" />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff' }}>LYAXIS TRIAD™</span>
+                            <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#00D9FF', backgroundColor: 'rgba(0, 217, 255, 0.15)', padding: '1px 5px', borderRadius: '4px' }}>
+                              {triadMode ? 'ACTIVO' : 'INSIGNIA'}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '11px', color: '#c084fc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            Create ➔ Break ➔ Rebuild (3 Núcleos)
+                          </span>
+                        </div>
+                      </button>
+
+                      <div style={{ padding: '6px 8px 2px', fontSize: '10px', fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                        Modelos Individuales Lyaxis IA
                       </div>
                       {ALL_MODELS.map((m) => (
                         <button
@@ -1551,15 +1613,65 @@ export default function App() {
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#71717a', gap: '20px', textAlign: 'center', minHeight: '60vh', padding: '16px 12px', animation: 'fadeIn 0.3s ease-out' }}>
                   
                   {/* Model Quick Switcher Pills */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap', maxWidth: '720px', marginBottom: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap', maxWidth: '780px', marginBottom: '4px' }}>
+                    {/* Flagship LYAXIS TRIAD™ Pill Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !triadMode;
+                        setTriadMode(next);
+                        if (soundEnabled) playCyberClick();
+                      }}
+                      title="Activar o desactivar el modo insignia LYAXIS TRIAD™ (Create ➔ Break ➔ Rebuild)"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 13px',
+                        borderRadius: '20px',
+                        fontSize: '11.5px',
+                        fontWeight: 800,
+                        letterSpacing: '0.3px',
+                        cursor: 'pointer',
+                        background: triadMode
+                          ? 'linear-gradient(90deg, rgba(37, 99, 255, 0.35), rgba(239, 68, 68, 0.35), rgba(124, 58, 237, 0.35))'
+                          : 'rgba(124, 58, 237, 0.12)',
+                        border: triadMode
+                          ? '1.5px solid #7C3AED'
+                          : '1px solid rgba(124, 58, 237, 0.45)',
+                        color: '#ffffff',
+                        boxShadow: triadMode
+                          ? '0 0 20px rgba(124, 58, 237, 0.6), 0 0 10px rgba(37, 99, 255, 0.5)'
+                          : '0 0 10px rgba(124, 58, 237, 0.2)',
+                        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                      }}
+                    >
+                      <Zap size={12} color={triadMode ? '#00D9FF' : '#c084fc'} />
+                      <span>⚡ LYAXIS TRIAD™</span>
+                      <span
+                        style={{
+                          width: '7px',
+                          height: '7px',
+                          borderRadius: '50%',
+                          backgroundColor: triadMode ? '#10B981' : 'rgba(255, 255, 255, 0.25)',
+                          boxShadow: triadMode ? '0 0 8px #10B981' : 'none',
+                          display: 'inline-block',
+                          transition: 'all 0.2s ease',
+                        }}
+                      />
+                    </button>
+
                     {ALL_MODELS.map((m) => {
-                      const isSelected = selectedModel === m;
+                      const isSelected = selectedModel === m && !triadMode;
                       const modelColor = getModelColor(m);
                       return (
                         <button
                           key={m}
                           type="button"
-                          onClick={() => switchModel(m)}
+                          onClick={() => {
+                            if (triadMode) setTriadMode(false);
+                            switchModel(m);
+                          }}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -1585,153 +1697,308 @@ export default function App() {
                     })}
                   </div>
 
-                  {/* Main Central Emblem */}
-                  <div
-                    style={{
-                      position: 'relative',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {/* Glowing Aura Ring */}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        width: '96px',
-                        height: '96px',
-                        borderRadius: '30px',
-                        background: `radial-gradient(circle, ${getModelColor(selectedModel)}55 0%, transparent 70%)`,
-                        filter: 'blur(16px)',
-                        animation: 'lyaxisPulse 2.5s infinite ease-in-out',
-                      }}
-                    />
-                    <div
-                      className="lyaxis-empty-state-orb"
-                      style={{
-                        width: '64px',
-                        height: '64px',
-                        borderRadius: '20px',
-                        background: `linear-gradient(135deg, ${getModelColor(selectedModel)}, #00D9FF)`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: `0 0 35px ${getModelColor(selectedModel)}66, 0 0 15px rgba(0, 217, 255, 0.4)`,
-                        border: '1px solid rgba(255, 255, 255, 0.25)',
-                        position: 'relative',
-                        zIndex: 1,
-                      }}
-                    >
-                      {MODEL_ICONS[selectedModel]?.(32)}
-                    </div>
-                  </div>
-
-                  {/* Title & Description */}
-                  <div>
-                    <h2
-                      style={{
-                        fontSize: '24px',
-                        fontWeight: 800,
-                        color: '#ffffff',
-                        margin: '0 0 6px 0',
-                        letterSpacing: '-0.4px',
-                        background: 'linear-gradient(180deg, #FFFFFF 0%, #CBD5E1 100%)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                      }}
-                    >
-                      LYAXIS {getModelLabel(selectedModel)}
-                    </h2>
-                    <p style={{ fontSize: '13.5px', maxWidth: '520px', margin: '0 auto', lineHeight: '1.55', color: '#a1a1aa' }}>
-                      {MODEL_META[selectedModel]?.description}
-                    </p>
-                  </div>
-
-                  {/* High-Tech Capability Pills */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#00D9FF', backgroundColor: 'rgba(0, 217, 255, 0.08)', border: '1px solid rgba(0, 217, 255, 0.2)', padding: '4px 10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <Zap size={11} /> Streaming ~14ms
-                    </span>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: getModelColor(selectedModel), backgroundColor: `${getModelColor(selectedModel)}14`, border: `1px solid ${getModelColor(selectedModel)}33`, padding: '4px 10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <Shield size={11} /> Encriptación AES-256
-                    </span>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#a78bfa', backgroundColor: 'rgba(167, 139, 250, 0.08)', border: '1px solid rgba(167, 139, 250, 0.2)', padding: '4px 10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <Cpu size={11} /> Motor Neuronal LYAXIS
-                    </span>
-                  </div>
-
-                  {/* Suggested Prompt Cards */}
-                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px', width: '100%', maxWidth: '640px', marginTop: '10px' }}>
-                    {(MODEL_PROMPTS[selectedModel] || []).map((prompt, i) => (
-                      <button
-                        key={`${selectedModel}-${i}`}
-                        type="button"
-                        className="lyaxis-prompt-card"
-                        onClick={() => handleSend(prompt.text)}
+                  {triadMode ? (
+                    <>
+                      {/* Triad Flagship Central Emblem */}
+                      <div
                         style={{
-                          backgroundColor: 'rgba(8, 8, 14, 0.75)',
-                          border: `1px solid ${getModelColor(selectedModel)}33`,
-                          borderRadius: '14px',
-                          padding: isMobile ? '14px 16px' : '14px 16px',
-                          minHeight: isMobile ? '56px' : '48px',
+                          position: 'relative',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '12px',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          color: '#ffffff',
-                          transition: 'all 0.2s ease',
-                          boxShadow: '0 4px 18px rgba(0, 0, 0, 0.5)',
+                          justifyContent: 'center',
                         }}
                       >
+                        {/* Tricolor Pulsing Aura Ring */}
                         <div
-                          className="prompt-icon"
                           style={{
-                            backgroundColor: prompt.bg,
-                            border: `1px solid ${prompt.border}`,
-                            borderRadius: '10px',
-                            width: isMobile ? '38px' : '32px',
-                            height: isMobile ? '38px' : '32px',
+                            position: 'absolute',
+                            width: '100px',
+                            height: '100px',
+                            borderRadius: '32px',
+                            background: 'radial-gradient(circle, rgba(124, 58, 237, 0.5) 0%, rgba(37, 99, 255, 0.3) 50%, transparent 70%)',
+                            filter: 'blur(18px)',
+                            animation: 'lyaxisPulse 2.5s infinite ease-in-out',
+                          }}
+                        />
+                        <div
+                          className="lyaxis-empty-state-orb"
+                          style={{
+                            width: '68px',
+                            height: '68px',
+                            borderRadius: '22px',
+                            background: 'linear-gradient(135deg, #2563FF 0%, #EF4444 50%, #7C3AED 100%)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            flexShrink: 0,
+                            boxShadow: '0 0 40px rgba(124, 58, 237, 0.7), 0 0 20px rgba(37, 99, 255, 0.5)',
+                            border: '1.5px solid rgba(255, 255, 255, 0.4)',
+                            position: 'relative',
+                            zIndex: 1,
                           }}
                         >
-                          {prompt.icon}
+                          <Zap size={34} color="#ffffff" />
                         </div>
-                        <div style={{ flex: 1, textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                          <span className="prompt-text" style={{ fontSize: isMobile ? '14.5px' : '13px', lineHeight: '1.5', display: 'block', color: '#f8fafc', fontWeight: 500 }}>{prompt.text}</span>
-                        </div>
-                        <ChevronRight size={16} color="#71717a" style={{ flexShrink: 0 }} />
-                      </button>
-                    ))}
-                  </div>
+                      </div>
 
-                  {/* Telemetry Ticker Strip */}
-                  <div
-                    style={{
-                      marginTop: '14px',
-                      padding: '6px 14px',
-                      borderRadius: '20px',
-                      backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                      border: '1px solid rgba(255, 255, 255, 0.05)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      fontSize: '10.5px',
-                      color: '#52525b',
-                    }}
-                  >
-                    <span style={{ color: '#10B981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10B981', boxShadow: '0 0 8px #10B981', display: 'inline-block' }} />
-                      SISTEMA ACTIVO
-                    </span>
-                    <span>•</span>
-                    <span>LATENCIA: ~14ms</span>
-                    <span>•</span>
-                    <span>MOTOR: {selectedModel.toUpperCase()}</span>
-                  </div>
+                      {/* Title & Description */}
+                      <div>
+                        <h2
+                          style={{
+                            fontSize: '26px',
+                            fontWeight: 900,
+                            margin: '0 0 8px 0',
+                            letterSpacing: '-0.5px',
+                            background: 'linear-gradient(90deg, #2563FF 0%, #EF4444 50%, #7C3AED 100%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                          }}
+                        >
+                          LYAXIS TRIAD™
+                        </h2>
+                        <p style={{ fontSize: '13.5px', maxWidth: '560px', margin: '0 auto', lineHeight: '1.6', color: '#cbd5e1' }}>
+                          Orquestación Multi-Núcleo en Tiempo Real: <strong>Create ➔ Break ➔ Rebuild</strong>. Cada consulta pasa secuencialmente por propuesta técnica ágil, auditoría adversarial de fallos y síntesis matemática definitiva.
+                        </p>
+                      </div>
+
+                      {/* Triad High-Tech 3-Core Pipeline Badges */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#60a5fa', backgroundColor: 'rgba(37, 99, 255, 0.12)', border: '1px solid rgba(37, 99, 255, 0.35)', padding: '5px 12px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Sparkles size={12} color="#2563FF" /> Núcleo I: Create (#2563FF)
+                        </span>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#f87171', backgroundColor: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.35)', padding: '5px 12px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Crosshair size={12} color="#EF4444" /> Núcleo II: Break (#EF4444)
+                        </span>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#c084fc', backgroundColor: 'rgba(124, 58, 237, 0.12)', border: '1px solid rgba(124, 58, 237, 0.35)', padding: '5px 12px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Brain size={12} color="#7C3AED" /> Núcleo III: Rebuild (#7C3AED)
+                        </span>
+                      </div>
+
+                      {/* Curated Triad Prompt Cards */}
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px', width: '100%', maxWidth: '640px', marginTop: '10px' }}>
+                        {TRIAD_PROMPTS.map((prompt, i) => (
+                          <button
+                            key={`triad-prompt-${i}`}
+                            type="button"
+                            className="lyaxis-prompt-card"
+                            onClick={() => handleSend(prompt.text)}
+                            style={{
+                              backgroundColor: 'rgba(8, 8, 14, 0.85)',
+                              border: '1px solid rgba(124, 58, 237, 0.35)',
+                              borderRadius: '14px',
+                              padding: isMobile ? '14px 16px' : '14px 16px',
+                              minHeight: isMobile ? '56px' : '48px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '12px',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              color: '#ffffff',
+                              transition: 'all 0.2s ease',
+                              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.6), inset 0 0 10px rgba(124, 58, 237, 0.05)',
+                            }}
+                          >
+                            <div
+                              className="prompt-icon"
+                              style={{
+                                backgroundColor: prompt.bg,
+                                border: `1px solid ${prompt.border}`,
+                                borderRadius: '10px',
+                                width: isMobile ? '38px' : '32px',
+                                height: isMobile ? '38px' : '32px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {prompt.icon}
+                            </div>
+                            <div style={{ flex: 1, textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                              <span className="prompt-text" style={{ fontSize: isMobile ? '14.5px' : '13px', lineHeight: '1.5', display: 'block', color: '#f8fafc', fontWeight: 500 }}>{prompt.text}</span>
+                            </div>
+                            <ChevronRight size={16} color="#c084fc" style={{ flexShrink: 0 }} />
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Telemetry Ticker Strip */}
+                      <div
+                        style={{
+                          marginTop: '14px',
+                          padding: '6px 14px',
+                          borderRadius: '20px',
+                          backgroundColor: 'rgba(124, 58, 237, 0.08)',
+                          border: '1px solid rgba(124, 58, 237, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          fontSize: '10.5px',
+                          color: '#c084fc',
+                        }}
+                      >
+                        <span style={{ color: '#10B981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10B981', boxShadow: '0 0 8px #10B981', display: 'inline-block' }} />
+                          SISTEMA ACTIVO
+                        </span>
+                        <span>•</span>
+                        <span>MODO: LYAXIS TRIAD™</span>
+                        <span>•</span>
+                        <span>3 NÚCLEOS SINCRONIZADOS</span>
+                        <span>•</span>
+                        <span>LATENCIA: ~14ms</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Main Central Emblem */}
+                      <div
+                        style={{
+                          position: 'relative',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        {/* Glowing Aura Ring */}
+                        <div
+                          style={{
+                            position: 'absolute',
+                            width: '96px',
+                            height: '96px',
+                            borderRadius: '30px',
+                            background: `radial-gradient(circle, ${getModelColor(selectedModel)}55 0%, transparent 70%)`,
+                            filter: 'blur(16px)',
+                            animation: 'lyaxisPulse 2.5s infinite ease-in-out',
+                          }}
+                        />
+                        <div
+                          className="lyaxis-empty-state-orb"
+                          style={{
+                            width: '64px',
+                            height: '64px',
+                            borderRadius: '20px',
+                            background: `linear-gradient(135deg, ${getModelColor(selectedModel)}, #00D9FF)`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: `0 0 35px ${getModelColor(selectedModel)}66, 0 0 15px rgba(0, 217, 255, 0.4)`,
+                            border: '1px solid rgba(255, 255, 255, 0.25)',
+                            position: 'relative',
+                            zIndex: 1,
+                          }}
+                        >
+                          {MODEL_ICONS[selectedModel]?.(32)}
+                        </div>
+                      </div>
+
+                      {/* Title & Description */}
+                      <div>
+                        <h2
+                          style={{
+                            fontSize: '24px',
+                            fontWeight: 800,
+                            color: '#ffffff',
+                            margin: '0 0 6px 0',
+                            letterSpacing: '-0.4px',
+                            background: 'linear-gradient(180deg, #FFFFFF 0%, #CBD5E1 100%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                          }}
+                        >
+                          LYAXIS {getModelLabel(selectedModel)}
+                        </h2>
+                        <p style={{ fontSize: '13.5px', maxWidth: '520px', margin: '0 auto', lineHeight: '1.55', color: '#a1a1aa' }}>
+                          {MODEL_META[selectedModel]?.description}
+                        </p>
+                      </div>
+
+                      {/* High-Tech Capability Pills */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: '#00D9FF', backgroundColor: 'rgba(0, 217, 255, 0.08)', border: '1px solid rgba(0, 217, 255, 0.2)', padding: '4px 10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Zap size={11} /> Streaming ~14ms
+                        </span>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: getModelColor(selectedModel), backgroundColor: `${getModelColor(selectedModel)}14`, border: `1px solid ${getModelColor(selectedModel)}33`, padding: '4px 10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Shield size={11} /> Encriptación AES-256
+                        </span>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: '#a78bfa', backgroundColor: 'rgba(167, 139, 250, 0.08)', border: '1px solid rgba(167, 139, 250, 0.2)', padding: '4px 10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Cpu size={11} /> Motor Neuronal LYAXIS
+                        </span>
+                      </div>
+
+                      {/* Suggested Prompt Cards */}
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px', width: '100%', maxWidth: '640px', marginTop: '10px' }}>
+                        {(MODEL_PROMPTS[selectedModel] || []).map((prompt, i) => (
+                          <button
+                            key={`${selectedModel}-${i}`}
+                            type="button"
+                            className="lyaxis-prompt-card"
+                            onClick={() => handleSend(prompt.text)}
+                            style={{
+                              backgroundColor: 'rgba(8, 8, 14, 0.75)',
+                              border: `1px solid ${getModelColor(selectedModel)}33`,
+                              borderRadius: '14px',
+                              padding: isMobile ? '14px 16px' : '14px 16px',
+                              minHeight: isMobile ? '56px' : '48px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '12px',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              color: '#ffffff',
+                              transition: 'all 0.2s ease',
+                              boxShadow: '0 4px 18px rgba(0, 0, 0, 0.5)',
+                            }}
+                          >
+                            <div
+                              className="prompt-icon"
+                              style={{
+                                backgroundColor: prompt.bg,
+                                border: `1px solid ${prompt.border}`,
+                                borderRadius: '10px',
+                                width: isMobile ? '38px' : '32px',
+                                height: isMobile ? '38px' : '32px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {prompt.icon}
+                            </div>
+                            <div style={{ flex: 1, textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                              <span className="prompt-text" style={{ fontSize: isMobile ? '14.5px' : '13px', lineHeight: '1.5', display: 'block', color: '#f8fafc', fontWeight: 500 }}>{prompt.text}</span>
+                            </div>
+                            <ChevronRight size={16} color="#71717a" style={{ flexShrink: 0 }} />
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Telemetry Ticker Strip */}
+                      <div
+                        style={{
+                          marginTop: '14px',
+                          padding: '6px 14px',
+                          borderRadius: '20px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                          border: '1px solid rgba(255, 255, 255, 0.05)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          fontSize: '10.5px',
+                          color: '#52525b',
+                        }}
+                      >
+                        <span style={{ color: '#10B981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10B981', boxShadow: '0 0 8px #10B981', display: 'inline-block' }} />
+                          SISTEMA ACTIVO
+                        </span>
+                        <span>•</span>
+                        <span>LATENCIA: ~14ms</span>
+                        <span>•</span>
+                        <span>MOTOR: {selectedModel.toUpperCase()}</span>
+                      </div>
+                    </>
+                  )}
 
                 </div>
               ) : (
