@@ -9,6 +9,7 @@ import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, V
 import { exportChatToPDF } from './pdfExporter';
 import { InstallPwaPrompt } from './InstallPwaPrompt';
 import { SlideDeckViewer } from './SlideDeckViewer';
+import Gatekeeper from './components/Gatekeeper';
 import type { ModelType, ModelId } from './types';
 import { ALL_MODELS, MODEL_META } from './config';
 
@@ -763,6 +764,9 @@ export default function App() {
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      {/* LYAXIS PROTOCOL: ZERO // VIP Access Gatekeeper */}
+      <Gatekeeper />
+
       {/* 2. Micro-Animación Cinemática de Entrada ("Boot Sequence") */}
       {showBoot && <BootSplash onComplete={() => setShowBoot(false)} />}
 

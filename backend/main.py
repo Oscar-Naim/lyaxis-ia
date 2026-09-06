@@ -4,6 +4,7 @@ import sqlite3
 import asyncio
 import uuid
 import random
+import hashlib
 from datetime import datetime, timezone
 from typing import List, Literal, Optional
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -116,6 +117,15 @@ def init_sqlite():
                 cursor.execute("ALTER TABLE messages ADD COLUMN image TEXT;")
             except Exception:
                 pass
+
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS invite_tokens (
+                code TEXT PRIMARY KEY,
+                is_used INTEGER DEFAULT 0,
+                used_at TEXT,
+                created_at TEXT NOT NULL
+            )
+            """)
             conn.commit()
     except Exception as e:
         print(f"Init SQLite local: {e}")
@@ -249,8 +259,44 @@ if db.use_postgres:
             db.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS image TEXT;")
         except Exception:
             pass
+
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS invite_tokens (
+            code TEXT PRIMARY KEY,
+            is_used BOOLEAN DEFAULT FALSE,
+            used_at TEXT,
+            created_at TEXT NOT NULL
+        )
+        """)
     except Exception as e:
         print(f"Postgres tables init: {e}")
+
+# --- LYAXIS PROTOCOL: ZERO // VIP Tokens Seed ---
+INITIAL_TOKENS = [
+    "LYX-3QP-AFW", "LYX-B68-6EC", "LYX-6PU-9N8", "LYX-E5V-WFN", "LYX-33N-H9X",
+    "LYX-TLP-LPQ", "LYX-7CY-EAB", "LYX-S4H-LC5", "LYX-2MP-D59", "LYX-S84-5LU",
+    "LYX-PM6-5SG", "LYX-F5Y-MKV", "LYX-2VV-BPH", "LYX-DG7-SZF", "LYX-352-GVH",
+    "LYX-AVN-3FK", "LYX-9CS-JLR", "LYX-N7F-4V3", "LYX-29R-8YU", "LYX-GNE-YHL",
+    "LYX-X5S-KPW", "LYX-EWZ-K3L", "LYX-2Q8-LUN", "LYX-MFF-MTQ", "LYX-MKF-XFH",
+    "LYX-QQC-DFR", "LYX-6JT-W35", "LYX-HCG-3CB", "LYX-KVF-WZE", "LYX-8JB-AL9",
+    "LYX-EWV-3QN", "LYX-FXZ-6CN", "LYX-7QZ-G7G", "LYX-L55-LFS", "LYX-6C4-6LW"
+]
+
+def seed_invite_tokens():
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        for t_code in INITIAL_TOKENS:
+            exists = db.fetchone("SELECT code FROM invite_tokens WHERE code = ?", (t_code,))
+            if not exists:
+                db.execute(
+                    "INSERT INTO invite_tokens (code, is_used, created_at) VALUES (?, ?, ?)",
+                    (t_code, False, now)
+                )
+        print("LYAXIS PROTOCOL: ZERO - 35 VIP invite tokens seeded.")
+    except Exception as e:
+        print(f"Error seeding invite tokens: {e}")
+
+seed_invite_tokens()
 
 # --- Cached NVIDIA Client ---
 _nvidia_client = None
@@ -753,6 +799,37 @@ def google_auth(req: GoogleAuthRequest):
     except Exception as e:
         print(f"Error Google Auth: {e}")
         raise HTTPException(status_code=400, detail=f"Error autenticando con Google: {str(e)}")
+
+# --- LYAXIS PROTOCOL: ZERO // VIP Gatekeeper Verification ---
+class VerifyTokenPayload(BaseModel):
+    code: str
+
+@app.post("/api/v1/auth/verify-token")
+def verify_invite_token(payload: VerifyTokenPayload):
+    raw_code = (payload.code or "").strip().upper()
+    code = raw_code.replace(" ", "")
+    if not code:
+        raise HTTPException(status_code=400, detail="ERROR 400: Debes proporcionar un código de acceso.")
+
+    token_row = db.fetchone("SELECT code, is_used FROM invite_tokens WHERE code = ?", (code,))
+    if not token_row:
+        raise HTTPException(status_code=403, detail="ERROR 403: TOKEN INVÁLIDO O NO RECONOCIDO")
+
+    is_used = bool(token_row.get("is_used") if isinstance(token_row, dict) else token_row[1])
+    if is_used:
+        raise HTTPException(status_code=403, detail="ERROR 403: TOKEN INVÁLIDO O YA CANJEADO POR OTRO USUARIO")
+
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute("UPDATE invite_tokens SET is_used = ?, used_at = ? WHERE code = ?", (True, now, code))
+
+    vault_sig = f"lyx_vault_{hashlib.sha256((code + 'LYAXIS_PROTOCOL_ZERO').encode()).hexdigest()}"
+
+    return {
+        "success": True,
+        "token": vault_sig,
+        "code": code,
+        "detail": "AUTORIZACIÓN NIVEL 1 CONFIRMADA // PASE VÁLIDO"
+    }
 
 @app.get("/api/v1/conversations")
 def list_conversations(user_id: Optional[str] = None):
