@@ -846,18 +846,20 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => openInfoDrawer('manifesto')}
-                title="Manifiesto, Filosofía y Legales de LYAXIS labs™"
+                title="Casa Matriz: Manifiesto, Filosofía y Ecosistema LYAXIS labs™"
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#71717a',
+                  background: 'rgba(0, 217, 255, 0.1)',
+                  border: '1px solid rgba(0, 217, 255, 0.35)',
+                  color: '#00D9FF',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   minWidth: '40px',
                   minHeight: '40px',
-                  borderRadius: '8px',
+                  borderRadius: '10px',
+                  boxShadow: '0 0 14px rgba(0, 217, 255, 0.2)',
+                  transition: 'all 0.2s ease',
                 }}
               >
                 <Home size={18} />
@@ -1342,6 +1344,37 @@ export default function App() {
                   <span>{isMobile ? 'Entrar' : 'Acceder'}</span>
                 </button>
               )}
+              {/* LYAXIS Info / Home Button ("La casa donde hay inf de LYAXIS") */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (soundEnabled) playCyberClick();
+                  openInfoDrawer('manifesto');
+                }}
+                title="Casa Matriz: Manifiesto, Filosofía y Ecosistema LYAXIS labs™"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  backgroundColor: 'rgba(0, 217, 255, 0.08)',
+                  border: '1px solid rgba(0, 217, 255, 0.25)',
+                  color: '#00D9FF',
+                  padding: isMobile ? '8px 12px' : '6px 12px',
+                  minHeight: isMobile ? '44px' : 'auto',
+                  minWidth: isMobile ? '44px' : 'auto',
+                  borderRadius: '8px',
+                  fontSize: isMobile ? '13px' : '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: '0 0 12px rgba(0, 217, 255, 0.12)',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <Home size={15} color="#00D9FF" />
+                {!isMobile && <span>LYAXIS labs™</span>}
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -1910,82 +1943,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* LYAXIS TRIAD™ Control Strip */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginBottom: '8px',
-                  padding: '0 4px',
-                  flexWrap: 'wrap',
-                  gap: '8px',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={toggleTriad}
-                  title="Activar o desactivar el debate triádico en tiempo real: Create ➔ Break ➔ Rebuild"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: isMobile ? '6px 12px' : '5px 12px',
-                    borderRadius: '8px',
-                    backgroundColor: isTriadActive ? 'rgba(124, 58, 237, 0.18)' : 'rgba(255, 255, 255, 0.04)',
-                    border: isTriadActive ? '1px solid rgba(124, 58, 237, 0.55)' : '1px solid rgba(255, 255, 255, 0.1)',
-                    color: isTriadActive ? '#ffffff' : '#a1a1aa',
-                    cursor: 'pointer',
-                    fontSize: '11.5px',
-                    fontWeight: 700,
-                    letterSpacing: '0.3px',
-                    transition: 'all 0.2s ease',
-                    boxShadow: isTriadActive ? '0 0 16px rgba(124, 58, 237, 0.35)' : 'none',
-                  }}
-                >
-                  <Zap size={13} color={isTriadActive ? '#00D9FF' : '#71717a'} />
-                  <span>⚡ LYAXIS TRIAD™ :</span>
-                  <span
-                    style={{
-                      color: isTriadActive ? '#10B981' : '#71717a',
-                      fontWeight: 800,
-                    }}
-                  >
-                    {isTriadActive ? 'ON' : 'OFF'}
-                  </span>
-                </button>
-
-                {isTriadActive && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      fontSize: '10.5px',
-                      fontFamily: 'monospace',
-                      color: '#d8b4fe',
-                      backgroundColor: 'rgba(124, 58, 237, 0.14)',
-                      border: '1px solid rgba(124, 58, 237, 0.35)',
-                      padding: '3px 10px',
-                      borderRadius: '12px',
-                      animation: 'fadeIn 0.25s ease-out',
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: '6px',
-                        height: '6px',
-                        borderRadius: '50%',
-                        backgroundColor: '#10B981',
-                        boxShadow: '0 0 8px #10B981',
-                        display: 'inline-block',
-                      }}
-                    />
-                    <span>TRIAD ENGAGED // 3 CORES SYNCED</span>
-                  </div>
-                )}
-              </div>
-
               <div
                 className={isTriadActive ? 'lyaxis-triad-active-box' : ''}
                 style={{
@@ -1995,7 +1952,7 @@ export default function App() {
                   border: isTriadActive ? '1px solid transparent' : (selectedImage ? `1px solid ${getModelColor(selectedModel)}66` : '1px solid #1a1a24'),
                   borderRadius: '14px',
                   padding: isMobile ? '8px 10px' : '12px 16px',
-                  gap: '10px',
+                  gap: '8px',
                   boxShadow: isTriadActive ? undefined : '0 4px 25px rgba(0,0,0,0.8)',
                   transition: 'border-color 0.2s ease',
                 }}
@@ -2033,6 +1990,36 @@ export default function App() {
                   }}
                 >
                   <Paperclip size={18} />
+                </button>
+
+                {/* LYAXIS TRIAD™ Toggle Button */}
+                <button
+                  type="button"
+                  onClick={toggleTriad}
+                  title="Activar o desactivar debate triádico LYAXIS TRIAD™: Create ➔ Break ➔ Rebuild"
+                  style={{
+                    height: isMobile ? '44px' : '36px',
+                    padding: '0 10px',
+                    borderRadius: '10px',
+                    backgroundColor: isTriadActive ? 'rgba(124, 58, 237, 0.25)' : 'rgba(255, 255, 255, 0.04)',
+                    border: isTriadActive ? '1px solid #7C3AED' : '1px solid rgba(255, 255, 255, 0.1)',
+                    color: isTriadActive ? '#ffffff' : '#71717a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    flexShrink: 0,
+                    transition: 'all 0.2s ease',
+                    boxShadow: isTriadActive ? '0 0 14px rgba(124, 58, 237, 0.45)' : 'none',
+                  }}
+                >
+                  <Zap size={14} color={isTriadActive ? '#00D9FF' : '#71717a'} />
+                  {!isMobile && <span>TRIAD</span>}
+                  <span style={{ color: isTriadActive ? '#10B981' : '#71717a', fontWeight: 800 }}>
+                    {isTriadActive ? 'ON' : 'OFF'}
+                  </span>
                 </button>
 
                 <textarea

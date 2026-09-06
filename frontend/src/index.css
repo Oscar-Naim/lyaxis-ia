@@ -1116,7 +1116,18 @@ textarea {
    Mobile Keyboard & Dynamic Viewport Height Compatibility (100dvh)
    ========================================================================== */
 
-.lyaxis-chat-root,
+.lyaxis-chat-root {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  width: 100vw;
+  position: relative;
+}
+
 .lyaxis-main-layout {
   height: 100vh;
   height: 100dvh;
@@ -1125,6 +1136,8 @@ textarea {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex: 1;
+  min-width: 0;
 }
 
 .lyaxis-chat-scroll-area {

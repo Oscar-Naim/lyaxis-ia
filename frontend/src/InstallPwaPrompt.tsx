@@ -49,32 +49,66 @@ export const InstallPwaPrompt: React.FC = () => {
   return (
     <>
       {/* Floating Cyber-HUD Install Prompt Bar */}
-      <div className="fixed bottom-6 left-6 z-50 max-w-sm w-[calc(100vw-3rem)] sm:w-auto p-4 rounded-2xl border border-cyan-500/30 bg-black/90 shadow-[0_0_30px_rgba(0,240,255,0.2)] backdrop-blur-xl flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shrink-0">
-            <Download className="w-5 h-5 animate-bounce" />
+      <div 
+        style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          zIndex: 9990,
+          maxWidth: '380px',
+          width: 'calc(100vw - 3rem)',
+          padding: '12px 16px',
+          borderRadius: '16px',
+          border: '1px solid rgba(0, 217, 255, 0.35)',
+          backgroundColor: 'rgba(8, 8, 14, 0.94)',
+          boxShadow: '0 10px 35px rgba(0, 0, 0, 0.9), 0 0 25px rgba(0, 217, 255, 0.2)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: 'rgba(0, 217, 255, 0.1)', border: '1px solid rgba(0, 217, 255, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#00D9FF', flexShrink: 0 }}>
+            <Download size={18} />
           </div>
           <div>
-            <h4 className="font-sans text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              Instalar App PWA <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+            <h4 style={{ margin: 0, fontSize: '12px', fontWeight: 700, color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              Instalar App PWA
             </h4>
-            <p className="text-[10px] text-gray-400 font-mono">Descarga LYAXIS IA en tu dispositivo</p>
+            <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8' }}>Descarga LYAXIS IA en tu dispositivo</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <button
+            type="button"
             onClick={handleInstallClick}
-            className="px-4 py-2 bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-600 text-black font-bold font-mono text-[10px] tracking-wider rounded-xl uppercase transition-all duration-300 shadow-[0_0_15px_rgba(0,240,255,0.4)] cursor-pointer flex items-center gap-1.5 hover:scale-105"
+            style={{
+              padding: '6px 14px',
+              background: 'linear-gradient(135deg, #00D9FF, #2563FF)',
+              color: '#000000',
+              fontWeight: 800,
+              fontSize: '11px',
+              letterSpacing: '0.5px',
+              borderRadius: '8px',
+              border: 'none',
+              cursor: 'pointer',
+              boxShadow: '0 0 14px rgba(0, 217, 255, 0.4)',
+              transition: 'transform 0.2s',
+            }}
           >
-            <span>Instalar</span> ⤓
+            Instalar ⤓
           </button>
           <button
+            type="button"
             onClick={() => setDismissed(true)}
-            className="p-1.5 text-gray-500 hover:text-white transition-colors cursor-pointer"
+            style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
             aria-label="Cerrar"
           >
-            <X className="w-4 h-4" />
+            <X size={16} />
           </button>
         </div>
       </div>
