@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShieldAlert, ShieldCheck, Lock, Sparkles, Terminal } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, Lock, Sparkles, Terminal, KeyRound } from 'lucide-react';
 import { API_BASE } from '../config';
 import { playKeyClick, playVaultUnlock, playDenialBeep } from '../utils/audio';
 
@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default function Gatekeeper({ onUnlock }: Props) {
-  // Synchronous state check prevents any flash of the app if already unlocked
+  // Synchronous state check avoids any layout flicker if already unlocked
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       return !!localStorage.getItem('lyaxis_vault_token');
@@ -23,7 +23,7 @@ export default function Gatekeeper({ onUnlock }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Lock scroll when locked
+  // Lock body scroll while locked
   useEffect(() => {
     if (!isUnlocked) {
       document.body.style.overflow = 'hidden';
@@ -36,7 +36,7 @@ export default function Gatekeeper({ onUnlock }: Props) {
     };
   }, [isUnlocked]);
 
-  // Lightweight cosmic particle field
+  // Vibrant multi-color cosmic particle field (Cyan, Purple, Magenta, Emerald, Electric Blue)
   useEffect(() => {
     if (isUnlocked) return;
     const canvas = canvasRef.current;
@@ -55,15 +55,33 @@ export default function Gatekeeper({ onUnlock }: Props) {
     };
     window.addEventListener('resize', handleResize);
 
-    const particles: { x: number; y: number; size: number; speedY: number; speedX: number; opacity: number }[] = [];
-    for (let i = 0; i < 40; i++) {
+    const colors = [
+      { r: 0, g: 240, b: 255 },    // Electric Cyan
+      { r: 168, g: 85, b: 247 },   // Neon Violet
+      { r: 236, g: 72, b: 153 },   // Hot Pink / Magenta
+      { r: 0, g: 255, b: 102 },    // Emerald Neon
+      { r: 59, g: 130, b: 246 },   // High-voltage Blue
+    ];
+
+    const particles: {
+      x: number;
+      y: number;
+      size: number;
+      speedY: number;
+      speedX: number;
+      opacity: number;
+      color: { r: number; g: number; b: number };
+    }[] = [];
+
+    for (let i = 0; i < 60; i++) {
       particles.push({
         x: Math.random() * width,
         y: Math.random() * height,
-        size: Math.random() * 1.6 + 0.4,
-        speedY: (Math.random() * 0.3 + 0.1) * -1,
-        speedX: (Math.random() - 0.5) * 0.2,
-        opacity: Math.random() * 0.6 + 0.2
+        size: Math.random() * 2.2 + 0.6,
+        speedY: (Math.random() * 0.45 + 0.15) * -1,
+        speedX: (Math.random() - 0.5) * 0.35,
+        opacity: Math.random() * 0.7 + 0.3,
+        color: colors[Math.floor(Math.random() * colors.length)]
       });
     }
 
@@ -81,9 +99,9 @@ export default function Gatekeeper({ onUnlock }: Props) {
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(0, 240, 255, ${p.opacity})`;
-        ctx.shadowBlur = 6;
-        ctx.shadowColor = 'rgba(0, 240, 255, 0.4)';
+        ctx.fillStyle = `rgba(${p.color.r}, ${p.color.g}, ${p.color.b}, ${p.opacity})`;
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = `rgba(${p.color.r}, ${p.color.g}, ${p.color.b}, 0.9)`;
         ctx.fill();
       }
       animId = requestAnimationFrame(render);
@@ -96,14 +114,14 @@ export default function Gatekeeper({ onUnlock }: Props) {
     };
   }, [isUnlocked]);
 
-  // If already unlocked, return null in 0ms (no interference with chat)
+  // If already unlocked, return null in 0ms (0 impact on chat)
   if (isUnlocked) return null;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (raw.length > 9) raw = raw.slice(0, 9);
 
-    // Format automatically to: LYX - XXX - XXX
+    // Auto-format: LYX - XXX - XXX
     let formatted = '';
     if (raw.length > 0) {
       formatted = raw.slice(0, 3);
@@ -145,7 +163,7 @@ export default function Gatekeeper({ onUnlock }: Props) {
         playVaultUnlock();
         localStorage.setItem('lyaxis_vault_token', data.token);
 
-        // Sequence: Glow -> Vault opening sound -> Radial dissolve & expansion
+        // Sequence: Emerald glow -> Sub-bass unlock chime -> Radial shield dissipation
         setTimeout(() => {
           setFadeout(true);
           setTimeout(() => {
@@ -170,44 +188,60 @@ export default function Gatekeeper({ onUnlock }: Props) {
   return (
     <>
       <style>{`
-        @keyframes lyxBreathe {
+        @keyframes lyxChromaPulse {
           0%, 100% {
-            box-shadow: 0 0 25px rgba(0, 240, 255, 0.2), 0 0 50px rgba(0, 240, 255, 0.1);
-            border-color: rgba(0, 240, 255, 0.35);
+            box-shadow: 0 0 35px rgba(0, 240, 255, 0.45), 0 0 70px rgba(168, 85, 247, 0.35);
+            border-color: rgba(0, 240, 255, 0.7);
+            transform: scale(1);
           }
           50% {
-            box-shadow: 0 0 45px rgba(0, 240, 255, 0.45), 0 0 85px rgba(124, 58, 237, 0.3);
-            border-color: rgba(0, 240, 255, 0.7);
+            box-shadow: 0 0 55px rgba(236, 72, 153, 0.5), 0 0 110px rgba(0, 240, 255, 0.45);
+            border-color: rgba(236, 72, 153, 0.85);
+            transform: scale(1.03);
           }
         }
-        @keyframes laserRun {
+        @keyframes rainbowLaserRun {
           0% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
         }
+        @keyframes plasmaFloat1 {
+          0% { transform: translate(0px, 0px) scale(1); }
+          50% { transform: translate(40px, -30px) scale(1.15); }
+          100% { transform: translate(-20px, 25px) scale(0.95); }
+        }
+        @keyframes plasmaFloat2 {
+          0% { transform: translate(0px, 0px) scale(1); }
+          50% { transform: translate(-50px, 35px) scale(1.2); }
+          100% { transform: translate(30px, -20px) scale(0.9); }
+        }
         @keyframes glitchShake {
           0% { transform: translate(0, 0); }
-          20% { transform: translate(-7px, 2px); }
-          40% { transform: translate(7px, -3px); }
-          60% { transform: translate(-5px, 3px); }
-          80% { transform: translate(5px, -1px); }
+          20% { transform: translate(-8px, 3px); }
+          40% { transform: translate(8px, -3px); }
+          60% { transform: translate(-6px, 4px); }
+          80% { transform: translate(6px, -2px); }
           100% { transform: translate(0, 0); }
-        }
-        .laser-btn-active {
-          background-size: 250% 250%;
-          animation: laserRun 3s linear infinite;
         }
         .glitch-shake-active {
           animation: glitchShake 0.4s ease-in-out;
         }
+        .rainbow-laser-beam {
+          background-size: 300% 300%;
+          animation: rainbowLaserRun 3s linear infinite;
+        }
       `}</style>
 
+      {/* Main Frosted Translucent Overlay - CHAT IS VISIBLE BEHIND! */}
       <div
         style={{
           position: 'fixed',
           inset: 0,
           zIndex: 999999,
-          background: '#040407',
+          // Translucent glassmorphism shield: chat is softly visible through the blur!
+          background: 'radial-gradient(ellipse at 50% 30%, rgba(124, 58, 237, 0.25) 0%, rgba(0, 240, 255, 0.16) 35%, rgba(4, 4, 12, 0.68) 75%, rgba(2, 2, 8, 0.82) 100%)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
           color: '#ffffff',
           display: 'flex',
           flexDirection: 'column',
@@ -219,69 +253,105 @@ export default function Gatekeeper({ onUnlock }: Props) {
           transition: 'opacity 0.85s cubic-bezier(0.16, 1, 0.3, 1), transform 0.85s cubic-bezier(0.16, 1, 0.3, 1), filter 0.85s ease',
           opacity: fadeout ? 0 : 1,
           transform: fadeout ? 'scale(1.08)' : 'scale(1)',
-          filter: fadeout ? 'blur(10px)' : 'none',
+          filter: fadeout ? 'blur(12px)' : 'none',
           pointerEvents: fadeout ? 'none' : 'all'
         }}
       >
-        {/* Canvas background for space dust particles */}
+        {/* Floating Colorful Ambient Plasma Orbs */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '8%',
+            left: '12%',
+            width: '450px',
+            height: '450px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(236, 72, 153, 0.22) 0%, transparent 70%)',
+            pointerEvents: 'none',
+            zIndex: 1,
+            animation: 'plasmaFloat1 12s ease-in-out infinite alternate',
+            filter: 'blur(40px)'
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '10%',
+            right: '10%',
+            width: '520px',
+            height: '520px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(0, 240, 255, 0.24) 0%, transparent 70%)',
+            pointerEvents: 'none',
+            zIndex: 1,
+            animation: 'plasmaFloat2 14s ease-in-out infinite alternate',
+            filter: 'blur(40px)'
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            top: '40%',
+            left: '45%',
+            width: '400px',
+            height: '400px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, transparent 70%)',
+            pointerEvents: 'none',
+            zIndex: 1,
+            filter: 'blur(45px)'
+          }}
+        />
+
+        {/* Canvas background for multi-color floating neon particles */}
         <canvas
           ref={canvasRef}
           style={{
             position: 'absolute',
             inset: 0,
             pointerEvents: 'none',
-            zIndex: 1
-          }}
-        />
-
-        {/* Ambient radial lighting */}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'radial-gradient(circle at 50% 45%, rgba(0, 240, 255, 0.08) 0%, rgba(124, 58, 237, 0.05) 50%, transparent 80%)',
-            pointerEvents: 'none',
             zIndex: 2
           }}
         />
 
-        {/* Subtle geometric cyberpunk grid */}
+        {/* Cyberpunk Holographic Grid with Neon Glow */}
         <div
           style={{
             position: 'absolute',
             inset: 0,
             backgroundImage: `
-              linear-gradient(to right, rgba(255,255,255,0.025) 1px, transparent 1px),
-              linear-gradient(to bottom, rgba(255,255,255,0.025) 1px, transparent 1px)
+              linear-gradient(to right, rgba(0, 240, 255, 0.05) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(168, 85, 247, 0.05) 1px, transparent 1px)
             `,
-            backgroundSize: '48px 48px',
-            maskImage: 'radial-gradient(circle at 50% 50%, black 35%, transparent 85%)',
-            WebkitMaskImage: 'radial-gradient(circle at 50% 50%, black 35%, transparent 85%)',
+            backgroundSize: '46px 46px',
+            maskImage: 'radial-gradient(circle at 50% 50%, black 40%, transparent 85%)',
+            WebkitMaskImage: 'radial-gradient(circle at 50% 50%, black 40%, transparent 85%)',
             pointerEvents: 'none',
             zIndex: 3
           }}
         />
 
-        {/* Central Card */}
+        {/* Central Frosted Glass Hologram Card */}
         <div
           className={status === 'denied' ? 'glitch-shake-active' : ''}
           style={{
             maxWidth: '540px',
             width: '100%',
-            background: 'rgba(7, 7, 13, 0.88)',
+            // Translucent glass so background highlights and shapes shine through
+            background: 'rgba(9, 9, 22, 0.62)',
             backdropFilter: 'blur(30px)',
             WebkitBackdropFilter: 'blur(30px)',
             border: status === 'granted'
-              ? '1px solid rgba(0, 255, 102, 0.7)'
+              ? '1.5px solid rgba(0, 255, 102, 0.85)'
               : status === 'denied'
-              ? '1px solid rgba(239, 68, 68, 0.7)'
-              : '1px solid rgba(0, 240, 255, 0.25)',
+              ? '1.5px solid rgba(239, 68, 68, 0.85)'
+              : '1.5px solid rgba(0, 240, 255, 0.45)',
             boxShadow: status === 'granted'
-              ? '0 0 60px rgba(0, 255, 102, 0.35), inset 0 0 30px rgba(0, 255, 102, 0.15)'
+              ? '0 0 70px rgba(0, 255, 102, 0.4), inset 0 0 30px rgba(0, 255, 102, 0.2)'
               : status === 'denied'
-              ? '0 0 60px rgba(239, 68, 68, 0.35), inset 0 0 30px rgba(239, 68, 68, 0.15)'
-              : '0 0 70px rgba(0, 240, 255, 0.12), inset 0 0 35px rgba(124, 58, 237, 0.06)',
-            borderRadius: '24px',
+              ? '0 0 70px rgba(239, 68, 68, 0.4), inset 0 0 30px rgba(239, 68, 68, 0.2)'
+              : '0 0 60px rgba(0, 240, 255, 0.25), 0 0 100px rgba(168, 85, 247, 0.22), inset 0 0 40px rgba(0, 240, 255, 0.08)',
+            borderRadius: '26px',
             padding: '48px 36px',
             textAlign: 'center',
             position: 'relative',
@@ -289,22 +359,27 @@ export default function Gatekeeper({ onUnlock }: Props) {
             transition: 'border-color 0.3s ease, box-shadow 0.3s ease'
           }}
         >
-          {/* Security Tagline */}
+          {/* Security Tagline Chip with Gradient Border */}
           <div
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '8px',
-              background: 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              padding: '6px 16px',
+              background: 'linear-gradient(135deg, rgba(0, 240, 255, 0.12) 0%, rgba(168, 85, 247, 0.15) 100%)',
+              border: status === 'granted'
+                ? '1px solid rgba(0, 255, 102, 0.5)'
+                : status === 'denied'
+                ? '1px solid rgba(239, 68, 68, 0.5)'
+                : '1px solid rgba(0, 240, 255, 0.4)',
+              padding: '7px 18px',
               borderRadius: '999px',
               fontSize: '11px',
               letterSpacing: '0.14em',
               textTransform: 'uppercase',
               color: status === 'granted' ? '#00FF66' : status === 'denied' ? '#EF4444' : '#00F0FF',
               marginBottom: '26px',
-              fontWeight: 600
+              fontWeight: 700,
+              boxShadow: '0 0 16px rgba(0, 240, 255, 0.2)'
             }}
           >
             <span
@@ -313,7 +388,7 @@ export default function Gatekeeper({ onUnlock }: Props) {
                 height: '7px',
                 borderRadius: '50%',
                 background: status === 'granted' ? '#00FF66' : status === 'denied' ? '#EF4444' : '#00F0FF',
-                boxShadow: `0 0 10px ${status === 'granted' ? '#00FF66' : status === 'denied' ? '#EF4444' : '#00F0FF'}`
+                boxShadow: `0 0 12px ${status === 'granted' ? '#00FF66' : status === 'denied' ? '#EF4444' : '#00F0FF'}`
               }}
             />
             {status === 'granted'
@@ -321,44 +396,46 @@ export default function Gatekeeper({ onUnlock }: Props) {
               : '● PROTOCOLO CERRADO // SECTOR 17 DE OCTUBRE'}
           </div>
 
-          {/* Central Isotype with Pulsating Aura */}
+          {/* Central Isotype with Chromatic Glowing Aura */}
           <div style={{ position: 'relative', display: 'inline-block', marginBottom: '22px' }}>
             <div
               style={{
-                width: '88px',
-                height: '88px',
-                borderRadius: '24px',
-                background: 'linear-gradient(135deg, rgba(0, 240, 255, 0.15) 0%, rgba(124, 58, 237, 0.25) 100%)',
-                border: '1px solid rgba(0, 240, 255, 0.4)',
+                width: '92px',
+                height: '92px',
+                borderRadius: '26px',
+                background: 'linear-gradient(135deg, rgba(0, 240, 255, 0.22) 0%, rgba(168, 85, 247, 0.35) 50%, rgba(236, 72, 153, 0.25) 100%)',
+                border: '1.5px solid rgba(0, 240, 255, 0.65)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 margin: '0 auto',
-                animation: status === 'granted' ? 'none' : 'lyxBreathe 3.5s infinite ease-in-out',
+                animation: status === 'granted' ? 'none' : 'lyxChromaPulse 3.5s infinite ease-in-out',
                 boxShadow: status === 'granted'
-                  ? '0 0 40px rgba(0, 255, 102, 0.5)'
-                  : '0 0 35px rgba(0, 240, 255, 0.3)'
+                  ? '0 0 45px rgba(0, 255, 102, 0.6)'
+                  : '0 0 40px rgba(0, 240, 255, 0.45)'
               }}
             >
               {status === 'granted' ? (
-                <ShieldCheck size={44} color="#00FF66" />
+                <ShieldCheck size={48} color="#00FF66" />
               ) : status === 'denied' ? (
-                <ShieldAlert size={44} color="#EF4444" />
+                <ShieldAlert size={48} color="#EF4444" />
               ) : (
-                <Lock size={40} color="#00F0FF" />
+                <Lock size={42} color="#00F0FF" />
               )}
             </div>
           </div>
 
-          {/* Title */}
+          {/* Title with Holographic Neon Gradient */}
           <h1
             style={{
-              fontSize: '22px',
-              fontWeight: 800,
+              fontSize: '23px',
+              fontWeight: 900,
               margin: '0 0 10px',
               letterSpacing: '0.04em',
               textTransform: 'uppercase',
-              color: '#FFFFFF',
+              background: 'linear-gradient(135deg, #FFFFFF 10%, #00F0FF 45%, #C084FC 75%, #F472B6 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
               fontFamily: "'Inter', sans-serif"
             }}
           >
@@ -370,19 +447,21 @@ export default function Gatekeeper({ onUnlock }: Props) {
             style={{
               margin: '0 auto 30px',
               fontSize: '13.5px',
-              color: '#94A3B8',
-              lineHeight: 1.6,
-              maxWidth: '440px',
+              color: '#CBD5E1',
+              lineHeight: 1.65,
+              maxWidth: '450px',
               fontWeight: 400
             }}
           >
             Este entorno de ejecución multi-motor está reservado para los 30 creadores autorizados por{' '}
-            <strong style={{ color: '#E2E8F0', fontWeight: 600 }}>Oscar Naim Ambrocio Aguirre</strong>.
+            <strong style={{ color: '#00F0FF', fontWeight: 700, textShadow: '0 0 10px rgba(0, 240, 255, 0.4)' }}>
+              Oscar Naim Ambrocio Aguirre
+            </strong>.
           </p>
 
-          {/* Input form */}
+          {/* Input Form */}
           <form onSubmit={handleVerify}>
-            <div style={{ position: 'relative', marginBottom: '18px' }}>
+            <div style={{ position: 'relative', marginBottom: '20px' }}>
               <input
                 ref={inputRef}
                 type="text"
@@ -394,26 +473,30 @@ export default function Gatekeeper({ onUnlock }: Props) {
                 spellCheck={false}
                 style={{
                   width: '100%',
-                  background: 'rgba(4, 4, 8, 0.85)',
+                  background: 'rgba(4, 4, 14, 0.75)',
+                  backdropFilter: 'blur(16px)',
                   border: status === 'granted'
-                    ? '1.5px solid #00FF66'
+                    ? '2px solid #00FF66'
                     : status === 'denied'
-                    ? '1.5px solid #EF4444'
-                    : '1.5px solid rgba(0, 240, 255, 0.3)',
+                    ? '2px solid #EF4444'
+                    : '1.5px solid rgba(0, 240, 255, 0.55)',
                   borderRadius: '16px',
                   padding: '16px 20px',
-                  fontSize: '21px',
+                  fontSize: '22px',
                   fontWeight: 800,
                   textAlign: 'center',
                   letterSpacing: '0.18em',
                   fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
                   color: status === 'granted' ? '#00FF66' : status === 'denied' ? '#EF4444' : '#00F0FF',
+                  textShadow: status === 'granted' 
+                    ? '0 0 12px rgba(0, 255, 102, 0.6)' 
+                    : '0 0 12px rgba(0, 240, 255, 0.5)',
                   outline: 'none',
                   boxShadow: status === 'granted'
-                    ? '0 0 25px rgba(0, 255, 102, 0.3), inset 0 2px 8px rgba(0,0,0,0.8)'
+                    ? '0 0 30px rgba(0, 255, 102, 0.35), inset 0 2px 8px rgba(0,0,0,0.8)'
                     : status === 'denied'
-                    ? '0 0 25px rgba(239, 68, 68, 0.3), inset 0 2px 8px rgba(0,0,0,0.8)'
-                    : '0 0 20px rgba(0, 240, 255, 0.15), inset 0 2px 8px rgba(0,0,0,0.8)',
+                    ? '0 0 30px rgba(239, 68, 68, 0.35), inset 0 2px 8px rgba(0,0,0,0.8)'
+                    : '0 0 25px rgba(0, 240, 255, 0.25), inset 0 2px 8px rgba(0,0,0,0.8)',
                   transition: 'all 0.25s ease'
                 }}
               />
@@ -423,7 +506,7 @@ export default function Gatekeeper({ onUnlock }: Props) {
             {errorMessage && (
               <div
                 style={{
-                  color: '#EF4444',
+                  color: '#FF6B6B',
                   fontSize: '12px',
                   marginBottom: '18px',
                   fontWeight: 600,
@@ -432,11 +515,12 @@ export default function Gatekeeper({ onUnlock }: Props) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.4)',
                   padding: '10px 14px',
-                  borderRadius: '10px',
-                  lineHeight: 1.4
+                  borderRadius: '12px',
+                  lineHeight: 1.4,
+                  boxShadow: '0 0 20px rgba(239, 68, 68, 0.2)'
                 }}
               >
                 <ShieldAlert size={16} style={{ flexShrink: 0 }} />
@@ -457,10 +541,11 @@ export default function Gatekeeper({ onUnlock }: Props) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  background: 'rgba(0, 255, 102, 0.12)',
-                  border: '1px solid rgba(0, 255, 102, 0.3)',
+                  background: 'rgba(0, 255, 102, 0.15)',
+                  border: '1px solid rgba(0, 255, 102, 0.5)',
                   padding: '10px 14px',
-                  borderRadius: '10px'
+                  borderRadius: '12px',
+                  boxShadow: '0 0 25px rgba(0, 255, 102, 0.3)'
                 }}
               >
                 <Sparkles size={16} />
@@ -468,8 +553,9 @@ export default function Gatekeeper({ onUnlock }: Props) {
               </div>
             )}
 
-            {/* Laser Border Execution Button */}
+            {/* Continuous Multi-Color Laser Border Execution Button */}
             <div
+              className={isCodeComplete && status !== 'granted' ? 'rainbow-laser-beam' : ''}
               style={{
                 position: 'relative',
                 borderRadius: '16px',
@@ -477,15 +563,13 @@ export default function Gatekeeper({ onUnlock }: Props) {
                 background: status === 'granted'
                   ? '#00FF66'
                   : isCodeComplete
-                  ? 'linear-gradient(90deg, #00F0FF, #7C3AED, #00F0FF)'
-                  : 'rgba(255, 255, 255, 0.08)',
-                backgroundSize: '200% 200%',
-                animation: isCodeComplete && status !== 'granted' ? 'laserRun 2.5s linear infinite' : 'none',
+                  ? 'linear-gradient(90deg, #00F0FF, #A855F7, #EC4899, #00FF66, #00F0FF)'
+                  : 'linear-gradient(90deg, rgba(0, 240, 255, 0.3), rgba(168, 85, 247, 0.3))',
                 boxShadow: status === 'granted'
-                  ? '0 0 35px rgba(0, 255, 102, 0.5)'
+                  ? '0 0 40px rgba(0, 255, 102, 0.6)'
                   : isCodeComplete
-                  ? '0 0 30px rgba(0, 240, 255, 0.35)'
-                  : 'none',
+                  ? '0 0 35px rgba(0, 240, 255, 0.45), 0 0 50px rgba(236, 72, 153, 0.3)'
+                  : '0 0 15px rgba(0, 240, 255, 0.15)',
                 transition: 'all 0.3s ease'
               }}
             >
@@ -500,13 +584,13 @@ export default function Gatekeeper({ onUnlock }: Props) {
                   background: status === 'granted'
                     ? '#00FF66'
                     : isCodeComplete
-                    ? 'linear-gradient(135deg, #070710 0%, #0d0d1a 100%)'
-                    : '#08080d',
+                    ? 'linear-gradient(135deg, rgba(7, 7, 20, 0.95) 0%, rgba(16, 12, 32, 0.95) 100%)'
+                    : 'rgba(8, 8, 18, 0.85)',
                   color: status === 'granted'
                     ? '#000000'
                     : isCodeComplete
                     ? '#00F0FF'
-                    : 'rgba(255, 255, 255, 0.3)',
+                    : 'rgba(255, 255, 255, 0.4)',
                   fontWeight: 800,
                   fontSize: '13.5px',
                   letterSpacing: '0.12em',
@@ -517,7 +601,8 @@ export default function Gatekeeper({ onUnlock }: Props) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '10px',
-                  fontFamily: "'JetBrains Mono', monospace"
+                  fontFamily: "'JetBrains Mono', monospace",
+                  textShadow: isCodeComplete && status !== 'granted' ? '0 0 10px rgba(0, 240, 255, 0.5)' : 'none'
                 }}
               >
                 {status === 'verifying' ? (
@@ -531,21 +616,27 @@ export default function Gatekeeper({ onUnlock }: Props) {
                     <span>[ PASE VÁLIDO // ACCEDIENDO ]</span>
                   </>
                 ) : (
-                  <span>[ INICIAR DESENCRIPTACIÓN ]</span>
+                  <>
+                    <KeyRound size={16} color={isCodeComplete ? '#00F0FF' : 'rgba(255, 255, 255, 0.4)'} />
+                    <span>[ INICIAR DESENCRIPTACIÓN ]</span>
+                  </>
                 )}
               </button>
             </div>
           </form>
 
-          {/* Footer watermark */}
+          {/* Footer Watermark */}
           <div
             style={{
               marginTop: '32px',
-              fontSize: '10.5px',
-              color: '#475569',
+              fontSize: '11px',
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
-              fontWeight: 500
+              fontWeight: 600,
+              background: 'linear-gradient(90deg, #00F0FF 0%, #A855F7 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              opacity: 0.85
             }}
           >
             LYAXIS labs™ · ARQUITECTURA DE SEGURIDAD VIP
