@@ -51,8 +51,9 @@ export interface ChatViewProps {
 }
 
 const MODEL_ICONS: Record<ModelType, (size: number, color?: string) => React.ReactNode> = {
-  speed: (s, c = '#2563FF') => <Sparkles size={s} color={c} />,
+  speed: (s, c = '#2563FF') => <Zap size={s} color={c} />,
   cortex: (s, c = '#7C3AED') => <Brain size={s} color={c} />,
+  zenith: (s, c = '#00D9FF') => <Sparkles size={s} color={c} />,
   architect: (s, c = '#10B981') => <Compass size={s} color={c} />,
   classic: (s, c = '#F59E0B') => <MessageCircle size={s} color={c} />,
   phantom: (s, c = '#EF4444') => <Crosshair size={s} color={c} />,
@@ -78,10 +79,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
   modelMeta = MODEL_META,
   onSelectModel,
 }) => {
-  const [currentActiveModel, setCurrentActiveModel] = useState<ModelType>(selectedModel);
+  const [currentActiveModel, setCurrentActiveModel] = useState<ModelType>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('lyaxis_active_model') || localStorage.getItem('lyaxis_selected_model');
+      if (saved && (ALL_MODELS as readonly string[]).includes(saved)) {
+        return saved as ModelType;
+      }
+    }
+    return selectedModel || 'speed';
+  });
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [showNexusSuggestion, setShowNexusSuggestion] = useState(false);
+  const [showZenithNotice, setShowZenithNotice] = useState(false);
 
   const [isNotebookOpen, setIsNotebookOpen] = useState(false);
   const [notebookContent, setNotebookContent] = useState('');
@@ -162,7 +171,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
 
   // Stream Hook with explicit onError handler
-  const { isStreaming, startStream, stopStreaming } = useSSEStream({
+  const { isStreaming, sendMessage, stopStreaming } = useSSEStream({
     onDone: () => {
       onConversationUpdated?.();
     },
@@ -200,8 +209,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
     onSelectModel?.(newModel);
     setSelectedModel?.(newModel);
 
-    if (newModel === 'nexus') {
-      setShowNexusSuggestion(false);
+    try {
+      localStorage.setItem('lyaxis_active_model', newModel);
+      localStorage.setItem('lyaxis_selected_model', newModel);
+    } catch {}
+
+    if (newModel === 'zenith') {
+      setShowZenithNotice(false);
     }
 
     if (currentChatId) {
@@ -222,32 +236,78 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   };
 
-  // Image Upload handler
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Pre-upload validation & lightweight canvas compression to prevent 413 / stream dropouts
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const allowedMimes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+      if (!allowedMimes.includes(file.type.toLowerCase())) {
+        reject(new Error('Formato no permitido. Selecciona una imagen PNG, JPEG o WebP.'));
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        reject(new Error('La imagen excede el límite de 5MB.'));
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const rawData = e.target?.result as string;
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 1920;
+          let w = img.width;
+          let h = img.height;
+
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, w, h);
+              resolve(canvas.toDataURL('image/jpeg', 0.85));
+              return;
+            }
+          }
+          resolve(rawData);
+        };
+        img.onerror = () => reject(new Error('Error al procesar la imagen seleccionada.'));
+        img.src = rawData;
+      };
+      reader.onerror = () => reject(new Error('Error al leer el archivo de imagen.'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Image Upload handler with Auto-switch to Zenith
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      alert('Por favor selecciona un archivo de imagen válido (PNG, JPG, WebP).');
-      return;
-    }
+    try {
+      const processedImage = await compressImage(file);
+      setSelectedImage(processedImage);
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('La imagen no debe superar los 5MB.');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setSelectedImage(result);
-      if (currentActiveModel !== 'nexus') {
-        setShowNexusSuggestion(true);
+      // Auto-switch to Zenith for vision analysis
+      if (currentActiveModel !== 'zenith') {
+        handleModelSwitch('zenith');
+        setShowZenithNotice(true);
+        setTimeout(() => setShowZenithNotice(false), 5000);
       }
       triggerSound();
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
+    } catch (err: any) {
+      alert(err.message || 'Error al validar la imagen.');
+    } finally {
+      e.target.value = '';
+    }
   };
 
   const handleSend = async (customText?: string) => {
@@ -259,7 +319,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const imgToSend = selectedImage;
     setInputValue('');
     setSelectedImage(null);
-    setShowNexusSuggestion(false);
+    setShowZenithNotice(false);
     setServerErrorBanner(null);
     setLastFailedUserText(userText);
     triggerSound();
@@ -297,7 +357,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const activeTemp = activeMeta.temperature ?? 0.3;
 
     // Stream with sound ticks if unmuted
-    await startStream(
+    await sendMessage(
       updatedMessages,
       currentActiveModel,
       targetChatId,
@@ -921,8 +981,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
           }}
           style={{ maxWidth: '960px', margin: '0 auto', width: '100%' }}
         >
-          {/* Automatic Nexus Suggestion Banner if user uploaded an image and isn't on Nexus */}
-          {showNexusSuggestion && selectedImage && currentActiveModel !== 'nexus' && (
+          {/* Notification: Auto-switch to Zenith */}
+          {showZenithNotice && (
             <div
               style={{
                 display: 'flex',
@@ -931,52 +991,33 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 padding: '8px 12px',
                 marginBottom: '8px',
                 borderRadius: '10px',
-                backgroundColor: 'rgba(236, 72, 153, 0.12)',
-                border: '1px solid rgba(236, 72, 153, 0.35)',
-                boxShadow: '0 0 15px rgba(236, 72, 153, 0.15)',
+                backgroundColor: 'rgba(0, 217, 255, 0.12)',
+                border: '1px solid rgba(0, 217, 255, 0.35)',
+                boxShadow: '0 0 15px rgba(0, 217, 255, 0.18)',
                 gap: '10px',
                 animation: 'fadeIn 0.25s ease-out',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                <Sparkles size={14} color="#EC4899" />
-                <span style={{ fontSize: '12px', color: '#fbcfe8', lineHeight: '1.4' }}>
-                  Has adjuntado una imagen. Se recomienda <strong>LYAXIS Nexus</strong> (visión multimodal LLaMA 3.2 11B Vision).
+                <Sparkles size={14} color="#00D9FF" />
+                <span style={{ fontSize: '12px', color: '#cffafe', lineHeight: '1.4' }}>
+                  🔷 <strong>Cambiado automáticamente a Zenith</strong> para análisis visual y de arquitectura.
                 </span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <button
-                  type="button"
-                  onClick={() => handleModelSwitch('nexus')}
-                  style={{
-                    backgroundColor: '#EC4899',
-                    border: 'none',
-                    borderRadius: '6px',
-                    color: '#ffffff',
-                    padding: '4px 10px',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    boxShadow: '0 0 10px rgba(236, 72, 153, 0.4)',
-                  }}
-                >
-                  Cambiar a Nexus
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowNexusSuggestion(false)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#f472b6',
-                    cursor: 'pointer',
-                    padding: '2px',
-                    display: 'flex',
-                  }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowZenithNotice(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#67e8f9',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                }}
+              >
+                <X size={14} />
+              </button>
             </div>
           )}
 
@@ -991,8 +1032,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 padding: '6px 10px',
                 borderRadius: '10px',
                 backgroundColor: 'rgba(15, 15, 22, 0.95)',
-                border: `1px solid ${currentActiveModel === 'nexus' ? '#EC4899' : 'rgba(255, 255, 255, 0.15)'}`,
-                boxShadow: '0 4px 18px rgba(0,0,0,0.7)',
+                border: '1px solid rgba(0, 217, 255, 0.4)',
+                boxShadow: '0 4px 18px rgba(0,0,0,0.7), 0 0 12px rgba(0, 217, 255, 0.15)',
                 animation: 'fadeIn 0.2s ease-out',
               }}
             >
@@ -1004,20 +1045,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   height: '42px',
                   objectFit: 'cover',
                   borderRadius: '6px',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(0, 217, 255, 0.3)',
                 }}
               />
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '11.5px', fontWeight: 700, color: currentActiveModel === 'nexus' ? '#f472b6' : '#ffffff' }}>
-                  Imagen lista {currentActiveModel === 'nexus' ? '(Nexus Multimodal)' : ''}
+                <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#00D9FF' }}>
+                  Imagen lista (Zenith Multimodal)
                 </span>
-                <span style={{ fontSize: '10px', color: '#71717a' }}>Base64 codificado</span>
+                <span style={{ fontSize: '10px', color: '#94a3b8' }}>Optimizada para visión</span>
               </div>
               <button
                 type="button"
                 onClick={() => {
                   setSelectedImage(null);
-                  setShowNexusSuggestion(false);
+                  setShowZenithNotice(false);
                 }}
                 title="Eliminar imagen"
                 style={{

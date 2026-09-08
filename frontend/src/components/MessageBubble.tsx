@@ -21,6 +21,12 @@ export const MODEL_ROLE_DETAILS: Record<ModelType, {
   badgeBg: string;
   badgeBorder: string;
 }> = {
+  zenith: {
+    roleTag: '// CEREBRO SUPERIOR · MULTIMODAL & ARQUITECTURA',
+    badgeText: 'APEX INTELLIGENCE',
+    badgeBg: 'rgba(0, 217, 255, 0.14)',
+    badgeBorder: 'rgba(0, 217, 255, 0.4)',
+  },
   speed: {
     roleTag: '// MOTOR DE RESPUESTAS ÁGILES · STREAMING INMEDIATO',
     badgeText: 'FAST ~14ms',
@@ -81,6 +87,7 @@ export const getModelIconNode = (model: ModelType, size = 16) => {
   switch (model) {
     case 'speed': return <Zap size={size} />;
     case 'cortex': return <Brain size={size} />;
+    case 'zenith': return <Sparkles size={size} color="#00D9FF" />;
     case 'architect': return <Compass size={size} />;
     case 'classic': return <MessageCircle size={size} />;
     case 'phantom': return <Crosshair size={size} />;
@@ -139,7 +146,7 @@ export function parseTriadContent(content: string): ParsedTriad {
 }
 
 const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   if (!thoughtText || !thoughtText.trim()) return null;
 
   return (
@@ -175,7 +182,7 @@ const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) =
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Brain size={14} color="#c084fc" />
-          RAZONAMIENTO ARQUITECTÓNICO
+          🧠 Razonamiento analítico (clic para ver)
         </span>
         {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
       </button>

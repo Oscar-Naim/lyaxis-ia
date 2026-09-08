@@ -25,6 +25,12 @@ const MODEL_PROMPTS: Record<ModelType, { icon: React.ReactNode; bg: string; bord
     { icon: <Network size={16} color="#7C3AED" />, bg: 'rgba(124, 58, 237, 0.12)', border: 'rgba(124, 58, 237, 0.25)', text: 'Diseña la arquitectura para un chat WebSocket distribuido' },
     { icon: <Sparkles size={16} color="#c084fc" />, bg: 'rgba(192, 132, 252, 0.12)', border: 'rgba(192, 132, 252, 0.25)', text: 'Demuestra formalmente por qué QuickSort es O(n log n)' },
   ],
+  zenith: [
+    { icon: <Sparkles size={16} color="#00D9FF" />, bg: 'rgba(0, 217, 255, 0.12)', border: 'rgba(0, 217, 255, 0.25)', text: 'Sube una captura de UI para convertirla a código React' },
+    { icon: <Network size={16} color="#00D9FF" />, bg: 'rgba(0, 217, 255, 0.12)', border: 'rgba(0, 217, 255, 0.25)', text: 'Diseña la arquitectura de microservicios para este proyecto' },
+    { icon: <Crosshair size={16} color="#00D9FF" />, bg: 'rgba(0, 217, 255, 0.12)', border: 'rgba(0, 217, 255, 0.25)', text: 'Audita y reconstruye este módulo con el protocolo Break + Rebuild' },
+    { icon: <Code2 size={16} color="#00D9FF" />, bg: 'rgba(0, 217, 255, 0.12)', border: 'rgba(0, 217, 255, 0.25)', text: 'Analiza este diagrama de flujo y genera los modelos TypeScript' },
+  ],
   architect: [
     { icon: <Compass size={16} color="#10B981" />, bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.25)', text: 'Diseña un System Prompt para un agente autónomo de soporte' },
     { icon: <Code2 size={16} color="#34d399" />, bg: 'rgba(52, 211, 153, 0.12)', border: 'rgba(52, 211, 153, 0.25)', text: 'Explica el patrón Observer con un ejemplo práctico en TypeScript' },
@@ -86,7 +92,7 @@ import { BootSplash } from './components/BootSplash';
 import { isSoundMuted, setSoundMuted, playCyberClick } from './sound';
 
 const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   if (!thoughtText || !thoughtText.trim()) return null;
 
   return (
@@ -98,7 +104,7 @@ const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) =
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
           <Cpu size={14} color="#c084fc" />
-          <span>Proceso de Razonamiento Profundo (Cortex)</span>
+          <span>🧠 Razonamiento analítico (clic para ver)</span>
         </div>
         {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
       </button>
@@ -162,16 +168,17 @@ export default function App() {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<ModelId>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('lyaxis_selected_model');
+      const saved = localStorage.getItem('lyaxis_active_model') || localStorage.getItem('lyaxis_selected_model');
       if (saved && (ALL_MODELS as readonly string[]).includes(saved)) {
         return saved as ModelId;
       }
     }
-    return 'classic';
+    return 'speed';
   });
 
   useEffect(() => {
     try {
+      localStorage.setItem('lyaxis_active_model', selectedModel);
       localStorage.setItem('lyaxis_selected_model', selectedModel);
     } catch (e) {}
   }, [selectedModel]);
@@ -748,8 +755,9 @@ export default function App() {
   const getModelColor = (modelKey: ModelType) => MODEL_META[modelKey]?.color || '#F59E0B';
 
   const MODEL_ICONS: Record<ModelType, (size: number) => React.ReactNode> = {
-    speed: (s) => <Sparkles size={s} color="#2563FF" />,
+    speed: (s) => <Zap size={s} color="#2563FF" />,
     cortex: (s) => <Brain size={s} color="#7C3AED" />,
+    zenith: (s) => <Sparkles size={s} color="#00D9FF" />,
     architect: (s) => <Compass size={s} color="#10B981" />,
     classic: (s) => <MessageCircle size={s} color="#F59E0B" />,
     phantom: (s) => <Crosshair size={s} color="#EF4444" />,

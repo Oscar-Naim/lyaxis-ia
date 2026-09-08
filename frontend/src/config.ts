@@ -9,9 +9,30 @@ export const APP_URL = "https://lyaxis-ia.vercel.app";
 
 import type { ModelType } from './types';
 
-export const ALL_MODELS: ModelType[] = ['speed', 'cortex', 'architect', 'classic', 'phantom', 'nexus', 'forge', 'magister', 'root'];
+export const ALL_MODELS: ModelType[] = ['speed', 'cortex', 'zenith'];
 
 export const MODEL_META: Record<ModelType, { label: string; tagline: string; color: string; description: string; temperature: number }> = {
+  speed: {
+    label: 'Speed',
+    tagline: 'Motor Principal / Diario',
+    color: '#2563FF',
+    description: 'Respuestas en milisegundos, streaming ultra-rápido, asistencia constante y código ágil sin fricción.',
+    temperature: 0.3
+  },
+  cortex: {
+    label: 'Cortex',
+    tagline: 'Razonamiento Profundo',
+    color: '#7C3AED',
+    description: 'Análisis lógico paso a paso (Chain of Thought), matemáticas, algoritmos complejos y depuración estructurada.',
+    temperature: 0.2
+  },
+  zenith: {
+    label: 'Zenith',
+    tagline: 'Tope de Gama / Máxima Inteligencia',
+    color: '#00D9FF',
+    description: 'El cerebro superior del laboratorio. Capacidades multimodales completas (de imagen/UI a código ejecutable), diseño de sistemas y síntesis técnica avanzada.',
+    temperature: 0.4
+  },
   classic: {
     label: 'Classic',
     tagline: 'Chat General y Cotidiano',
@@ -23,65 +44,52 @@ export const MODEL_META: Record<ModelType, { label: string; tagline: string; col
     label: 'Magister',
     tagline: 'Planeaciones y Docencia SEP',
     color: '#06B6D4',
-    description: 'Copiloto pedagógico senior y arquitecto de planeaciones docente SEP para todos los niveles.',
+    description: 'Copiloto pedagógico senior y arquitecto didáctico.',
     temperature: 0.4
-  },
-  cortex: {
-    label: 'Cortex',
-    tagline: 'Matemáticas y Razonamiento',
-    color: '#7C3AED',
-    description: 'Motor de razonamiento profundo y arquitectura matemática de máxima precisión con DeepSeek R1.',
-    temperature: 0.2
-  },
-  speed: {
-    label: 'Speed',
-    tagline: 'Respuestas Ágiles y Tareas',
-    color: '#2563FF',
-    description: 'Asistente de desarrollo ágil y streaming ultrarrápido sin cortesías innecesarias de LYAXIS labs.',
-    temperature: 0.3
   },
   phantom: {
     label: 'Phantom',
     tagline: 'Auditoría y Detección de Errores',
     color: '#EF4444',
-    description: 'El deconstructor y auditor implacable con Meta LLaMA 3.3 70B. Encuentra fallas, bugs y puntos de fracaso.',
+    description: 'El deconstructor y auditor implacable. Encuentra fallas, bugs y puntos de fracaso.',
     temperature: 0.3
   },
   architect: {
     label: 'Architect',
     tagline: 'Estructura y Mentoría Técnica',
     color: '#10B981',
-    description: 'Módulo de arquitectura de prompts y mentoría técnica con Meta LLaMA 3.3 70B.',
+    description: 'Módulo de arquitectura de prompts y mentoría técnica.',
     temperature: 0.3
   },
   forge: {
     label: 'Forge',
     tagline: 'Constructor de Proyectos y Negocio',
     color: '#F97316',
-    description: 'Constructor práctico con LLaMA 3.1 Nemotron 70B. Convierte ideas vagas en proyectos reales y concretos.',
+    description: 'Constructor práctico. Convierte ideas vagas en proyectos reales y concretos.',
     temperature: 0.6
   },
   nexus: {
     label: 'Nexus',
     tagline: 'Creatividad y Análisis Visual',
     color: '#EC4899',
-    description: 'Sintetizador creativo transversal y visión multimodal (análisis de imágenes con LLaMA 3.2 11B Vision).',
+    description: 'Sintetizador creativo transversal y visión multimodal.',
     temperature: 0.6
   },
   root: {
     label: 'Root',
-    tagline: 'Modo Técnico Especializado',
+    tagline: 'Kernel de Gobernanza',
     color: '#00FF66',
-    description: 'Ejecución técnica total: interfaces completas (UI/UX), full-stack, bajo nivel y código sin filtros.',
+    description: 'Orquestación técnica, sesiones, seguridad y enrutamiento seguro.',
     temperature: 0.2
   },
 };
 
 export const MODEL_TEMPERATURES: Record<ModelType, number> = {
+  speed: 0.3,
   cortex: 0.2,
+  zenith: 0.4,
   root: 0.2,
   phantom: 0.3,
-  speed: 0.3,
   architect: 0.3,
   magister: 0.4,
   classic: 0.4,
@@ -101,6 +109,12 @@ export const MODEL_QUICK_ACTIONS: Record<ModelType, string[]> = {
     "Resuelve el problema de la mochila (Knapsack) con DP",
     "Diseña la arquitectura para un chat WebSocket distribuido",
     "Demuestra formalmente por qué QuickSort es O(n log n)"
+  ],
+  zenith: [
+    "Sube una captura de UI para convertirla a código React",
+    "Diseña la arquitectura de microservicios para este proyecto",
+    "Audita y reconstruye este módulo con el protocolo Break + Rebuild",
+    "Analiza este diagrama de flujo y genera los modelos TypeScript"
   ],
   phantom: [
     "Audita este login contra inyecciones SQL y XSS",

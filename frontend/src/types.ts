@@ -6,7 +6,7 @@ export interface User {
   picture: string;
 }
 
-export type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'root';
+export type ModelType = 'speed' | 'cortex' | 'zenith' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'root';
 export type ModelId = ModelType;
 
 export interface Message {

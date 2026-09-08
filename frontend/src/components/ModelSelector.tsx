@@ -18,7 +18,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const meta = MODEL_META[currentModel] || MODEL_META.classic;
+  const meta = MODEL_META[currentModel] || MODEL_META.speed;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -115,7 +115,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             Seleccionar Motor LYAXIS
           </div>
           {ALL_MODELS.map((m) => {
-            const itemMeta = MODEL_META[m] || MODEL_META.classic;
+    const itemMeta = MODEL_META[m] || MODEL_META.speed;
             const isSelected = currentModel === m;
             return (
               <button

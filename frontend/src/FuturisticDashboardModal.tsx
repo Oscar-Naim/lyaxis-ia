@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { X, Activity, Cpu, ShieldCheck, Zap, Radio, BarChart3, Sliders, RefreshCw, CheckCircle2 } from 'lucide-react';
 
+import type { ModelType } from './types';
+
 interface FuturisticDashboardModalProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedModel: 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'root';
-  onSelectModel: (m: 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'root') => void;
+  selectedModel: ModelType;
+  onSelectModel: (m: ModelType) => void;
   soundEnabled: boolean;
   onToggleSound: () => void;
   messageCount: number;
@@ -38,16 +40,17 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
 
   if (!isOpen) return null;
 
-  const modelMetrics = {
+  const modelMetrics: Record<ModelType, { name: string; latency: string; tps: string; focus: string; color: string }> = {
     speed: { name: 'LYAXIS Speed', latency: '~12ms', tps: '160 t/s', focus: 'Desarrollo Ágil & Streaming Ultrarrápido', color: '#2563FF' },
-    cortex: { name: 'LYAXIS Cortex Pro', latency: '~22ms', tps: '115 t/s', focus: 'Razonamiento Profundo & Arquitectura', color: '#7C3AED' },
+    cortex: { name: 'LYAXIS Cortex', latency: '~22ms', tps: '115 t/s', focus: 'Razonamiento Profundo & Lógica Matemática', color: '#7C3AED' },
+    zenith: { name: 'LYAXIS Zenith', latency: '~16ms', tps: '145 t/s', focus: 'Tope de Gama, Visión Multimodal & Arquitectura', color: '#00D9FF' },
     architect: { name: 'LYAXIS Architect', latency: '~18ms', tps: '130 t/s', focus: 'Meta-Prompts & Mentoría Técnica', color: '#10B981' },
     classic: { name: 'LYAXIS Classic', latency: '~14ms', tps: '150 t/s', focus: 'Conversación Versátil & Cotidiana', color: '#F59E0B' },
-    phantom: { name: 'LYAXIS Phantom', latency: '~20ms', tps: '110 t/s', focus: 'Auditor Implacable & Deconstructor', color: '#EF4444' },
-    nexus: { name: 'LYAXIS Nexus', latency: '~19ms', tps: '125 t/s', focus: 'Síntesis Creativa Multidominio', color: '#EC4899' },
+    phantom: { name: 'LYAXIS Phantom', latency: '~20ms', tps: '110 t/s', focus: 'Auditor Implacable & Break + Rebuild', color: '#EF4444' },
+    nexus: { name: 'LYAXIS Nexus', latency: '~19ms', tps: '125 t/s', focus: 'Síntesis Creativa & Visión', color: '#EC4899' },
     forge: { name: 'LYAXIS Forge', latency: '~15ms', tps: '145 t/s', focus: 'Constructor de MVPs & Estructuración', color: '#F97316' },
     magister: { name: 'LYAXIS Magister', latency: '~21ms', tps: '115 t/s', focus: 'Planeación Docente SEP/NEM & Rúbricas', color: '#06B6D4' },
-    root: { name: 'LYAXIS Root Raw', latency: '~13ms', tps: '150 t/s', focus: 'Bajo Nivel, Pentesting & Código Raw', color: '#00FF66' },
+    root: { name: 'LYAXIS Root Raw', latency: '~13ms', tps: '150 t/s', focus: 'Kernel de Gobernanza & Código Raw', color: '#00FF66' },
   };
 
   return (

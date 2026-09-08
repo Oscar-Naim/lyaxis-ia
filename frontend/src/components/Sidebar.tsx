@@ -18,6 +18,7 @@ import {
   Hammer,
   GraduationCap,
   BookOpen,
+  Zap,
 } from 'lucide-react';
 import type { Conversation, User, ModelType } from '../types';
 import { MODEL_META } from '../config';
@@ -46,8 +47,9 @@ export interface SidebarProps {
 }
 
 const MODEL_ICONS: Record<ModelType, (size: number, color?: string) => React.ReactNode> = {
-  speed: (s, c = '#2563FF') => <Sparkles size={s} color={c} />,
+  speed: (s, c = '#2563FF') => <Zap size={s} color={c} />,
   cortex: (s, c = '#7C3AED') => <Brain size={s} color={c} />,
+  zenith: (s, c = '#00D9FF') => <Sparkles size={s} color={c} />,
   architect: (s, c = '#10B981') => <Compass size={s} color={c} />,
   classic: (s, c = '#F59E0B') => <MessageCircle size={s} color={c} />,
   phantom: (s, c = '#EF4444') => <Crosshair size={s} color={c} />,
@@ -515,7 +517,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       {chat.title}
                     </span>
                     <span style={{ fontSize: '12px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
-                      {MODEL_META[chat.model]?.label || 'Classic'} • {MODEL_META[chat.model]?.tagline || ''}
+                      {MODEL_META[chat.model]?.label || 'Speed'} • {MODEL_META[chat.model]?.tagline || ''}
                     </span>
                   </div>
                 </div>
