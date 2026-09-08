@@ -403,8 +403,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         className="lyaxis-triad-card"
         style={{
           backgroundColor: '#000000',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderTop: `2px solid ${color}`,
+          borderWidth: '2px 1px 1px 1px',
+          borderStyle: 'solid',
+          borderColor: `${color} rgba(255, 255, 255, 0.08) rgba(255, 255, 255, 0.08) rgba(255, 255, 255, 0.08)`,
           borderRadius: '14px',
           padding: isMobile ? '13px' : '15px 17px',
           boxShadow: `0 8px 30px rgba(0, 0, 0, 0.95), 0 0 20px ${accentGlow}`,

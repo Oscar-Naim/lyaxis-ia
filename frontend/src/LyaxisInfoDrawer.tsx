@@ -172,8 +172,8 @@ export const LyaxisInfoDrawer: React.FC<LyaxisInfoDrawerProps> = ({
                   "Las ideas no tienen que quedarse como ideas. Crear desde el caos."
                 </p>
                 <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#71717a' }}>
-                  <span>Fundador: <strong style={{ color: '#ffffff' }}>Oscar Naim Ambrocio Aguirre</strong></span>
-                  <span>Beta 1.0: <strong style={{ color: '#00D9FF' }}>17 Octubre 2026</strong></span>
+                  <span>Fundador: <strong style={{ color: '#ffffff' }}>Oscar Naim Ambrocio Aguirre (17 años, CDMX)</strong></span>
+                  <span>Beta Privada VIP: <strong style={{ color: '#00D9FF' }}>17 Octubre 2026</strong></span>
                 </div>
               </div>
 
@@ -257,18 +257,20 @@ export const LyaxisInfoDrawer: React.FC<LyaxisInfoDrawerProps> = ({
               <span style={{ fontSize: '12px', color: '#a1a1aa', fontWeight: 600 }}>PROYECTOS Y MÓDULOS DE LYAXIS LABS™</span>
 
               {[
-                { name: 'LYAXIS labs™', type: 'Casa Matriz', desc: 'Núcleo de dirección, filosofía, investigación y gobernanza técnica.', icon: <Sparkles size={16} color="#00D9FF" />, tag: 'Core' },
-                { name: 'LYAXIS IA', type: 'Producto Insignia', desc: 'Plataforma conversacional multi-motor de alta velocidad y streaming en tiempo real sin relleno.', icon: <Cpu size={16} color="#7C3AED" />, tag: 'Live v2.5' },
-                { name: 'LYAXIS Root', type: 'Motor Técnico Raw', desc: 'Ejecución técnica total sin restricciones: interfaces completas UI/UX, full-stack, bajo nivel y código de producción.', icon: <Terminal size={16} color="#00FF66" />, tag: 'Cyber Engine' },
-                { name: 'LYAXIS Magister', type: 'Motor Pedagógico', desc: 'Copiloto docente especializado en planeaciones SEP, proyectos NEM y rúbricas para todos los niveles.', icon: <GraduationCap size={16} color="#06B6D4" />, tag: 'Docentes' },
-                { name: 'LYAXIS OS', type: 'Sistemas e Interfaces', desc: 'Investigación en entornos deterministas, soberanía digital y permisos granulares.', icon: <Terminal size={16} color="#10B981" />, tag: 'R&D' },
-                { name: 'Chaos Fuzzer', type: 'Pruebas de Estrés', desc: 'Simulador para detectar vulnerabilidades, memory leaks y puntos de quiebre en código.', icon: <Zap size={16} color="#EF4444" />, tag: 'Lab Tool' },
+                { name: 'LYAXIS labs™', type: 'Casa Matriz', desc: 'Núcleo de dirección, filosofía, investigación y gobernanza técnica.', icon: <Sparkles size={16} color="#00D9FF" />, tag: 'Core', isCancelled: false },
+                { name: 'LYAXIS IA', type: 'Producto Insignia', desc: 'Plataforma multi-núcleo (9 núcleos) de alta velocidad y streaming en tiempo real sin relleno.', icon: <Cpu size={16} color="#7C3AED" />, tag: 'Live v2.5', isCancelled: false },
+                { name: 'LYAXIS TRIAD™', type: 'Inferencia Concurrente', desc: 'Inferencia paralela triple simultánea (Speed, Cortex, Architect) con renderizado side-by-side a ~14ms.', icon: <Zap size={16} color="#FF007F" />, tag: 'Triad Engine', isCancelled: false },
+                { name: 'LYAXIS Root', type: 'Motor Técnico Raw', desc: 'Ejecución técnica total sin restricciones: interfaces completas UI/UX, full-stack, bajo nivel y código de producción.', icon: <Terminal size={16} color="#00FF66" />, tag: 'Cyber Engine', isCancelled: false },
+                { name: 'LYAXIS Magister', type: 'Motor Pedagógico', desc: 'Copiloto docente especializado en planeaciones SEP, proyectos NEM y rúbricas para todos los niveles.', icon: <GraduationCap size={16} color="#06B6D4" />, tag: 'Docentes', isCancelled: false },
+                { name: 'LYAXIS OS', type: 'Sistemas e Interfaces', desc: 'Investigación en entornos deterministas, soberanía digital y permisos granulares.', icon: <Terminal size={16} color="#10B981" />, tag: 'R&D', isCancelled: false },
+                { name: 'Chaos Fuzzer', type: 'Pruebas de Estrés', desc: 'Simulador para detectar vulnerabilidades, memory leaks y puntos de quiebre en código.', icon: <Zap size={16} color="#EF4444" />, tag: 'Lab Tool', isCancelled: false },
+                { name: 'LYAXIS Voice™', type: 'Audio & Multimodal 3D', desc: 'Plataforma de voz neural independiente cancelada y archivada (Octubre 2026). Capacidad reasignada a la Fase 3 de LYAXIS IA.', icon: <AlertCircle size={16} color="#EF4444" />, tag: 'CANCELADO', isCancelled: true },
               ].map((proj, idx) => (
                 <div
                   key={idx}
                   style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    backgroundColor: proj.isCancelled ? 'rgba(239, 68, 68, 0.03)' : 'rgba(255, 255, 255, 0.02)',
+                    border: proj.isCancelled ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(255, 255, 255, 0.08)',
                     borderRadius: '12px',
                     padding: '16px',
                     display: 'flex',
@@ -279,10 +281,18 @@ export const LyaxisInfoDrawer: React.FC<LyaxisInfoDrawerProps> = ({
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       {proj.icon}
-                      <span style={{ fontSize: '14px', fontWeight: 700, color: '#ffffff' }}>{proj.name}</span>
+                      <span style={{ fontSize: '14px', fontWeight: 700, color: proj.isCancelled ? '#f87171' : '#ffffff', textDecoration: proj.isCancelled ? 'line-through' : 'none' }}>{proj.name}</span>
                       <span style={{ fontSize: '11px', color: '#71717a' }}>• {proj.type}</span>
                     </div>
-                    <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', backgroundColor: 'rgba(0, 217, 255, 0.1)', color: '#00D9FF', border: '1px solid rgba(0, 217, 255, 0.3)' }}>
+                    <span style={{ 
+                      fontSize: '10px', 
+                      padding: '2px 8px', 
+                      borderRadius: '10px', 
+                      backgroundColor: proj.isCancelled ? 'rgba(239, 68, 68, 0.15)' : 'rgba(0, 217, 255, 0.1)', 
+                      color: proj.isCancelled ? '#EF4444' : '#00D9FF', 
+                      border: proj.isCancelled ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(0, 217, 255, 0.3)',
+                      fontWeight: 700
+                    }}>
                       {proj.tag}
                     </span>
                   </div>
