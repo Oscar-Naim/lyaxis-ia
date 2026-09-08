@@ -1318,3 +1318,101 @@ code.hljs,
 .lyaxis-code-pre::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 217, 255, 0.4);
 }
+
+/* ==========================================================================
+   LYAXIS LABS™ // LABORATORIO EXPERIMENTAL STYLES & CYBER ANIMATIONS
+   ========================================================================== */
+
+@keyframes labModalEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(12px);
+    filter: blur(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0px);
+  }
+}
+
+@keyframes labGlowPulse {
+  0%, 100% {
+    box-shadow: 0 0 25px rgba(0, 217, 255, 0.15), 0 20px 60px rgba(0, 0, 0, 0.95);
+    border-color: rgba(0, 217, 255, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 45px rgba(0, 217, 255, 0.3), 0 0 90px rgba(124, 58, 237, 0.2), 0 20px 60px rgba(0, 0, 0, 0.95);
+    border-color: rgba(0, 217, 255, 0.6);
+  }
+}
+
+@keyframes labScanlineMove {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(1000%); }
+}
+
+@keyframes labBadgePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+@keyframes labRadarSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.lyaxis-lab-modal {
+  animation: labModalEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.lyaxis-lab-glow {
+  animation: labGlowPulse 4s infinite ease-in-out;
+}
+
+.lyaxis-lab-badge-live {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #00D9FF;
+  box-shadow: 0 0 8px #00D9FF;
+  animation: labBadgePulse 1.8s infinite ease-in-out;
+}
+
+.lyaxis-lab-station-btn {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lyaxis-lab-station-btn:hover {
+  background-color: rgba(0, 217, 255, 0.08) !important;
+  border-color: rgba(0, 217, 255, 0.3) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+}
+
+.lyaxis-lab-card {
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lyaxis-lab-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 217, 255, 0.4) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 217, 255, 0.12);
+}
+
+/* Custom scrollbar for lab terminal & playground */
+.lyaxis-lab-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.lyaxis-lab-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+.lyaxis-lab-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+.lyaxis-lab-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 217, 255, 0.45);
+}

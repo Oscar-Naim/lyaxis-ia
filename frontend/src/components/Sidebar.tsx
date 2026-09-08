@@ -17,6 +17,7 @@ import {
   Waypoints,
   Hammer,
   GraduationCap,
+  FlaskConical,
 } from 'lucide-react';
 import type { Conversation, User, ModelType } from '../types';
 import { MODEL_META } from '../config';
@@ -182,21 +183,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               type="button"
               onClick={onOpenManifesto}
-              title="Manifiesto, Filosofía y Legales de LYAXIS labs™"
+              title="Laboratorio Experimental de LYAXIS labs™"
               style={{
-                background: 'none',
-                border: 'none',
-                color: '#71717a',
+                background: 'rgba(0, 217, 255, 0.08)',
+                border: '1px solid rgba(0, 217, 255, 0.25)',
+                color: '#00D9FF',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                minWidth: '40px',
-                minHeight: '40px',
+                minWidth: '38px',
+                minHeight: '38px',
                 borderRadius: '8px',
+                boxShadow: '0 0 10px rgba(0, 217, 255, 0.15)',
+                transition: 'all 0.2s ease',
               }}
             >
-              <Home size={18} />
+              <FlaskConical size={17} />
             </button>
           )}
           <button
@@ -373,7 +376,65 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       )}
 
-      {/* 2. Acceso Directo al Cuaderno / Mis Notas */}
+      {/* 2. Acceso Directo al Laboratorio Experimental */}
+      {onOpenManifesto && (
+        <button
+          type="button"
+          onClick={() => {
+            onOpenManifesto();
+            if (isMobile) onClose();
+          }}
+          title="Abrir Laboratorio Experimental (Playground, Chaos Fuzzer, Benchmarks)"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            minHeight: '44px',
+            padding: '10px 14px',
+            backgroundColor: 'rgba(0, 217, 255, 0.07)',
+            border: '1px solid rgba(0, 217, 255, 0.3)',
+            borderRadius: '10px',
+            color: '#ffffff',
+            fontSize: '13.5px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            marginBottom: '8px',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 0 14px rgba(0, 217, 255, 0.1)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.15)';
+            e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.55)';
+            e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 217, 255, 0.25)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.07)';
+            e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.3)';
+            e.currentTarget.style.boxShadow = '0 0 14px rgba(0, 217, 255, 0.1)';
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+            <FlaskConical size={16} color="#00D9FF" />
+            <span>Laboratorio LYAXIS</span>
+          </div>
+          <span
+            style={{
+              fontSize: '9.5px',
+              padding: '2px 6px',
+              borderRadius: '5px',
+              backgroundColor: 'rgba(0, 217, 255, 0.18)',
+              color: '#00D9FF',
+              fontWeight: 800,
+              fontFamily: 'monospace',
+            }}
+          >
+            EXPERIMENTAL
+          </span>
+        </button>
+      )}
+
+      {/* 3. Acceso Directo al Cuaderno / Mis Notas */}
       {onOpenNotebook && (
         <button
           type="button"

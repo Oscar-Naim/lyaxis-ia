@@ -5,7 +5,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette, PanelLeft, PanelLeftClose, Hammer, GraduationCap, FileDown, Presentation, AlertTriangle, RefreshCw, Paperclip } from 'lucide-react';
+import { Send, Square, Sparkles, Brain, Compass, Plus, Trash2, Terminal, Home, Volume2, VolumeX, ChevronDown, ChevronRight, Cpu, LogOut, LogIn, Menu, X, Copy, Check, Zap, Code2, BookOpen, Lightbulb, Activity, MessageCircle, Crosshair, Waypoints, Flame, Network, Shield, Palette, PanelLeft, PanelLeftClose, Hammer, GraduationCap, FileDown, Presentation, AlertTriangle, RefreshCw, Paperclip, FlaskConical } from 'lucide-react';
 import { exportChatToPDF } from './pdfExporter';
 import { InstallPwaPrompt } from './InstallPwaPrompt';
 import { SlideDeckViewer } from './SlideDeckViewer';
@@ -118,9 +118,9 @@ export default function App() {
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window === 'undefined' ? true : window.innerWidth >= 768);
   const [isInfoDrawerOpen, setIsInfoDrawerOpen] = useState(false);
-  const [infoDrawerTab, setInfoDrawerTab] = useState<'manifesto' | 'ecosystem' | 'security' | 'terms'>('manifesto');
+  const [infoDrawerTab, setInfoDrawerTab] = useState<string>('playground');
 
-  const openInfoDrawer = (tab: 'manifesto' | 'ecosystem' | 'security' | 'terms' = 'manifesto') => {
+  const openInfoDrawer = (tab: string = 'playground') => {
     setInfoDrawerTab(tab);
     setIsInfoDrawerOpen(true);
     if (soundEnabled) playCyberClick();
@@ -848,8 +848,8 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <button
                 type="button"
-                onClick={() => openInfoDrawer('manifesto')}
-                title="Casa Matriz: Manifiesto, Filosofía y Ecosistema LYAXIS labs™"
+                onClick={() => openInfoDrawer('playground')}
+                title="Laboratorio Experimental LYAXIS labs™"
                 style={{
                   background: 'rgba(0, 217, 255, 0.1)',
                   border: '1px solid rgba(0, 217, 255, 0.35)',
@@ -865,7 +865,7 @@ export default function App() {
                   transition: 'all 0.2s ease',
                 }}
               >
-                <Home size={18} />
+                <FlaskConical size={18} />
               </button>
               <button
                 type="button"
@@ -1430,35 +1430,36 @@ export default function App() {
                   <span>{isMobile ? 'Entrar' : 'Acceder'}</span>
                 </button>
               )}
-              {/* LYAXIS Info / Home Button ("La casa donde hay inf de LYAXIS") */}
+              {/* LYAXIS Laboratorio Experimental Button */}
               <button
                 type="button"
                 onClick={() => {
                   if (soundEnabled) playCyberClick();
-                  openInfoDrawer('manifesto');
+                  openInfoDrawer('playground');
                 }}
-                title="Casa Matriz: Manifiesto, Filosofía y Ecosistema LYAXIS labs™"
+                title="Laboratorio Experimental: Playground, Chaos Fuzzer, Benchmarks y Manifiesto de LYAXIS labs™"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '6px',
-                  backgroundColor: 'rgba(0, 217, 255, 0.08)',
-                  border: '1px solid rgba(0, 217, 255, 0.25)',
+                  backgroundColor: 'rgba(0, 217, 255, 0.09)',
+                  border: '1px solid rgba(0, 217, 255, 0.35)',
                   color: '#00D9FF',
-                  padding: isMobile ? '8px 12px' : '6px 12px',
+                  padding: isMobile ? '8px 12px' : '6px 14px',
                   minHeight: isMobile ? '44px' : 'auto',
                   minWidth: isMobile ? '44px' : 'auto',
                   borderRadius: '8px',
                   fontSize: isMobile ? '13px' : '12px',
-                  fontWeight: 600,
+                  fontWeight: 700,
                   cursor: 'pointer',
-                  boxShadow: '0 0 12px rgba(0, 217, 255, 0.12)',
+                  boxShadow: '0 0 16px rgba(0, 217, 255, 0.2)',
                   transition: 'all 0.2s ease',
                 }}
               >
-                <Home size={15} color="#00D9FF" />
-                {!isMobile && <span>LYAXIS labs™</span>}
+                <FlaskConical size={15} color="#00D9FF" />
+                <span className="lyaxis-lab-badge-live" style={{ width: '6px', height: '6px' }} />
+                <span>{isMobile ? 'Lab' : 'Laboratorio'}</span>
               </button>
 
               <button
@@ -2221,7 +2222,13 @@ export default function App() {
         <LyaxisInfoDrawer
           isOpen={isInfoDrawerOpen}
           onClose={() => setIsInfoDrawerOpen(false)}
-          initialTab={infoDrawerTab}
+          initialTab={infoDrawerTab as any}
+          activeModel={selectedModel}
+          onSelectModel={handleSelectModel}
+          onSendToChat={(text) => {
+            setInput(text);
+            if (isMobile) setIsSidebarOpen(false);
+          }}
         />
 
         <NotebookStudio

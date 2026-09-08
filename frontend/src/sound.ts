@@ -54,3 +54,47 @@ export const playCyberClick = () => {
     // Ignore audio context errors gracefully
   }
 };
+
+export const playCyberBeep = (freq = 880, duration = 0.04) => {
+  if (isSoundMuted()) return;
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!audioCtx && AudioCtx) {
+      audioCtx = new AudioCtx();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    if (!audioCtx) return;
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const now = audioCtx.currentTime;
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.exponentialRampToValueAtTime(freq * 1.5, now + duration);
+
+    gain.gain.setValueAtTime(0.02, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start(now);
+    osc.stop(now + duration);
+  } catch {
+    // Ignore audio context errors gracefully
+  }
+};
+
+export const playCyberSuccess = () => {
+  if (isSoundMuted()) return;
+  try {
+    playCyberBeep(520, 0.05);
+    setTimeout(() => playCyberBeep(780, 0.07), 60);
+    setTimeout(() => playCyberBeep(1040, 0.09), 120);
+  } catch {
+    // Ignore
+  }
+};
