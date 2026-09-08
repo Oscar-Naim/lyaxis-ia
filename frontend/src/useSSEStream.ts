@@ -77,7 +77,7 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
           .filter((m) => m && ((m.content && String(m.content).trim()) || m.image) && !String(m.content || '').startsWith('⚠️') && !String(m.content || '').startsWith('❌'))
           .map((m) => ({
             id: m.id || undefined,
-            role: (m.role === 'model' || m.role === 'assistant') ? 'model' : 'user',
+            role: (m.role === 'model' || (m.role as string) === 'assistant') ? 'model' : 'user',
             content: String(m.content || '').trim(),
             image: m.image || undefined,
           }));

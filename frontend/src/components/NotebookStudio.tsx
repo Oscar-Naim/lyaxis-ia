@@ -301,11 +301,11 @@ export const NotebookStudio: React.FC<NotebookStudioProps> = ({
         .slice(0, 40);
 
       const opt = {
-        margin: [12, 14, 12, 14],
+        margin: [12, 14, 12, 14] as [number, number, number, number],
         filename: `${safeTitle}_cuaderno_lyaxis.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
+        image: { type: 'jpeg' as const, quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
       };
 
       await html2pdf().set(opt).from(element).save();

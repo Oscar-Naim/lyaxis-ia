@@ -45,7 +45,7 @@ export interface ChatViewProps {
   playCyberClick?: () => void;
   onConversationUpdated?: () => void;
   onExportPDF?: (title: string, label: string, color: string, msgs: Message[]) => void;
-  modelMeta?: Record<ModelType, { label: string; color: string; description: string; temperature: number }>;
+  modelMeta?: Record<ModelType, { label: string; tagline?: string; color: string; description: string; temperature: number }>;
   modelPrompts?: Record<ModelType, { icon: React.ReactNode; bg: string; border: string; text: string }[]>;
   onSelectModel?: (model: ModelType) => void;
 }

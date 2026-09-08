@@ -18,6 +18,7 @@ import {
   Hammer,
   GraduationCap,
   FlaskConical,
+  BookOpen,
 } from 'lucide-react';
 import type { Conversation, User, ModelType } from '../types';
 import { MODEL_META } from '../config';
@@ -644,7 +645,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
     </aside>
-  );
+  </>
+);
 };
 
 export default Sidebar;

@@ -2224,9 +2224,12 @@ export default function App() {
           onClose={() => setIsInfoDrawerOpen(false)}
           initialTab={infoDrawerTab as any}
           activeModel={selectedModel}
-          onSelectModel={handleSelectModel}
+          onSelectModel={(m) => {
+            switchModel(m);
+            if (soundEnabled) playCyberClick();
+          }}
           onSendToChat={(text) => {
-            setInput(text);
+            setInputValue(text);
             if (isMobile) setIsSidebarOpen(false);
           }}
         />

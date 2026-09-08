@@ -220,11 +220,11 @@ export const exportChatToPDF = async (
   container.innerHTML = htmlContent;
 
   const opt = {
-    margin: [15, 15, 15, 15],
+    margin: [15, 15, 15, 15] as [number, number, number, number],
     filename: `LYAXIS_${modelLabel.replace(/\s+/g, '_')}_${Date.now()}.pdf`,
-    image: { type: 'jpeg', quality: 0.98 },
+    image: { type: 'jpeg' as const, quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, logging: false },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
     pagebreak: {
       mode: ['avoid-all', 'css', 'legacy'],
       avoid: ['tr', '.pdf-avoid-break', 'p', 'pre', 'h1', 'h2', 'h3', 'li', 'blockquote']
@@ -365,9 +365,9 @@ export const exportSlidesToPDF = async (
   const opt = {
     margin: 0,
     filename: `LYAXIS_Canvas_${title.replace(/\s+/g, '_')}_${Date.now()}.pdf`,
-    image: { type: 'jpeg', quality: 0.98 },
+    image: { type: 'jpeg' as const, quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#07070e' },
-    jsPDF: { unit: 'mm', format: [297, 167.06], orientation: 'landscape' }
+    jsPDF: { unit: 'mm', format: [297, 167.06] as [number, number], orientation: 'landscape' as const }
   };
 
   try {
