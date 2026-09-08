@@ -64,7 +64,7 @@ El sistema está construido para ser escalable, rápido y seguro:
   - No hay botón de "Guardar chat". Si cierras la ventana y vuelves a entrar, tu conversación seguirá ahí.
 - **Motor de Streaming (SSE):** Las respuestas de la IA se transmiten palabra por palabra (Server-Sent Events) directo al cliente, evitando largos tiempos de espera.
 - **Despliegue Continuo (CI/CD):** 
-  - *Frontend:* React + Vite + TypeScript alojado en **Vercel**.
+  - *Frontend:* React + Vite + TypeScript alojado en **Vercel** ([https://lyaxis-ia.vercel.app/](https://lyaxis-ia.vercel.app/)).
   - *Backend:* Python + FastAPI alojado en **Render**, con enrutamiento dinámico y protección CORS.
 - **Actualización Dinámica de Modelos:** El servidor implementa la arquitectura **LYAXIS Neural Engine**, optimizada para streaming asíncrono con latencias menores a 0.5s y cascada automática de redundancia entre modelos de alta velocidad.
 

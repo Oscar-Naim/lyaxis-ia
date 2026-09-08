@@ -1,5 +1,5 @@
-// LYAXIS IA - Progressive Web App Service Worker (v3)
-const CACHE_NAME = 'lyaxis-ia-v3';
+// LYAXIS IA - Progressive Web App Service Worker (v4)
+const CACHE_NAME = 'lyaxis-ia-v4';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

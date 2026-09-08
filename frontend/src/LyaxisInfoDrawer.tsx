@@ -367,9 +367,19 @@ export const LyaxisInfoDrawer: React.FC<LyaxisInfoDrawerProps> = ({
             alignItems: 'center',
           }}
         >
-          <span style={{ fontSize: '11px', color: '#52525b', fontFamily: 'monospace' }}>
-            LYAXIS labs™ • Create. Break. Rebuild.
-          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+            <span style={{ fontSize: '11px', color: '#71717a', fontFamily: 'monospace' }}>
+              LYAXIS labs™ • Create. Break. Rebuild.
+            </span>
+            <a
+              href="https://lyaxis-ia.vercel.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: '11px', color: '#00D9FF', textDecoration: 'none', fontFamily: 'monospace', opacity: 0.9 }}
+            >
+              https://lyaxis-ia.vercel.app
+            </a>
+          </div>
           <button
             type="button"
             onClick={onClose}
