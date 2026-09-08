@@ -775,7 +775,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   <Shield size={11} /> Encriptación AES-256
                 </span>
                 <span style={{ fontSize: '11px', fontWeight: 600, color: '#a78bfa', backgroundColor: 'rgba(167, 139, 250, 0.08)', border: '1px solid rgba(167, 139, 250, 0.25)', padding: '4px 11px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <Cpu size={11} /> Motor Dual Groq + NIM
+                  <Cpu size={11} /> Motor Dual Neural LYAXIS
                 </span>
               </div>
 
@@ -879,7 +879,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   NÚCLEO ONLINE
                 </span>
                 <span>•</span>
-                <span>FAILOVER: GROQ ⇄ NVIDIA NIM</span>
+                <span>FAILOVER: ALTA DISPONIBILIDAD ACTIVA</span>
               </div>
             </div>
           ) : (
