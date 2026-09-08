@@ -153,7 +153,18 @@ export default function App() {
     if (typeof window === 'undefined') return [];
     try {
       const saved = localStorage.getItem('lyaxis_conversations');
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+      const currentUid = user?.id || guestId;
+      // Filter out any leaked or orphan 'anon' conversations from prior versions
+      const sanitized = parsed.filter(
+        (c: any) => c && c.userId && c.userId !== 'anon' && (c.userId === currentUid)
+      );
+      if (sanitized.length !== parsed.length) {
+        localStorage.setItem('lyaxis_conversations', JSON.stringify(sanitized));
+      }
+      return sanitized;
     } catch {
       return [];
     }
@@ -327,12 +338,15 @@ export default function App() {
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('lyaxis_user');
+    setConversations([]);
+    setMessages([]);
+    setCurrentChatId(null);
     fetchConversations(guestId);
   };
 
   const { isStreaming, sendMessage, startStream, stopStreaming } = useSSEStream({
     onDone: () => {
-      fetchConversations(user?.id || 'anon');
+      fetchConversations(activeUserId);
     },
     onError: (err) => {
       const friendly = '⚠️ El servidor tardó en responder o está iniciando. Por favor, reintenta en unos segundos.';
@@ -347,24 +361,30 @@ export default function App() {
 
   const fetchConversations = async (targetUserId?: string) => {
     try {
-      const uid = targetUserId !== undefined ? targetUserId : (user?.id || 'anon');
+      const uid = targetUserId !== undefined ? targetUserId : activeUserId;
+      if (!uid || uid === 'anon') {
+        setConversations([]);
+        return;
+      }
       const url = `${API_BASE}/api/v1/conversations?user_id=${encodeURIComponent(uid)}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          const loaded = data.map((c: any) => ({
-            id: c.id,
-            userId: c.user_id || uid,
-            title: c.title || 'Nueva conversación',
-            createdAt: c.created_at || new Date().toISOString(),
-            model: c.model || 'classic'
-          }));
+          const loaded = data
+            .filter((c: any) => c && c.user_id && c.user_id !== 'anon')
+            .map((c: any) => ({
+              id: c.id,
+              userId: c.user_id || uid,
+              title: c.title || 'Nueva conversación',
+              createdAt: c.created_at || new Date().toISOString(),
+              model: c.model || 'speed'
+            }));
           setConversations(loaded);
           setCurrentChatId((curr) => {
             if (!curr && loaded.length > 0) {
               loadMessages(loaded[0].id);
-              setSelectedModel(loaded[0].model || 'classic');
+              setSelectedModel(loaded[0].model || 'speed');
               return loaded[0].id;
             }
             return curr;
@@ -396,8 +416,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchConversations(user?.id || 'anon');
-  }, [user]);
+    fetchConversations(activeUserId);
+  }, [user, activeUserId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -442,7 +462,7 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: currentChatId,
-            user_id: user?.id || 'anon',
+            user_id: activeUserId,
             model: newModel
           })
         });
@@ -456,7 +476,7 @@ export default function App() {
     if (isStreaming) return;
     const cid = `chat-${Date.now()}`;
     const modelToUse = modelOverride || selectedModel;
-    const uid = user?.id || 'anon';
+    const uid = activeUserId;
     const newChat: Conversation = {
       id: cid,
       userId: uid,
@@ -518,7 +538,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: chatId,
-          user_id: user?.id || 'anon',
+          user_id: activeUserId,
           title: newTitle,
           model: selectedModel
         })
@@ -531,7 +551,7 @@ export default function App() {
   const deleteAllConversations = async () => {
     if (isStreaming) return;
     try {
-      await fetch(`${API_BASE}/api/v1/conversations/all?user_id=${user?.id || 'anon'}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/api/v1/conversations/all?user_id=${activeUserId}`, { method: 'DELETE' });
       setConversations([]);
       setMessages([]);
       setCurrentChatId(null);
@@ -555,7 +575,7 @@ export default function App() {
     if (!targetChatId) {
       targetChatId = `chat-${Date.now()}`;
       setCurrentChatId(targetChatId);
-      const uid = user?.id || 'anon';
+      const uid = activeUserId;
       const initialTitle = (userText || 'Consulta con imagen').slice(0, 30);
       const localChat: Conversation = {
         id: targetChatId,
@@ -611,7 +631,7 @@ export default function App() {
       updatedMessages,
       selectedModel,
       targetChatId,
-      user?.id || 'anon',
+      activeUserId,
       (accumulatedText) => {
         if (soundEnabled && Math.random() > 0.4) {
           playCyberClick();
@@ -644,7 +664,7 @@ export default function App() {
         onDone: () => {
           setServerErrorBanner(null);
           setLastFailedUserText(null);
-          fetchConversations(user?.id || 'anon');
+          fetchConversations(activeUserId);
         }
       }
     );
@@ -656,7 +676,7 @@ export default function App() {
     );
 
     // Refresh conversation list so newly created/updated conversation shows in sidebar
-    fetchConversations(user?.id || 'anon');
+    fetchConversations(activeUserId);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

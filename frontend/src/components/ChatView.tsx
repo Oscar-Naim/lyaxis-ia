@@ -225,7 +225,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: currentChatId,
-            user_id: activeUserId || 'anon',
+            user_id: activeUserId,
             model: newModel,
           }),
         });

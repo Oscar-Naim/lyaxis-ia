@@ -116,6 +116,11 @@ def init_sqlite():
                 cursor.execute("ALTER TABLE messages ADD COLUMN image TEXT;")
             except Exception:
                 pass
+            try:
+                cursor.execute("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id IS NULL OR user_id = '' OR user_id = 'anon')")
+                cursor.execute("DELETE FROM conversations WHERE user_id IS NULL OR user_id = '' OR user_id = 'anon'")
+            except Exception:
+                pass
             conn.commit()
     except Exception as e:
         print(f"Init SQLite local: {e}")
@@ -247,6 +252,11 @@ if db.use_postgres:
         """)
         try:
             db.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS image TEXT;")
+        except Exception:
+            pass
+        try:
+            db.execute("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id IS NULL OR user_id = '' OR user_id = 'anon')")
+            db.execute("DELETE FROM conversations WHERE user_id IS NULL OR user_id = '' OR user_id = 'anon'")
         except Exception:
             pass
     except Exception as e:
@@ -776,22 +786,23 @@ def google_auth(req: GoogleAuthRequest):
 
 @app.get("/api/v1/conversations")
 def list_conversations(user_id: Optional[str] = None):
-    uid = (user_id or "anon").strip()
+    uid = (user_id or "").strip()
+    if not uid or uid == "anon":
+        return []
     return db.fetchall(
         "SELECT c.id, c.user_id, c.title, c.model, c.created_at, c.updated_at "
-        "FROM conversations c WHERE c.user_id = ? OR (? = 'anon' AND (c.user_id IS NULL OR c.user_id = '' OR c.user_id = 'anon')) "
+        "FROM conversations c WHERE c.user_id = ? "
         "ORDER BY c.updated_at DESC",
-        (uid, uid)
+        (uid,)
     )
 
 @app.delete("/api/v1/conversations/all")
 def delete_all_conversations(user_id: Optional[str] = None):
-    if user_id and user_id.strip():
-        db.execute("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)", (user_id.strip(),))
-        db.execute("DELETE FROM conversations WHERE user_id = ?", (user_id.strip(),))
-    else:
-        db.execute("DELETE FROM messages")
-        db.execute("DELETE FROM conversations")
+    uid = (user_id or "").strip()
+    if not uid or uid == "anon":
+        return {"status": "ok", "message": "Identificador de usuario no válido"}
+    db.execute("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)", (uid,))
+    db.execute("DELETE FROM conversations WHERE user_id = ?", (uid,))
     return {"status": "ok", "message": "Historial limpiado"}
 
 @app.post("/api/v1/conversations")
@@ -803,9 +814,10 @@ async def create_conversation(request: Request):
     if not isinstance(body, dict):
         body = {}
     cid = str(body.get("id") or str(uuid.uuid4()))
-    user_id = str(body.get("user_id") or "anon")
+    raw_uid = str(body.get("user_id") or "").strip()
+    user_id = raw_uid if (raw_uid and raw_uid != "anon") else f"guest-{int(datetime.now(timezone.utc).timestamp()*1000)}"
     title = str(body.get("title") or "Nueva conversación")
-    model = str(body.get("model") or "classic")
+    model = str(body.get("model") or "speed")
     now = datetime.now(timezone.utc).isoformat()
     existing = db.fetchone("SELECT id FROM conversations WHERE id = ?", (cid,))
     if not existing:
@@ -1623,9 +1635,12 @@ async def chat_stream_endpoint(request: Request):
                     u_first = next((m for m in messages if m.role == "user"), None)
                     if u_first and u_first.content:
                         first_title = u_first.content[:30]
+                db_uid = (user_id or "").strip()
+                if not db_uid or db_uid == "anon":
+                    db_uid = f"guest-{int(datetime.now(timezone.utc).timestamp()*1000)}"
                 db.execute(
                     "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (conversation_id, user_id or "anon", first_title, model_type, now_ts, now_ts)
+                    (conversation_id, db_uid, first_title, model_type, now_ts, now_ts)
                 )
         except Exception as e_conv:
             print(f"Aviso asegurando conversación en chat_stream_endpoint: {e_conv}")
