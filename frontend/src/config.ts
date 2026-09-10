@@ -9,27 +9,59 @@ export const APP_URL = "https://lyaxis-ia.vercel.app";
 
 import type { ModelType } from './types';
 
+export interface ModelTheme {
+  primary: string;
+  glow: string;
+  border: string;
+  text: string;
+  shadow: string;
+}
+
+export const THEMES: Record<string, ModelTheme> = {
+  speed: {
+    primary: '#3b82f6',
+    glow: 'rgba(59, 130, 246, 0.22)',
+    border: 'border-blue-500/40',
+    text: 'text-blue-400',
+    shadow: 'shadow-[0_0_25px_rgba(59,130,246,0.15)]',
+  },
+  cortex: {
+    primary: '#a855f7',
+    glow: 'rgba(168, 85, 247, 0.22)',
+    border: 'border-purple-500/40',
+    text: 'text-purple-400',
+    shadow: 'shadow-[0_0_25px_rgba(168,85,247,0.15)]',
+  },
+  zenith: {
+    primary: '#06b6d4',
+    glow: 'rgba(6, 182, 212, 0.22)',
+    border: 'border-cyan-500/40',
+    text: 'text-cyan-400',
+    shadow: 'shadow-[0_0_25px_rgba(6,182,212,0.15)]',
+  },
+};
+
 export const ALL_MODELS: ModelType[] = ['speed', 'cortex', 'zenith'];
 
 export const MODEL_META: Record<ModelType, { label: string; tagline: string; color: string; description: string; temperature: number }> = {
   speed: {
     label: 'Speed',
     tagline: 'Motor Principal / Diario',
-    color: '#2563FF',
+    color: '#3b82f6',
     description: 'Respuestas en milisegundos, streaming ultra-rápido, asistencia constante y código ágil sin fricción.',
     temperature: 0.3
   },
   cortex: {
     label: 'Cortex',
     tagline: 'Razonamiento Profundo',
-    color: '#7C3AED',
+    color: '#a855f7',
     description: 'Análisis lógico paso a paso (Chain of Thought), matemáticas, algoritmos complejos y depuración estructurada.',
     temperature: 0.2
   },
   zenith: {
     label: 'Zenith',
     tagline: 'Tope de Gama / Máxima Inteligencia',
-    color: '#00D9FF',
+    color: '#06b6d4',
     description: 'El cerebro superior del laboratorio. Capacidades multimodales completas (de imagen/UI a código ejecutable), diseño de sistemas y síntesis técnica avanzada.',
     temperature: 0.4
   },

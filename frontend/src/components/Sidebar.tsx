@@ -100,7 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  const getModelColor = (m: ModelType) => MODEL_META[m]?.color || '#2563FF';
+  const getModelColor = (m: ModelType) => MODEL_META[m]?.color || '#3b82f6';
 
   return (
     <>

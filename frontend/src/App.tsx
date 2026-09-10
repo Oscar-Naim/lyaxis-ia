@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import type { ModelType, ModelId, Message, Conversation, User } from './types';
-import { ALL_MODELS, API_BASE, GOOGLE_CLIENT_ID } from './config';
+import { ALL_MODELS, API_BASE, GOOGLE_CLIENT_ID, THEMES } from './config';
 import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/ChatView';
 import { AuthModal } from './AuthModal';
@@ -302,10 +302,23 @@ export default function App() {
     }
   };
 
+  const currentTheme = THEMES[selectedModel] || THEMES.speed;
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--current-glow', currentTheme.glow);
+    document.documentElement.style.setProperty('--current-primary', currentTheme.primary);
+  }, [selectedModel, currentTheme]);
+
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       {showBoot && <BootSplash onFinish={() => setShowBoot(false)} onComplete={() => setShowBoot(false)} />}
-      <div className={`lyaxis-app-container ${isScanlineActive ? 'scanline-active' : ''}`}>
+      <div
+        className={`lyaxis-app-container ${isScanlineActive ? 'scanline-active' : ''}`}
+        style={{
+          '--current-glow': currentTheme.glow,
+          '--current-primary': currentTheme.primary,
+        } as React.CSSProperties}
+      >
         <Sidebar
           isOpen={isSidebarOpen}
           isMobile={isMobile}

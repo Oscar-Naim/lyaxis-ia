@@ -39,7 +39,7 @@ import { ClarificationModal } from './ClarificationModal';
 import type { ClarificationData, ClarificationSubmitPayload } from './ClarificationModal';
 import { NotebookStudio } from './NotebookStudio';
 import { isSoundMuted, setSoundMuted, playCyberClick as globalPlayCyberClick } from '../sound';
-import { API_BASE, ALL_MODELS, MODEL_META, MODEL_QUICK_ACTIONS } from '../config';
+import { API_BASE, ALL_MODELS, MODEL_META, MODEL_QUICK_ACTIONS, THEMES } from '../config';
 import { exportChatToPDF } from '../pdfExporter';
 
 export interface ChatViewProps {
@@ -160,6 +160,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
   const mobileActionsRef = useRef<HTMLDivElement | null>(null);
 
+  // Focus state for bottom input box chromatic glow
+  const [isInputFocused, setIsInputFocused] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
@@ -193,6 +196,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   }, []);
 
   const meta = modelMeta[currentActiveModel] || MODEL_META[currentActiveModel] || MODEL_META.speed;
+  const currentTheme = THEMES[currentActiveModel] || THEMES.speed;
 
   const triggerSound = () => {
     if (!isMuted) {
@@ -584,8 +588,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
         flex: 1,
         position: 'relative',
         overflow: 'hidden',
-      }}
+        '--current-glow': currentTheme.glow,
+        '--current-primary': currentTheme.primary,
+      } as React.CSSProperties}
     >
+      {/* 2. RESPLANDOR AMBIENTAL SUPERIOR REACTIVO (Haz de luz superior dinámico por modelo) */}
+      <div
+        className="lyaxis-reactive-glow"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '550px',
+          pointerEvents: 'none',
+          zIndex: 0,
+          background: `radial-gradient(circle at 50% -20%, var(--current-glow, ${currentTheme.glow}), transparent 60%)`,
+          transition: 'all 500ms cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+      />
+
       {isScanlineActive && (
         <div
           className="lyaxis-laser-scanline"
@@ -638,7 +660,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 flexShrink: 0,
               }}
             >
-              <Menu size={20} color="#00D9FF" />
+              <Menu size={20} color={currentTheme.primary} />
             </button>
           ) : (
             !isSidebarOpen && onToggleSidebar && (
@@ -651,26 +673,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '6px',
-                  backgroundColor: 'rgba(0, 217, 255, 0.08)',
-                  border: '1px solid rgba(0, 217, 255, 0.25)',
-                  color: '#00D9FF',
+                  backgroundColor: `${currentTheme.primary}14`,
+                  border: `1px solid ${currentTheme.primary}44`,
+                  color: currentTheme.primary,
                   padding: '6px 10px',
                   borderRadius: '8px',
                   fontSize: '12px',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  boxShadow: '0 0 12px rgba(0, 217, 255, 0.12)',
+                  boxShadow: `0 0 12px ${currentTheme.glow}`,
                   transition: 'all 0.2s ease',
                   flexShrink: 0,
                 }}
               >
-                <PanelLeft size={17} color="#00D9FF" />
+                <PanelLeft size={17} color={currentTheme.primary} />
                 <span>Historial</span>
               </button>
             )
           )}
 
-          {/* Interactive In-Chat Model Selector */}
+          {/* Interactive In-Chat Model Selector con Identidad Cromática */}
           <div style={{ position: 'relative' }} ref={dropdownRef}>
             <button
               type="button"
@@ -680,15 +702,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                border: `1px solid ${meta.color}55`,
+                backgroundColor: `${currentTheme.primary}12`,
+                border: `1px solid ${currentTheme.primary}55`,
                 borderRadius: '10px',
                 padding: isMobile ? '8px 12px' : '6px 12px',
                 minHeight: isMobile ? '44px' : '36px',
                 color: '#ffffff',
                 cursor: 'pointer',
-                boxShadow: `0 0 14px ${meta.color}22`,
-                transition: 'all 0.2s ease',
+                boxShadow: `0 0 18px ${currentTheme.glow}`,
+                transition: 'all 300ms cubic-bezier(0.4, 0, 0.2, 1)',
               }}
             >
               <span
@@ -696,25 +718,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   width: '8px',
                   height: '8px',
                   borderRadius: '50%',
-                  backgroundColor: meta.color,
-                  boxShadow: `0 0 8px ${meta.color}`,
+                  backgroundColor: currentTheme.primary,
+                  boxShadow: `0 0 10px ${currentTheme.primary}`,
                   display: 'inline-block',
+                  transition: 'all 300ms ease',
                 }}
               />
-              <span style={{ fontSize: isMobile ? '14px' : '13px', fontWeight: 700, letterSpacing: '0.3px' }}>
+              <span style={{ fontSize: isMobile ? '14px' : '13px', fontWeight: 700, letterSpacing: '0.3px', color: '#ffffff' }}>
                 LYAXIS {meta.label}
               </span>
               {!isMobile && (
-                <span style={{ fontSize: '11px', color: '#71717a', marginLeft: '2px', fontFamily: 'monospace' }}>
+                <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '2px', fontFamily: 'monospace' }}>
                   T:{meta.temperature}
                 </span>
               )}
               <ChevronDown
                 size={14}
-                color="#a1a1aa"
+                color={currentTheme.primary}
                 style={{
                   transform: isModelDropdownOpen ? 'rotate(180deg)' : 'none',
-                  transition: 'transform 0.2s ease',
+                  transition: 'transform 0.2s ease, color 0.3s ease',
                 }}
               />
             </button>
@@ -1871,19 +1894,25 @@ export const ChatView: React.FC<ChatViewProps> = ({
             )}
           </div>
 
-          {/* Input Bar */}
+          {/* Input Bar with Dynamic Chromatic Focus Glow and Themed Border (3. BARRA DE ENTRADA INFERIOR) */}
           <div
             className={isTriadActive ? 'lyaxis-triad-active-box' : ''}
             style={{
               display: 'flex',
               alignItems: 'flex-end',
               backgroundColor: '#08080c',
-              border: isTriadActive ? '1px solid transparent' : `1px solid ${selectedImage ? meta.color + '66' : '#1a1a24'}`,
+              border: isTriadActive
+                ? '1px solid transparent'
+                : `1px solid ${selectedImage ? currentTheme.primary + '88' : isInputFocused ? currentTheme.primary + '80' : currentTheme.primary + '33'}`,
               borderRadius: '14px',
               padding: isMobile ? '8px 10px' : '12px 16px',
               gap: '10px',
-              boxShadow: isTriadActive ? undefined : '0 4px 25px rgba(0,0,0,0.8)',
-              transition: 'border-color 0.2s ease',
+              boxShadow: isTriadActive
+                ? undefined
+                : isInputFocused
+                  ? `0 4px 25px rgba(0,0,0,0.85), 0 0 24px ${currentTheme.glow}`
+                  : `0 4px 25px rgba(0,0,0,0.8), 0 0 10px ${currentTheme.glow}`,
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
           >
             {/* Hidden File Input */}
@@ -1926,12 +1955,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               onFocus={() => {
+                setIsInputFocused(true);
                 if (isMobile) {
                   setTimeout(() => {
                     textareaRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                   }, 150);
                 }
               }}
+              onBlur={() => setIsInputFocused(false)}
               placeholder={
                 isTriadActive
                   ? 'Consulta a LYAXIS TRIAD™ (Create ➔ Break ➔ Rebuild)...'
@@ -1990,7 +2021,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   borderRadius: '10px',
                   backgroundColor: isTriadActive
                     ? ((inputValue.trim() || selectedImage) ? '#7C3AED' : '#1c1c24')
-                    : ((inputValue.trim() || selectedImage) ? meta.color : '#1c1c24'),
+                    : ((inputValue.trim() || selectedImage) ? currentTheme.primary : '#1c1c24'),
                   border: 'none',
                   color: '#ffffff',
                   display: 'flex',
@@ -1999,9 +2030,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   cursor: (inputValue.trim() || selectedImage) ? 'pointer' : 'default',
                   flexShrink: 0,
                   boxShadow: (inputValue.trim() || selectedImage) 
-                    ? (isTriadActive ? '0 0 16px rgba(124, 58, 237, 0.5)' : `0 0 16px ${meta.color}44`) 
+                    ? (isTriadActive ? '0 0 16px rgba(124, 58, 237, 0.5)' : `0 0 16px ${currentTheme.primary}55`) 
                     : 'none',
-                  transition: 'all 0.2s ease',
+                  transition: 'all 0.25s ease',
                 }}
               >
                 <Send size={16} />
