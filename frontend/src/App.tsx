@@ -303,7 +303,7 @@ export default function App() {
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      {showBoot && <BootSplash onFinish={() => setShowBoot(false)} />}
+      {showBoot && <BootSplash onFinish={() => setShowBoot(false)} onComplete={() => setShowBoot(false)} />}
       <div className={`lyaxis-app-container ${isScanlineActive ? 'scanline-active' : ''}`}>
         <Sidebar
           isOpen={isSidebarOpen}

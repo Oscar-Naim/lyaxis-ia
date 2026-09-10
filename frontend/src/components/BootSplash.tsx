@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Terminal, Sparkles } from 'lucide-react';
+import { Terminal } from 'lucide-react';
 
 interface BootSplashProps {
-  onComplete: () => void;
+  onComplete?: () => void;
+  onFinish?: () => void;
 }
 
-export const BootSplash: React.FC<BootSplashProps> = ({ onComplete }) => {
+export const BootSplash: React.FC<BootSplashProps> = ({ onComplete, onFinish }) => {
   const [isExiting, setIsExiting] = useState(false);
+  const handleDone = onComplete || onFinish || (() => {});
 
   useEffect(() => {
     // Check if already seen in current session
     const seen = typeof window !== 'undefined' ? sessionStorage.getItem('lyaxis_boot_seen') : null;
     if (seen === 'true') {
-      onComplete();
+      handleDone();
       return;
     }
 
@@ -27,21 +29,21 @@ export const BootSplash: React.FC<BootSplashProps> = ({ onComplete }) => {
       } catch {
         // Ignore storage errors in private browsing
       }
-      onComplete();
+      handleDone();
     }, 1500);
 
     return () => {
       clearTimeout(exitTimer);
       clearTimeout(finishTimer);
     };
-  }, [onComplete]);
+  }, [onComplete, onFinish]);
 
   const handleSkip = () => {
     try {
       sessionStorage.setItem('lyaxis_boot_seen', 'true');
     } catch {}
     setIsExiting(true);
-    setTimeout(onComplete, 200);
+    setTimeout(handleDone, 200);
   };
 
   return (
