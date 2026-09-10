@@ -34,8 +34,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             headers={"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "*", "Access-Control-Allow-Headers": "*"}
         )
     return JSONResponse(
-        status_code=200,
-        content={"status": "ok", "message": "Petición procesada con valores por defecto."},
+        status_code=422,
+        content={"status": "error", "detail": exc.errors(), "message": "Petición con formato no válido."},
         headers={"Access-Control-Allow-Origin": "*"}
     )
 
@@ -130,90 +130,111 @@ init_sqlite()
 class Database:
     def __init__(self):
         self.use_postgres = False
+        self.pg_pool = None
         if DATABASE_URL:
             try:
                 import psycopg2
+                from psycopg2 import pool
                 db_url = DATABASE_URL
                 if "sslmode=" not in db_url:
                     db_url += ("?" if "?" not in db_url else "&") + "sslmode=require"
-                test_conn = psycopg2.connect(db_url, connect_timeout=3)
-                test_conn.close()
+                self.pg_pool = pool.ThreadedConnectionPool(
+                    minconn=1,
+                    maxconn=10,
+                    dsn=db_url,
+                    connect_timeout=5
+                )
                 self.use_postgres = True
-                print("PostgreSQL Supabase conectado exitosamente.")
+                print("PostgreSQL Supabase conectado exitosamente con Connection Pool.")
             except Exception as e:
                 print(f"Aviso Supabase: {e}. Operando en SQLite local.")
                 self.use_postgres = False
+                self.pg_pool = None
 
     def get_connection(self):
-        if self.use_postgres and DATABASE_URL:
+        if self.use_postgres and self.pg_pool:
             try:
-                import psycopg2
                 from psycopg2.extras import RealDictCursor
-                db_url = DATABASE_URL
-                if "sslmode=" not in db_url:
-                    db_url += ("?" if "?" not in db_url else "&") + "sslmode=require"
-                return psycopg2.connect(db_url, cursor_factory=RealDictCursor, connect_timeout=3)
+                conn = self.pg_pool.getconn()
+                conn.cursor_factory = RealDictCursor
+                return conn, True
             except Exception as e:
-                print(f"Error conexion Postgres ({e}), usando SQLite de respaldo.")
-                self.use_postgres = False
-
+                print(f"Error obteniendo conexion del pool Postgres ({e}), usando SQLite de respaldo.")
         conn = sqlite3.connect(DB_PATH, timeout=30.0)
         conn.row_factory = sqlite3.Row
         try:
             conn.execute("PRAGMA journal_mode=WAL;")
         except Exception:
             pass
-        return conn
+        return conn, False
+
+    def release_connection(self, conn, is_postgres: bool):
+        if is_postgres and self.pg_pool and conn:
+            try:
+                self.pg_pool.putconn(conn)
+            except Exception as e:
+                print(f"Error liberando conexion al pool: {e}")
+        elif conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def execute(self, query: str, params: tuple = ()):
+        conn, is_pg = self.get_connection()
         try:
-            conn = self.get_connection()
             cursor = conn.cursor()
-            if self.use_postgres:
+            if is_pg:
                 pg_query = query.replace("?", "%s")
                 cursor.execute(pg_query, params)
             else:
                 cursor.execute(query, params)
             conn.commit()
-            conn.close()
             return cursor
         except Exception as e:
             print(f"Error execute: {e}")
+            if conn and is_pg:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
             return None
+        finally:
+            self.release_connection(conn, is_pg)
 
     def fetchall(self, query: str, params: tuple = ()):
+        conn, is_pg = self.get_connection()
         try:
-            conn = self.get_connection()
             cursor = conn.cursor()
-            if self.use_postgres:
+            if is_pg:
                 pg_query = query.replace("?", "%s")
                 cursor.execute(pg_query, params)
             else:
                 cursor.execute(query, params)
             rows = cursor.fetchall()
-            res = [dict(r) for r in rows]
-            conn.close()
-            return res
+            return [dict(r) for r in rows]
         except Exception as e:
             print(f"Error fetchall: {e}")
             return []
+        finally:
+            self.release_connection(conn, is_pg)
 
     def fetchone(self, query: str, params: tuple = ()):
+        conn, is_pg = self.get_connection()
         try:
-            conn = self.get_connection()
             cursor = conn.cursor()
-            if self.use_postgres:
+            if is_pg:
                 pg_query = query.replace("?", "%s")
                 cursor.execute(pg_query, params)
             else:
                 cursor.execute(query, params)
             row = cursor.fetchone()
-            res = dict(row) if row else None
-            conn.close()
-            return res
+            return dict(row) if row else None
         except Exception as e:
             print(f"Error fetchone: {e}")
             return None
+        finally:
+            self.release_connection(conn, is_pg)
 
 db = Database()
 
@@ -665,12 +686,16 @@ class RequestOtpPayload(BaseModel):
     contact: Optional[str] = None
     target: Optional[str] = None
     identifier: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
     auth_type: Optional[str] = "email"
 
 class VerifyOtpPayload(BaseModel):
     contact: Optional[str] = None
     target: Optional[str] = None
     identifier: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
     code: str
     auth_type: Optional[str] = "email"
 
@@ -684,7 +709,7 @@ def options_handler(full_path: str):
 
 @app.post("/api/v1/auth/otp/send")
 def send_otp_code(req: RequestOtpPayload):
-    target = (req.contact or req.target or req.identifier or "").strip().lower()
+    target = (req.contact or req.target or req.identifier or req.email or req.phone or "").strip().lower()
     if not target:
         raise HTTPException(status_code=400, detail="Debes proporcionar un contacto (correo o teléfono).")
 
@@ -693,13 +718,12 @@ def send_otp_code(req: RequestOtpPayload):
 
     return {
         "status": "ok",
-        "message": f"Código enviado a {target}",
-        "demo_code": code
+        "message": f"Código enviado a {target}"
     }
 
 @app.post("/api/v1/auth/otp/verify")
 def verify_otp_code(req: VerifyOtpPayload):
-    target = (req.contact or req.target or req.identifier or "").strip().lower()
+    target = (req.contact or req.target or req.identifier or req.email or req.phone or "").strip().lower()
     code = req.code.strip()
 
     if not target:
@@ -707,8 +731,7 @@ def verify_otp_code(req: VerifyOtpPayload):
 
     expected_code = otp_storage.get(target)
     if not expected_code or expected_code != code:
-        if code != "123456":
-            raise HTTPException(status_code=400, detail="El código de 6 dígitos es incorrecto o ha expirado.")
+        raise HTTPException(status_code=400, detail="El código de 6 dígitos es incorrecto o ha expirado.")
 
     auth_type = req.auth_type or ("email" if "@" in target else "phone")
     now = datetime.now(timezone.utc).isoformat()
@@ -868,8 +891,6 @@ def delete_conversation(cid: str):
     db.execute("DELETE FROM conversations WHERE id = ?", (cid,))
     return {"status": "deleted", "id": cid}
 
-DEFAULT_ACCESS_KEY = "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"
-
 def _get_active_keys() -> List[str]:
     raw = os.getenv("NVIDIA_API_KEY", "") or os.getenv("NVIDIA_API_KEYS", "")
     raw_keys = [k.strip().strip('"').strip("'") for k in raw.split(",") if k.strip() and "TuClaveAqui" not in k]
@@ -879,18 +900,11 @@ def _get_active_keys() -> List[str]:
             k = k[7:].strip()
         if k and k not in clean_keys:
             clean_keys.append(k)
-    if DEFAULT_ACCESS_KEY not in clean_keys:
-        clean_keys.append(DEFAULT_ACCESS_KEY)
     return clean_keys
 
 # --- Clientes de IA duales (Groq + NVIDIA NIM) ---
-if not os.getenv("GROQ_API_KEY"):
-    os.environ["GROQ_API_KEY"] = "gsk_placeholder"
-if not os.getenv("NVIDIA_API_KEY"):
-    os.environ["NVIDIA_API_KEY"] = DEFAULT_ACCESS_KEY
-
-client_groq = openai.AsyncOpenAI(api_key=os.getenv("GROQ_API_KEY"), base_url="https://api.groq.com/openai/v1")
-client_nvidia = openai.AsyncOpenAI(api_key=os.getenv("NVIDIA_API_KEY"), base_url="https://integrate.api.nvidia.com/v1")
+client_groq = openai.AsyncOpenAI(api_key=(os.getenv("GROQ_API_KEY") or "gsk_placeholder"), base_url="https://api.groq.com/openai/v1")
+client_nvidia = openai.AsyncOpenAI(api_key=(os.getenv("NVIDIA_API_KEY") or "nvapi_placeholder"), base_url="https://integrate.api.nvidia.com/v1")
 
 MODELS = {
     # zenith: Cerebro Superior & Multimodal (NVIDIA Vision + Groq + Llama 70B)
@@ -960,8 +974,8 @@ MODEL_TEMPERATURES = {
     "cortex": 0.2,
     "phantom": 0.3,
     "architect": 0.3,
-    "nexus": 0.6,
-    "forge": 0.6,
+    "nexus": 0.5,
+    "forge": 0.5,
     "root": 0.2,
     "magister": 0.4,
 }
@@ -1039,6 +1053,7 @@ async def _stream_candidate_configs(
                     model=model_name,
                     messages=oai_messages,
                     temperature=temperature,
+                    max_tokens=4096,
                     stream=True,
                     timeout=25.0
                 )
@@ -1086,6 +1101,7 @@ async def _stream_candidate_configs(
                         model=model_name,
                         messages=oai_messages,
                         temperature=temperature,
+                        max_tokens=4096,
                         stream=True,
                         timeout=28.0
                     )
@@ -1149,11 +1165,7 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
     if has_image and model_key != "zenith":
         print(f"[IA Router] Imagen adjunta detectada ({model_key} -> zenith). Enrutando automáticamente a Zenith para análisis multimodal.")
         model_key = "zenith"
-    elif model_key in ("nexus", "forge", "phantom", "architect"):
-        model_key = "zenith"
-    elif model_key in ("classic", "magister"):
-        model_key = "speed"
-    elif model_key not in ("speed", "cortex", "zenith", "root"):
+    elif model_key not in MODELS:
         model_key = "speed"
 
     prompt_map = {
@@ -1161,13 +1173,12 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         "cortex": CORTEX_SYSTEM_PROMPT,
         "speed": SPEED_SYSTEM_PROMPT,
         "root": ROOT_SYSTEM_PROMPT,
-        # Mapeos de compatibilidad con historiales previos
-        "nexus": ZENITH_SYSTEM_PROMPT,
-        "forge": ZENITH_SYSTEM_PROMPT,
-        "phantom": ZENITH_SYSTEM_PROMPT,
-        "architect": ZENITH_SYSTEM_PROMPT,
-        "classic": SPEED_SYSTEM_PROMPT,
-        "magister": SPEED_SYSTEM_PROMPT,
+        "nexus": NEXUS_SYSTEM_PROMPT,
+        "forge": FORGE_SYSTEM_PROMPT,
+        "phantom": PHANTOM_SYSTEM_PROMPT,
+        "architect": ARCHITECT_SYSTEM_PROMPT,
+        "classic": CLASSIC_SYSTEM_PROMPT,
+        "magister": MAGISTER_SYSTEM_PROMPT,
     }
     active_prompt = (
         (prompt_map.get(model_key, SPEED_SYSTEM_PROMPT)).strip()
@@ -1363,9 +1374,19 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         if vision_cfg not in candidate_configs:
             candidate_configs.insert(0, vision_cfg)
 
+    # Sliding window: limitar el historial a los 10 turnos más recientes para optimizar latencia y tokens
+    MAX_TURNS = 10
+    recent_messages = messages[-MAX_TURNS:] if len(messages) > MAX_TURNS else messages
+
+    # Detectar el último mensaje que contiene imagen para enviar base64 solo en el turno activo
+    last_img_msg_idx = -1
+    for idx, msg in enumerate(recent_messages):
+        if msg.image or msg.image_url:
+            last_img_msg_idx = idx
+
     # Format messages for OpenAI standard API (with multimodal image support)
     oai_messages = [{"role": "system", "content": active_prompt}]
-    for msg in messages:
+    for idx, msg in enumerate(recent_messages):
         msg_img = msg.image or msg.image_url
         content_str = (msg.content or "").strip()
         if not content_str and not msg_img:
@@ -1375,16 +1396,20 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         role = "assistant" if str(msg.role).lower() in ("model", "assistant") else "user"
 
         if role == "user" and msg_img:
-            user_content = []
-            if content_str:
-                user_content.append({"type": "text", "text": content_str})
+            if idx == last_img_msg_idx:
+                user_content = []
+                if content_str:
+                    user_content.append({"type": "text", "text": content_str})
+                else:
+                    user_content.append({"type": "text", "text": "Describe y analiza esta imagen en detalle."})
+                user_content.append({
+                    "type": "image_url",
+                    "image_url": {"url": msg_img}
+                })
+                oai_messages.append({"role": "user", "content": user_content})
             else:
-                user_content.append({"type": "text", "text": "Describe y analiza esta imagen en detalle."})
-            user_content.append({
-                "type": "image_url",
-                "image_url": {"url": msg_img}
-            })
-            oai_messages.append({"role": "user", "content": user_content})
+                annotated = f"{content_str} [Imagen analizada en turno anterior]".strip()
+                oai_messages.append({"role": "user", "content": annotated})
         else:
             oai_messages.append({"role": role, "content": content_str})
 
@@ -1451,6 +1476,7 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
                     model=model_name,
                     messages=oai_messages,
                     temperature=temperature,
+                    max_tokens=4096,
                     stream=True,
                     timeout=22.0
                 )
@@ -1507,6 +1533,7 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
                         model=model_name,
                         messages=oai_messages,
                         temperature=temperature,
+                        max_tokens=4096,
                         stream=True,
                         timeout=25.0
                     )

@@ -66,14 +66,14 @@ export const MODEL_META: Record<ModelType, { label: string; tagline: string; col
     tagline: 'Constructor de Proyectos y Negocio',
     color: '#F97316',
     description: 'Constructor práctico. Convierte ideas vagas en proyectos reales y concretos.',
-    temperature: 0.6
+    temperature: 0.5
   },
   nexus: {
     label: 'Nexus',
     tagline: 'Creatividad y Análisis Visual',
     color: '#EC4899',
     description: 'Sintetizador creativo transversal y visión multimodal.',
-    temperature: 0.6
+    temperature: 0.5
   },
   root: {
     label: 'Root',
@@ -93,8 +93,8 @@ export const MODEL_TEMPERATURES: Record<ModelType, number> = {
   architect: 0.3,
   magister: 0.4,
   classic: 0.4,
-  nexus: 0.6,
-  forge: 0.6,
+  nexus: 0.5,
+  forge: 0.5,
 };
 
 export const MODEL_QUICK_ACTIONS: Record<ModelType, string[]> = {

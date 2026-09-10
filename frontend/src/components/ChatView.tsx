@@ -24,8 +24,13 @@ import {
   Hammer,
   GraduationCap,
   Terminal,
+  PanelLeft,
+  LogIn,
+  LogOut,
+  LayoutDashboard,
+  Info,
 } from 'lucide-react';
-import type { Message, ModelType } from '../types';
+import type { Message, ModelType, User } from '../types';
 import { useSSEStream } from '../useSSEStream';
 import { MessageBubble } from './MessageBubble';
 import { ClarificationModal } from './ClarificationModal';
@@ -51,6 +56,15 @@ export interface ChatViewProps {
   modelMeta?: Record<ModelType, { label: string; tagline?: string; color: string; description: string; temperature: number }>;
   modelPrompts?: Record<ModelType, { icon: React.ReactNode; bg: string; border: string; text: string }[]>;
   onSelectModel?: (model: ModelType) => void;
+  isSidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
+  user?: User | null;
+  onOpenAuth?: () => void;
+  onLogout?: () => void;
+  onOpenDashboard?: () => void;
+  onOpenInfoDrawer?: (tab?: 'manifesto' | 'ecosystem' | 'security' | 'terms') => void;
+  isScanlineActive?: boolean;
+  isChromaticActive?: boolean;
 }
 
 const MODEL_ICONS: Record<ModelType, (size: number, color?: string) => React.ReactNode> = {
@@ -81,6 +95,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onExportPDF,
   modelMeta = MODEL_META,
   onSelectModel,
+  isSidebarOpen = true,
+  onToggleSidebar,
+  user = null,
+  onOpenAuth,
+  onLogout,
+  onOpenDashboard,
+  onOpenInfoDrawer,
+  isScanlineActive = false,
+  isChromaticActive = false,
 }) => {
   const [currentActiveModel, setCurrentActiveModel] = useState<ModelType>(() => {
     if (typeof window !== 'undefined') {
@@ -99,8 +122,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [notebookContent, setNotebookContent] = useState('');
   const [notebookTitle, setNotebookTitle] = useState('Cuaderno LYAXIS');
 
-  // Sound mute state synced with localStorage ('lyaxis_sound_muted')
-  const [isMuted, setIsMuted] = useState<boolean>(() => isSoundMuted());
+  // Sound mute state synced with soundEnabled prop & localStorage ('lyaxis_sound_muted')
+  const [isMuted, setIsMuted] = useState<boolean>(() =>
+    soundEnabled !== undefined ? !soundEnabled : isSoundMuted()
+  );
+
+  useEffect(() => {
+    if (soundEnabled !== undefined) {
+      setIsMuted(!soundEnabled);
+    }
+  }, [soundEnabled]);
 
   const [inputValue, setInputValue] = useState('');
   const [serverErrorBanner, setServerErrorBanner] = useState<string | null>(null);
@@ -553,6 +584,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
         overflow: 'hidden',
       }}
     >
+      {isScanlineActive && (
+        <div
+          className="lyaxis-laser-scanline"
+          style={{ '--scan-color': meta.color } as React.CSSProperties}
+        />
+      )}
+      {isChromaticActive && (
+        <div className="lyaxis-chromatic-overlay" />
+      )}
       
       {/* Header with Live In-Chat Model Switcher Dropdown, PDF export, and Mute Toggle */}
       <div
@@ -568,8 +608,39 @@ export const ChatView: React.FC<ChatViewProps> = ({
           flexShrink: 0,
         }}
       >
-        {/* Interactive In-Chat Model Selector */}
-        <div style={{ position: 'relative' }} ref={dropdownRef}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {!isSidebarOpen && onToggleSidebar && (
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              title="Mostrar barra lateral (Historial)"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                backgroundColor: 'rgba(0, 217, 255, 0.08)',
+                border: '1px solid rgba(0, 217, 255, 0.25)',
+                color: '#00D9FF',
+                padding: isMobile ? '8px 12px' : '6px 10px',
+                minWidth: isMobile ? '44px' : 'auto',
+                minHeight: isMobile ? '44px' : 'auto',
+                borderRadius: '8px',
+                fontSize: isMobile ? '13px' : '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                boxShadow: '0 0 12px rgba(0, 217, 255, 0.12)',
+                transition: 'all 0.2s ease',
+                flexShrink: 0,
+              }}
+            >
+              <PanelLeft size={17} color="#00D9FF" />
+              {!isMobile && <span>Historial</span>}
+            </button>
+          )}
+
+          {/* Interactive In-Chat Model Selector */}
+          <div style={{ position: 'relative' }} ref={dropdownRef}>
           <button
             type="button"
             onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
@@ -689,6 +760,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </>
           )}
         </div>
+      </div>
 
         {/* Action Controls in Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -778,6 +850,149 @@ export const ChatView: React.FC<ChatViewProps> = ({
               {!isMobile && <span>PDF</span>}
             </button>
           )}
+
+          {/* Futuristic Dashboard Button */}
+          {onOpenDashboard && (
+            <button
+              type="button"
+              onClick={() => {
+                triggerSound();
+                onOpenDashboard();
+              }}
+              title="Métricas y Dashboard de Modelos"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '8px',
+                padding: isMobile ? '8px 12px' : '6px 10px',
+                minHeight: isMobile ? '44px' : '32px',
+                color: '#ffffff',
+                fontSize: isMobile ? '13px' : '11.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <LayoutDashboard size={15} color="#00D9FF" />
+              {!isMobile && <span>Dashboard</span>}
+            </button>
+          )}
+
+          {/* Info Drawer Button */}
+          {onOpenInfoDrawer && (
+            <button
+              type="button"
+              onClick={() => {
+                triggerSound();
+                onOpenInfoDrawer('manifesto');
+              }}
+              title="Información y Manifiesto LYAXIS"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '8px',
+                padding: isMobile ? '8px 12px' : '6px 10px',
+                minHeight: isMobile ? '44px' : '32px',
+                color: '#ffffff',
+                fontSize: isMobile ? '13px' : '11.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <Info size={15} color="#00D9FF" />
+              {!isMobile && <span>Info</span>}
+            </button>
+          )}
+
+          {/* User Profile / Login Button */}
+          {user ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {user.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={user.name || 'Usuario'}
+                  style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid rgba(0, 217, 255, 0.4)' }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(0, 217, 255, 0.2)',
+                    border: '1px solid rgba(0, 217, 255, 0.4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#00D9FF',
+                  }}
+                >
+                  {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                </div>
+              )}
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerSound();
+                    onLogout();
+                  }}
+                  title="Cerrar sesión"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '6px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    borderRadius: '6px',
+                    color: '#EF4444',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <LogOut size={14} />
+                </button>
+              )}
+            </div>
+          ) : onOpenAuth ? (
+            <button
+              type="button"
+              onClick={() => {
+                triggerSound();
+                onOpenAuth();
+              }}
+              title="Iniciar sesión"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                backgroundColor: 'rgba(0, 217, 255, 0.1)',
+                border: '1px solid rgba(0, 217, 255, 0.3)',
+                borderRadius: '8px',
+                padding: isMobile ? '8px 12px' : '6px 12px',
+                minHeight: isMobile ? '44px' : '32px',
+                color: '#00D9FF',
+                fontSize: isMobile ? '13px' : '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              <LogIn size={14} color="#00D9FF" />
+              <span>Acceder</span>
+            </button>
+          ) : null}
         </div>
       </div>
       

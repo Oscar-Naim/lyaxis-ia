@@ -73,13 +73,20 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
       };
 
       try {
+        // Detect the last message with an image to only transmit base64 for the active turn
+        let lastImgIdx = -1;
+        messages.forEach((m, idx) => {
+          if (m && m.image) lastImgIdx = idx;
+        });
+
         let sanitizedMessages = messages
           .filter((m) => m && ((m.content && String(m.content).trim()) || m.image) && !String(m.content || '').startsWith('⚠️') && !String(m.content || '').startsWith('❌'))
-          .map((m) => ({
+          .map((m, idx) => ({
             id: m.id || undefined,
             role: (m.role === 'model' || (m.role as string) === 'assistant') ? 'model' : 'user',
             content: String(m.content || '').trim(),
-            image: m.image || undefined,
+            // Strip historical base64 images from older turns to prevent massive payloads and latency
+            image: idx === lastImgIdx ? m.image : undefined,
           }));
 
         if (sanitizedMessages.length === 0 && messages.length > 0) {
@@ -102,17 +109,18 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
           cortex: 0.2,
           root: 0.2,
           phantom: 0.3,
-          speed: 0.6,
-          architect: 0.5,
-          magister: 0.6,
-          classic: 0.7,
-          nexus: 0.8,
-          forge: 0.85
+          speed: 0.3,
+          architect: 0.3,
+          magister: 0.4,
+          classic: 0.4,
+          zenith: 0.4,
+          nexus: 0.5,
+          forge: 0.5,
         };
 
         const resolvedTemp = options?.temperature !== undefined
           ? options.temperature
-          : (tempMap[String(model)] ?? 0.6);
+          : (tempMap[String(model)] ?? 0.3);
 
         const payload = {
           conversation_id: conversationId || null,
