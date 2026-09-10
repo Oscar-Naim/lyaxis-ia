@@ -74,15 +74,7 @@ export default function App() {
   }, [conversations]);
 
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<ModelId>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('lyaxis_active_model') || localStorage.getItem('lyaxis_selected_model');
-      if (saved && (ALL_MODELS as readonly string[]).includes(saved)) {
-        return saved as ModelId;
-      }
-    }
-    return 'speed';
-  });
+  const [selectedModel, setSelectedModel] = useState<ModelId>('speed');
 
   useEffect(() => {
     try {
@@ -166,7 +158,7 @@ export default function App() {
           setCurrentChatId((curr) => {
             if (!curr && loaded.length > 0) {
               loadMessages(loaded[0].id);
-              setSelectedModel(loaded[0].model || 'speed');
+              // Always maintain 'speed' as the default model when opening the app
               return loaded[0].id;
             }
             return curr;
@@ -242,7 +234,12 @@ export default function App() {
 
   const handleNewConversation = async (modelOverride?: ModelType) => {
     const cid = `chat-${Date.now()}`;
-    const modelToUse = modelOverride || selectedModel;
+    const modelToUse = modelOverride || 'speed';
+    setSelectedModel('speed');
+    try {
+      localStorage.setItem('lyaxis_active_model', 'speed');
+      localStorage.setItem('lyaxis_selected_model', 'speed');
+    } catch {}
     const uid = activeUserId;
     const newChat: Conversation = {
       id: cid,
@@ -309,8 +306,8 @@ export default function App() {
           isOpen={isSidebarOpen}
           isMobile={isMobile}
           onClose={() => setIsSidebarOpen(false)}
-          onNewChat={() => handleNewConversation()}
-          onHomeClick={() => handleNewConversation()}
+          onNewChat={() => handleNewConversation('speed')}
+          onHomeClick={() => handleNewConversation('speed')}
           onOpenManifesto={() => openInfoDrawer('manifesto')}
           user={user}
           onOpenAuth={() => setIsAuthOpen(true)}

@@ -97,7 +97,7 @@ def init_sqlite():
                 id TEXT PRIMARY KEY,
                 user_id TEXT,
                 title TEXT NOT NULL,
-                model TEXT NOT NULL DEFAULT 'classic',
+                model TEXT NOT NULL DEFAULT 'speed',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )

@@ -105,15 +105,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   isScanlineActive = false,
   isChromaticActive = false,
 }) => {
-  const [currentActiveModel, setCurrentActiveModel] = useState<ModelType>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('lyaxis_active_model') || localStorage.getItem('lyaxis_selected_model');
-      if (saved && (ALL_MODELS as readonly string[]).includes(saved)) {
-        return saved as ModelType;
-      }
-    }
-    return selectedModel || 'speed';
-  });
+  const [currentActiveModel, setCurrentActiveModel] = useState<ModelType>(selectedModel || 'speed');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showZenithNotice, setShowZenithNotice] = useState(false);
