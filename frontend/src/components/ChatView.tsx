@@ -1141,22 +1141,33 @@ export const ChatView: React.FC<ChatViewProps> = ({
               </div>
 
               {/* Title & Philosophy */}
-              <div>
-                <h2
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <h1
                   style={{
-                    fontSize: '26px',
+                    fontSize: isMobile ? '28px' : '36px',
                     fontWeight: 800,
-                    color: '#ffffff',
-                    margin: '0 0 8px 0',
-                    letterSpacing: '-0.4px',
-                    background: `linear-gradient(180deg, #FFFFFF 0%, ${meta.color} 140%)`,
+                    letterSpacing: '-0.025em',
+                    background: 'linear-gradient(to right, #ffffff, #e2e8f0, #67e8f9)',
                     WebkitBackgroundClip: 'text',
+                    backgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
+                    color: 'transparent',
+                    margin: '12px 0 4px 0',
+                    display: 'inline-block',
+                    textAlign: 'center',
                   }}
                 >
                   LYAXIS {meta.label}
-                </h2>
-                <p style={{ fontSize: '14px', maxWidth: '540px', margin: '0 auto', lineHeight: '1.6', color: '#94a3b8' }}>
+                </h1>
+                <div
+                  style={{
+                    height: '1px',
+                    width: '128px',
+                    margin: '8px auto',
+                    background: 'linear-gradient(to right, transparent, rgba(6, 182, 212, 0.4), transparent)',
+                  }}
+                />
+                <p style={{ fontSize: '14px', maxWidth: '540px', margin: '4px auto 0', lineHeight: '1.6', color: '#94a3b8' }}>
                   {meta.description}
                 </p>
               </div>
