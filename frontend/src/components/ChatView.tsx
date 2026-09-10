@@ -28,9 +28,12 @@ import {
 import type { Message, ModelType } from '../types';
 import { useSSEStream } from '../useSSEStream';
 import { MessageBubble } from './MessageBubble';
+import { ClarificationModal } from './ClarificationModal';
+import type { ClarificationData, ClarificationSubmitPayload } from './ClarificationModal';
 import { NotebookStudio } from './NotebookStudio';
 import { isSoundMuted, setSoundMuted, playCyberClick as globalPlayCyberClick } from '../sound';
 import { API_BASE, ALL_MODELS, MODEL_META, MODEL_QUICK_ACTIONS } from '../config';
+import { exportChatToPDF } from '../pdfExporter';
 
 export interface ChatViewProps {
   messages: Message[];
@@ -111,6 +114,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
       return false;
     }
   });
+
+  // Clarification modal state (Task 4 — Human-in-the-Loop)
+  const [clarificationData, setClarificationData] = useState<ClarificationData | null>(null);
+  const pendingMessagesRef = useRef<Message[]>([]);
+  const pendingPlaceholderIdRef = useRef<string>('');
 
   const toggleTriad = () => {
     triggerSound();
@@ -350,6 +358,50 @@ export const ChatView: React.FC<ChatViewProps> = ({
     };
 
     const updatedMessages = [...messages, userMessage];
+
+    // ———————————————————————————————————————————————————————————————————
+    // Task 4: Pre-send clarify check for zenith model (Human-in-the-Loop tool calling)
+    // Only fires for the zenith model; SKIP response falls through to normal stream.
+    if (currentActiveModel === 'zenith' && userText.trim().length > 40) {
+      try {
+        const clarifyPayload = {
+          messages: updatedMessages.map((m) => ({
+            role: m.role,
+            content: m.content || '',
+          })),
+          model: currentActiveModel,
+          conversation_id: targetChatId,
+          user_id: activeUserId || null,
+        };
+        const clarifyRes = await fetch(`${API_BASE}/api/v1/chat/clarify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(clarifyPayload),
+        });
+        if (clarifyRes.ok) {
+          const clarifyJson = await clarifyRes.json();
+          if (clarifyJson.type === 'CLARIFICATION_REQUIRED') {
+            // Store pending context and show modal — do NOT start streaming yet
+            pendingMessagesRef.current = updatedMessages;
+            pendingPlaceholderIdRef.current = assistantPlaceholderId;
+            setMessages([...updatedMessages]); // add user msg without placeholder
+            setClarificationData({
+              motivo: clarifyJson.data?.motivo || '',
+              campos_faltantes: clarifyJson.data?.campos_faltantes || [],
+              opciones_rapidas: clarifyJson.data?.opciones_rapidas || [],
+              toolCallId: clarifyJson.tool_call_id || '',
+            });
+            return; // pause — resume in handleClarificationSubmit
+          }
+          // type === 'MESSAGE': model answered inline via tool call flow (rare); fall through to stream
+        }
+      } catch (clarifyErr) {
+        // Network or parse error — silently fall through to normal streaming
+        console.warn('[clarify] pre-check failed, falling through to stream:', clarifyErr);
+      }
+    }
+    // ———————————————————————————————————————————————————————————————————
+
     setMessages([...updatedMessages, assistantMessage]);
 
     // Active model individual temperature
@@ -392,6 +444,74 @@ export const ChatView: React.FC<ChatViewProps> = ({
     );
 
     // Finalize isStreaming flag
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === assistantPlaceholderId ? { ...msg, isStreaming: false } : msg
+      )
+    );
+  };
+
+  // Task 4: Resume streaming after user fills clarification modal
+  const handleClarificationSubmit = async (payload: ClarificationSubmitPayload) => {
+    setClarificationData(null);
+
+    const baseMessages = pendingMessagesRef.current;
+    const assistantPlaceholderId = `model-${Date.now()}`;
+    const assistantMessage: Message = {
+      id: assistantPlaceholderId,
+      role: 'model',
+      content: '',
+      timestamp: new Date().toISOString(),
+      model: currentActiveModel,
+      isStreaming: true,
+    };
+
+    // Inject tool result into messages so the model has context
+    const toolResultMessage: Message = {
+      id: `tool-${Date.now()}`,
+      role: 'user',
+      content: `[Aclaración del usuario]: ${payload.respuesta}`,
+      timestamp: new Date().toISOString(),
+      model: currentActiveModel,
+    };
+
+    const updatedMessages = [...baseMessages, toolResultMessage];
+    setMessages([...updatedMessages, assistantMessage]);
+
+    const activeMeta = modelMeta[currentActiveModel] || MODEL_META[currentActiveModel] || MODEL_META.speed;
+    const activeTemp = activeMeta.temperature ?? 0.3;
+
+    let targetChatId = currentChatId;
+    if (!targetChatId) {
+      targetChatId = `chat-${Date.now()}`;
+      if (setCurrentChatId) setCurrentChatId(targetChatId);
+    }
+
+    await sendMessage(
+      updatedMessages,
+      currentActiveModel,
+      targetChatId,
+      activeUserId,
+      (accumulatedText) => {
+        if (!isMuted && Math.random() > 0.45) triggerSound();
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantPlaceholderId ? { ...msg, content: accumulatedText } : msg
+          )
+        );
+      },
+      {
+        temperature: activeTemp,
+        triad_mode: isTriadActive,
+        onError: (err) => handleStreamError(err),
+        onDone: () => {
+          setServerErrorBanner(null);
+          setLastFailedUserText(null);
+          onConversationUpdated?.();
+        },
+      }
+    );
+
     setMessages((prev) =>
       prev.map((msg) =>
         msg.id === assistantPlaceholderId ? { ...msg, isStreaming: false } : msg
@@ -950,7 +1070,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 message={msg}
                 activeModel={currentActiveModel}
                 isMobile={isMobile}
-                onExportPDF={onExportPDF}
+                onExportPDF={(title, label, color, msgs) => {
+                  // Task 5: Zero-token PDF export using pre-rendered text via pdfExporter
+                  exportChatToPDF(title, label, color, msgs);
+                }}
                 onOpenInNotebook={handleOpenInNotebook}
               />
             ))
@@ -1303,6 +1426,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
         activeModel={currentActiveModel}
         isMobile={isMobile}
       />
+
+      {/* Task 4: Human-in-the-Loop Clarification Modal */}
+      {clarificationData && (
+        <ClarificationModal
+          data={clarificationData}
+          onSubmit={handleClarificationSubmit}
+          onClose={() => {
+            setClarificationData(null);
+            // Remove empty pending state — user dismissed without answering
+            setMessages((prev) => prev.filter((m) => m.role === 'user' || m.content.trim()));
+          }}
+        />
+      )}
     </div>
   );
 };

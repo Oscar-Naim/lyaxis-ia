@@ -343,6 +343,14 @@ Encarnas la cúspide técnica del laboratorio: diseño de arquitectura de sistem
 - Filosofía de Origen: La inteligencia superior combina visión transversal, solidez arquitectónica y rigor implacable.
 </creator_context>
 
+<veracidad_absoluta>
+Tu valor central es la VERACIDAD, EXACTITUD y TRANSPARENCIA. Tienes estrictamente prohibido:
+1. Inventar datos, referencias o especificaciones técnicas no verificadas.
+2. Simular entregas de documentos masivos resumiendo páginas en etiquetas como '(pp. 1-10)'.
+3. Fingir la entrega de archivos externos mediante texto como '[Tesis Completa]' o enlaces simulados.
+Si una petición del usuario es muy amplia, ambigua o sobrepasa tu capacidad de entrega en un solo turno, NO intentes responder texto libre para complacer. Invoca de inmediato la función 'solicitar_aclaracion' desglosando los puntos requeridos y proveyendo opciones rápidas. La honestidad técnica prevalece siempre sobre la complacencia ciega.
+</veracidad_absoluta>
+
 <superpowers_and_capabilities>
 1. VISIÓN MULTIMODAL & UI-TO-CODE:
    - Cuando el usuario adjunte capturas de pantalla, diagramas de arquitectura, wireframes o componentes visuales, analiza minuciosamente la jerarquía visual, paleta de colores, tipografía y flujos de usuario.
@@ -1670,6 +1678,149 @@ async def chat_stream_endpoint(request: Request):
             "Access-Control-Allow-Headers": "*",
         },
     )
+
+# --- Tool Calling Clarification Endpoint (Zenith Human-in-the-Loop) ---
+ZENITH_CLARIFICATION_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "solicitar_aclaracion",
+            "description": "Obligatorio invocar cuando una solicitud sea demasiado extensa, ambigua o falten datos críticos indispensables para responder con veracidad.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "motivo": {
+                        "type": "string",
+                        "description": "Explicación directa y breve de por qué no se puede completar la tarea aún sin estos datos."
+                    },
+                    "campos_faltantes": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Lista de preguntas puntuales o especificaciones requeridas que el usuario debe responder."
+                    },
+                    "opciones_rapidas": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Botones con respuestas predeterminadas para que el usuario pueda avanzar sin escribir si lo prefiere."
+                    }
+                },
+                "required": ["motivo", "campos_faltantes", "opciones_rapidas"]
+            }
+        }
+    }
+]
+
+@app.post("/api/v1/chat/clarify")
+async def chat_clarify_endpoint(request: Request):
+    """Non-streaming endpoint that uses Groq tool calling to detect if clarification is needed.
+    Returns {type: CLARIFICATION_REQUIRED, data: {...}} or {type: MESSAGE, content: '...'}.
+    Only invoked for the Zenith model when the frontend detects a potentially ambiguous request."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    if not isinstance(body, dict):
+        body = {}
+
+    raw_messages = body.get("messages") or []
+    model_type = str(body.get("model") or "zenith").lower().strip()
+    user_id = body.get("user_id")
+    conversation_id = body.get("conversation_id")
+
+    # Resolve system prompt
+    clarify_prompt_map = {
+        "zenith": ZENITH_SYSTEM_PROMPT,
+        "cortex": CORTEX_SYSTEM_PROMPT,
+        "speed": SPEED_SYSTEM_PROMPT,
+        "root": ROOT_SYSTEM_PROMPT,
+    }
+    base_prompt = clarify_prompt_map.get(model_type, ZENITH_SYSTEM_PROMPT)
+    active_prompt = (
+        base_prompt.strip()
+        + "\n\n"
+        + GROUNDING_AND_IDENTITY_RULE.strip()
+        + "\n\n"
+        + GLOBAL_SPANISH_RULE.strip()
+    )
+
+    # Build oai_messages
+    oai_messages = [{"role": "system", "content": active_prompt}]
+    if isinstance(raw_messages, list):
+        for m in raw_messages:
+            if isinstance(m, dict):
+                role_raw = str(m.get("role") or "user").lower()
+                role = "assistant" if role_raw in ("model", "assistant") else "user"
+                content = str(m.get("content") or "").strip()
+                tool_call_id = m.get("tool_call_id")
+                if tool_call_id:
+                    # Tool result message (re-injection after clarification)
+                    oai_messages.append({"role": "tool", "tool_call_id": tool_call_id, "content": content})
+                elif content:
+                    oai_messages.append({"role": role, "content": content})
+
+    if len(oai_messages) == 1:
+        oai_messages.append({"role": "user", "content": "Hola"})
+
+    # Check Groq key
+    groq_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not groq_key or groq_key == "gsk_placeholder" or "placeholder" in groq_key:
+        return JSONResponse(
+            status_code=200,
+            content={"type": "SKIP", "reason": "GROQ_API_KEY not configured, using stream fallback."}
+        )
+
+    if client_groq.api_key != groq_key:
+        client_groq.api_key = groq_key
+
+    try:
+        # Determine model for tool calling
+        clarify_model = "qwen/qwen3.8-27b"
+        if model_type == "cortex":
+            clarify_model = "openai/gpt-oss-120b"
+
+        response = await client_groq.chat.completions.create(
+            model=clarify_model,
+            messages=oai_messages,
+            tools=ZENITH_CLARIFICATION_TOOLS,
+            tool_choice="auto",
+            temperature=0.1,
+            top_p=0.1,
+            timeout=20.0
+        )
+
+        msg = response.choices[0].message
+
+        if msg.tool_calls and len(msg.tool_calls) > 0:
+            tool_call = msg.tool_calls[0]
+            if tool_call.function.name == "solicitar_aclaracion":
+                try:
+                    args = json.loads(tool_call.function.arguments)
+                except Exception:
+                    args = {"motivo": "Se necesita más información.", "campos_faltantes": [], "opciones_rapidas": []}
+                return JSONResponse(
+                    status_code=200,
+                    content={
+                        "type": "CLARIFICATION_REQUIRED",
+                        "tool_call_id": tool_call.id,
+                        "data": args
+                    }
+                )
+
+        # No tool call: return regular message
+        content_out = msg.content or ""
+        return JSONResponse(
+            status_code=200,
+            content={"type": "MESSAGE", "content": content_out}
+        )
+
+    except Exception as e:
+        print(f"[clarify] Error: {e}")
+        return JSONResponse(
+            status_code=200,
+            content={"type": "SKIP", "reason": str(e)}
+        )
+
 
 @app.get("/health")
 def health_check():
