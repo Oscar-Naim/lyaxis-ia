@@ -164,6 +164,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [isInputFocused, setIsInputFocused] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesScrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -241,7 +242,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesScrollRef.current) {
+      messagesScrollRef.current.scrollTop = messagesScrollRef.current.scrollHeight;
+    }
+    if (typeof window !== 'undefined' && window.scrollY !== 0) {
+      window.scrollTo(0, 0);
+    }
   }, [messages, serverErrorBanner]);
 
   // In-Chat Model Switcher: changes model without wiping messages and updates backend conversation
@@ -620,7 +626,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
       
       {/* Header with 3 Zones (PC) / Compact Mobile Header (Mobile) */}
       <div
+        className="lyaxis-header-bar"
         style={{
+          position: 'sticky',
+          top: 0,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -1479,7 +1488,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
       )}
 
       {/* Main Messages List or Cyberpunk Empty State */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px 12px' : '24px 16px', display: 'flex', flexDirection: 'column' }}>
+      <div
+        ref={messagesScrollRef}
+        className="lyaxis-chat-scroll-area"
+        style={{
+          flex: '1 1 0%',
+          minHeight: 0,
+          overflowY: 'auto',
+          padding: isMobile ? '16px 12px' : '24px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          overscrollBehaviorY: 'contain',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
         <div style={{ maxWidth: '960px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px', flex: 1 }}>
           {messages.length === 0 ? (
             /* 1. Tarjetas de Acción Rápida por Modelo (Eliminar pantalla vacía) */
@@ -1956,10 +1978,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
               onKeyDown={handleKeyDown}
               onFocus={() => {
                 setIsInputFocused(true);
-                if (isMobile) {
-                  setTimeout(() => {
-                    textareaRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                  }, 150);
+                if (typeof window !== 'undefined' && window.scrollY !== 0) {
+                  window.scrollTo(0, 0);
                 }
               }}
               onBlur={() => setIsInputFocused(false)}
