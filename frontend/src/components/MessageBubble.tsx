@@ -224,6 +224,13 @@ const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) =
                   </code>
                 );
               },
+              pre({ children }: any) {
+                return (
+                  <div style={{ overflowX: 'auto', width: '100%', maxWidth: '100%', margin: '4px 0', WebkitOverflowScrolling: 'touch' }}>
+                    {children}
+                  </div>
+                );
+              },
             }}
           >
             {thoughtText}
@@ -341,6 +348,21 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const meta = MODEL_META[msgModel] || MODEL_META.speed;
   const modelColor = isTriad ? '#7C3AED' : (meta.color || '#2563FF');
   const modelLabel = isTriad ? 'TRIAD™' : (meta.label || 'Speed');
+
+  // 4. MODO TRÍADA RESPONSIVO: Tabs táctiles en móvil (< 1024px)
+  const [activeTriadTab, setActiveTriadTab] = useState<'create' | 'break' | 'rebuild'>('create');
+
+  React.useEffect(() => {
+    if (isTriad && message.isStreaming) {
+      if (parsedTriad.rebuild) {
+        setActiveTriadTab('rebuild');
+      } else if (parsedTriad.breakText) {
+        setActiveTriadTab('break');
+      } else if (parsedTriad.create) {
+        setActiveTriadTab('create');
+      }
+    }
+  }, [isTriad, message.isStreaming, parsedTriad.create, parsedTriad.breakText, parsedTriad.rebuild]);
 
   const isUser = message.role === 'user';
 
@@ -589,16 +611,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         </div>
 
-        {/* 3-Column Side-by-Side Parallel Dashboard Grid — Hugs Content (No Empty Dead Boxes) */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))',
-            gap: '12px',
-            width: '100%',
-            alignItems: 'start',
-          }}
-        >
+        {/* Desktop 3-Column Parallel Grid (>= 1024px) */}
+        <div className="lyaxis-triad-desktop-grid">
           {/* Panel 1: CREATE (Speed) */}
           {renderTriadCard(
             '1',
@@ -634,6 +648,137 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             triad.rebuild,
             isStreaming
           )}
+        </div>
+
+        {/* Mobile / Tablet Tactile Tabs Layout (< 1024px) */}
+        <div className="lyaxis-triad-mobile-tabs">
+          {/* Tabs Selector Bar */}
+          <div
+            style={{
+              display: 'flex',
+              gap: '6px',
+              padding: '4px',
+              backgroundColor: '#07070a',
+              borderRadius: '12px',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              width: '100%',
+              boxSizing: 'border-box',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setActiveTriadTab('create')}
+              style={{
+                flex: 1,
+                minHeight: '44px',
+                borderRadius: '8px',
+                border: activeTriadTab === 'create' ? '1px solid #00D9FF' : '1px solid transparent',
+                backgroundColor: activeTriadTab === 'create' ? 'rgba(0, 217, 255, 0.15)' : 'transparent',
+                color: activeTriadTab === 'create' ? '#00D9FF' : '#71717a',
+                fontWeight: 700,
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span>⚡</span>
+              <span>1. Create</span>
+              {triad.create ? (
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#00D9FF' }} />
+              ) : null}
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTriadTab('break')}
+              style={{
+                flex: 1,
+                minHeight: '44px',
+                borderRadius: '8px',
+                border: activeTriadTab === 'break' ? '1px solid #FF3366' : '1px solid transparent',
+                backgroundColor: activeTriadTab === 'break' ? 'rgba(255, 51, 102, 0.15)' : 'transparent',
+                color: activeTriadTab === 'break' ? '#FF3366' : '#71717a',
+                fontWeight: 700,
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span>🎯</span>
+              <span>2. Break</span>
+              {triad.breakText ? (
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#FF3366' }} />
+              ) : null}
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTriadTab('rebuild')}
+              style={{
+                flex: 1,
+                minHeight: '44px',
+                borderRadius: '8px',
+                border: activeTriadTab === 'rebuild' ? '1px solid #C084FC' : '1px solid transparent',
+                backgroundColor: activeTriadTab === 'rebuild' ? 'rgba(192, 132, 252, 0.15)' : 'transparent',
+                color: activeTriadTab === 'rebuild' ? '#C084FC' : '#71717a',
+                fontWeight: 700,
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span>🧠</span>
+              <span>3. Rebuild</span>
+              {triad.rebuild ? (
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#C084FC' }} />
+              ) : null}
+            </button>
+          </div>
+
+          {/* Active Tab Card Content */}
+          {activeTriadTab === 'create' &&
+            renderTriadCard(
+              '1',
+              'NÚCLEO I · CREATE',
+              'LYAXIS SPEED',
+              '#00D9FF',
+              'rgba(0, 217, 255, 0.15)',
+              '⚡',
+              triad.create,
+              isStreaming
+            )}
+          {activeTriadTab === 'break' &&
+            renderTriadCard(
+              '2',
+              'NÚCLEO II · BREAK',
+              'LYAXIS PHANTOM',
+              '#FF3366',
+              'rgba(255, 51, 102, 0.15)',
+              '🎯',
+              triad.breakText,
+              isStreaming
+            )}
+          {activeTriadTab === 'rebuild' &&
+            renderTriadCard(
+              '3',
+              'NÚCLEO III · REBUILD',
+              'LYAXIS CORTEX',
+              '#C084FC',
+              'rgba(192, 132, 252, 0.15)',
+              '🧠',
+              triad.rebuild,
+              isStreaming
+            )}
         </div>
       </div>
     );
@@ -753,6 +898,21 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <tr style={{ transition: 'background-color 0.15s ease' }} {...props}>
                 {children}
               </tr>
+            );
+          },
+          pre({ children }: any) {
+            return (
+              <div
+                style={{
+                  overflowX: 'auto',
+                  width: '100%',
+                  maxWidth: '100%',
+                  margin: '8px 0',
+                  WebkitOverflowScrolling: 'touch',
+                }}
+              >
+                {children}
+              </div>
             );
           },
           code({ className, children, ...props }: any) {

@@ -29,6 +29,8 @@ import {
   LogOut,
   LayoutDashboard,
   Info,
+  Menu,
+  MoreVertical,
 } from 'lucide-react';
 import type { Message, ModelType, User } from '../types';
 import { useSSEStream } from '../useSSEStream';
@@ -154,6 +156,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
     });
   };
 
+  // Mobile Actions Dropdown state (3. HEADER COMPACTO Y LIMPIO EN MÓVIL)
+  const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
+  const mobileActionsRef = useRef<HTMLDivElement | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
@@ -171,11 +177,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setCurrentActiveModel(selectedModel);
   }, [selectedModel]);
 
-  // Click outside to close model dropdown
+  // Click outside to close model dropdown and mobile actions
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (dropdownRef.current && !dropdownRef.current.contains(target)) {
         setIsModelDropdownOpen(false);
+      }
+      if (mobileActionsRef.current && !mobileActionsRef.current.contains(target)) {
+        setIsMobileActionsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -568,7 +578,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: '100vh',
+        height: '100dvh',
         minHeight: '100dvh',
         maxHeight: '100dvh',
         flex: 1,
@@ -586,405 +596,770 @@ export const ChatView: React.FC<ChatViewProps> = ({
         <div className="lyaxis-chromatic-overlay" />
       )}
       
-      {/* Header with Live In-Chat Model Switcher Dropdown, PDF export, and Mute Toggle */}
+      {/* Header with 3 Zones (PC) / Compact Mobile Header (Mobile) */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: isMobile ? '10px 12px' : '12px 20px',
+          padding: isMobile ? '10px 12px' : '12px 24px',
           borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          backgroundColor: 'rgba(8, 8, 12, 0.85)',
-          backdropFilter: 'blur(12px)',
-          zIndex: 25,
+          backgroundColor: 'rgba(5, 8, 17, 0.90)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          zIndex: 35,
           flexShrink: 0,
+          gap: '12px',
         }}
       >
+        {/* Zone 1 (Left): Hamburger (Mobile) or PanelLeft (Desktop) + Model Selector */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {!isSidebarOpen && onToggleSidebar && (
+          {isMobile ? (
+            /* Botón hamburguesa táctil (☰) en la esquina superior izquierda */
             <button
               type="button"
               onClick={onToggleSidebar}
-              title="Mostrar barra lateral (Historial)"
+              title="Abrir menú y chats"
+              aria-label="Abrir menú"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '6px',
-                backgroundColor: 'rgba(0, 217, 255, 0.08)',
-                border: '1px solid rgba(0, 217, 255, 0.25)',
-                color: '#00D9FF',
-                padding: isMobile ? '8px 12px' : '6px 10px',
-                minWidth: isMobile ? '44px' : 'auto',
-                minHeight: isMobile ? '44px' : 'auto',
-                borderRadius: '8px',
-                fontSize: isMobile ? '13px' : '12px',
-                fontWeight: 600,
+                width: '44px',
+                height: '44px',
+                minWidth: '44px',
+                minHeight: '44px',
+                borderRadius: '10px',
+                backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color: '#ffffff',
                 cursor: 'pointer',
-                boxShadow: '0 0 12px rgba(0, 217, 255, 0.12)',
-                transition: 'all 0.2s ease',
+                transition: 'all 0.15s ease',
                 flexShrink: 0,
               }}
             >
-              <PanelLeft size={17} color="#00D9FF" />
-              {!isMobile && <span>Historial</span>}
+              <Menu size={20} color="#00D9FF" />
             </button>
+          ) : (
+            !isSidebarOpen && onToggleSidebar && (
+              <button
+                type="button"
+                onClick={onToggleSidebar}
+                title="Mostrar barra lateral (Historial)"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  backgroundColor: 'rgba(0, 217, 255, 0.08)',
+                  border: '1px solid rgba(0, 217, 255, 0.25)',
+                  color: '#00D9FF',
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: '0 0 12px rgba(0, 217, 255, 0.12)',
+                  transition: 'all 0.2s ease',
+                  flexShrink: 0,
+                }}
+              >
+                <PanelLeft size={17} color="#00D9FF" />
+                <span>Historial</span>
+              </button>
+            )
           )}
 
           {/* Interactive In-Chat Model Selector */}
           <div style={{ position: 'relative' }} ref={dropdownRef}>
-          <button
-            type="button"
-            onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-            title="Cambiar modelo de IA dentro de esta conversación"
+            <button
+              type="button"
+              onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+              title="Cambiar modelo de IA dentro de esta conversación"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                border: `1px solid ${meta.color}55`,
+                borderRadius: '10px',
+                padding: isMobile ? '8px 12px' : '6px 12px',
+                minHeight: isMobile ? '44px' : '36px',
+                color: '#ffffff',
+                cursor: 'pointer',
+                boxShadow: `0 0 14px ${meta.color}22`,
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <span
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: meta.color,
+                  boxShadow: `0 0 8px ${meta.color}`,
+                  display: 'inline-block',
+                }}
+              />
+              <span style={{ fontSize: isMobile ? '14px' : '13px', fontWeight: 700, letterSpacing: '0.3px' }}>
+                LYAXIS {meta.label}
+              </span>
+              {!isMobile && (
+                <span style={{ fontSize: '11px', color: '#71717a', marginLeft: '2px', fontFamily: 'monospace' }}>
+                  T:{meta.temperature}
+                </span>
+              )}
+              <ChevronDown
+                size={14}
+                color="#a1a1aa"
+                style={{
+                  transform: isModelDropdownOpen ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.2s ease',
+                }}
+              />
+            </button>
+
+            {isModelDropdownOpen && (
+              <>
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 45, backgroundColor: 'transparent' }}
+                  onClick={() => setIsModelDropdownOpen(false)}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    left: 0,
+                    width: isMobile ? 'calc(100vw - 28px)' : '300px',
+                    maxWidth: '340px',
+                    backgroundColor: '#0a0a0f',
+                    border: '1px solid #22222e',
+                    borderRadius: '12px',
+                    padding: '6px',
+                    boxShadow: '0 10px 35px rgba(0,0,0,0.9), 0 0 20px rgba(0, 217, 255, 0.1)',
+                    zIndex: 50,
+                    backdropFilter: 'blur(16px)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px',
+                  }}
+                >
+                  <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 800, color: '#71717a', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                    Cambiar Modelo en este Chat
+                  </div>
+                  {ALL_MODELS.map((m) => {
+                    const itemMeta = modelMeta[m] || MODEL_META[m] || MODEL_META.classic;
+                    const isSelected = currentActiveModel === m;
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => handleModelSwitch(m)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+                          color: isSelected ? '#ffffff' : '#a1a1aa',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.15s ease',
+                          gap: '8px',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isSelected ? 'rgba(255, 255, 255, 0.08)' : 'transparent'; }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0, flex: 1 }}>
+                          <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: itemMeta.color, flexShrink: 0 }} />
+                          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+                            <span style={{ fontSize: '13px', fontWeight: isSelected ? 700 : 500, color: isSelected ? '#ffffff' : '#e2e8f0', lineHeight: 1.3 }}>
+                              {itemMeta.label}
+                            </span>
+                            <span style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {itemMeta.tagline}
+                            </span>
+                          </div>
+                        </div>
+                        <span style={{ fontSize: '10.5px', color: '#71717a', fontFamily: 'monospace', flexShrink: 0 }}>
+                          T:{itemMeta.temperature}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Zone 2 (Center): Telemetría en PC (>= 768px) */}
+        {!isMobile && (
+          <div
+            className="lyaxis-header-telemetry"
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              backgroundColor: 'rgba(255, 255, 255, 0.04)',
-              border: `1px solid ${meta.color}55`,
-              borderRadius: '10px',
-              padding: isMobile ? '8px 14px' : '6px 12px',
-              minHeight: isMobile ? '44px' : '36px',
-              color: '#ffffff',
-              cursor: 'pointer',
-              boxShadow: `0 0 14px ${meta.color}22`,
-              transition: 'all 0.2s ease',
+              padding: '5px 14px',
+              borderRadius: '16px',
+              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.07)',
             }}
           >
             <span
               style={{
-                width: '8px',
-                height: '8px',
+                width: '6px',
+                height: '6px',
                 borderRadius: '50%',
                 backgroundColor: meta.color,
                 boxShadow: `0 0 8px ${meta.color}`,
-                display: 'inline-block',
               }}
             />
-            <span style={{ fontSize: isMobile ? '14px' : '13px', fontWeight: 700, letterSpacing: '0.3px' }}>
-              LYAXIS {meta.label}
-            </span>
-            <span style={{ fontSize: isMobile ? '12px' : '11px', color: '#71717a', marginLeft: '2px', fontFamily: 'monospace' }}>
-              T:{meta.temperature}
-            </span>
-            <ChevronDown
-              size={14}
-              color="#a1a1aa"
+            <span
               style={{
-                transform: isModelDropdownOpen ? 'rotate(180deg)' : 'none',
-                transition: 'transform 0.2s ease',
+                fontSize: '11px',
+                fontFamily: 'monospace',
+                color: '#94a3b8',
+                letterSpacing: '0.6px',
+                fontWeight: 600,
               }}
-            />
-          </button>
+            >
+              LYAXIS NEURAL STREAM // ONLINE • ~14ms
+            </span>
+          </div>
+        )}
 
-          {isModelDropdownOpen && (
+        {/* Zone 3 (Right): Acciones Desktop o Menú Móvil Compacto (⋮) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {isMobile ? (
             <>
-              <div
-                style={{ position: 'fixed', inset: 0, zIndex: 45, backgroundColor: 'transparent' }}
-                onClick={() => setIsModelDropdownOpen(false)}
-              />
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 6px)',
-                  left: 0,
-                  width: isMobile ? 'calc(100vw - 28px)' : '300px',
-                  maxWidth: '340px',
-                  backgroundColor: '#0a0a0f',
-                  border: '1px solid #22222e',
-                  borderRadius: '12px',
-                  padding: '6px',
-                  boxShadow: '0 10px 35px rgba(0,0,0,0.9), 0 0 20px rgba(0, 217, 255, 0.1)',
-                  zIndex: 50,
-                  backdropFilter: 'blur(16px)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '2px',
-                }}
-              >
-                <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 800, color: '#71717a', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
-                  Cambiar Modelo en este Chat
-                </div>
-              {ALL_MODELS.map((m) => {
-                const itemMeta = modelMeta[m] || MODEL_META[m] || MODEL_META.classic;
-                const isSelected = currentActiveModel === m;
-                return (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => handleModelSwitch(m)}
+              {/* Acceder / Usuario en móvil */}
+              {user ? (
+                user.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={user.name || 'Usuario'}
                     style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      border: '1px solid rgba(0, 217, 255, 0.4)',
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      backgroundColor: 'rgba(0, 217, 255, 0.2)',
+                      border: '1px solid rgba(0, 217, 255, 0.4)',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 10px',
-                      borderRadius: '8px',
-                      border: 'none',
-                      backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-                      color: isSelected ? '#ffffff' : '#a1a1aa',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'all 0.15s ease',
-                      gap: '8px',
+                      justifyContent: 'center',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      color: '#00D9FF',
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isSelected ? 'rgba(255, 255, 255, 0.08)' : 'transparent'; }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0, flex: 1 }}>
-                      <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: itemMeta.color, flexShrink: 0 }} />
-                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-                        <span style={{ fontSize: '13px', fontWeight: isSelected ? 700 : 500, color: isSelected ? '#ffffff' : '#e2e8f0', lineHeight: 1.3 }}>
-                          {itemMeta.label}
-                        </span>
-                        <span style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {itemMeta.tagline}
-                        </span>
-                      </div>
-                    </div>
-                    <span style={{ fontSize: '10.5px', color: '#71717a', fontFamily: 'monospace', flexShrink: 0 }}>
-                      T:{itemMeta.temperature}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            </>
-          )}
-        </div>
-      </div>
-
-        {/* Action Controls in Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* Sound Mute Toggle (5. Interruptor de Sonido Discreto) */}
-          <button
-            type="button"
-            onClick={toggleSoundMute}
-            title={isMuted ? 'Activar efectos de audio' : 'Silenciar efectos de audio'}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minWidth: isMobile ? '44px' : '32px',
-              minHeight: isMobile ? '44px' : '32px',
-              width: isMobile ? '44px' : '32px',
-              height: isMobile ? '44px' : '32px',
-              borderRadius: '8px',
-              backgroundColor: isMuted ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 217, 255, 0.08)',
-              border: isMuted ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 217, 255, 0.25)',
-              color: isMuted ? '#71717a' : '#00D9FF',
-              cursor: 'pointer',
-              boxShadow: isMuted ? 'none' : '0 0 10px rgba(0, 217, 255, 0.2)',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-          </button>
-
-          {/* LYAXIS Notebook Canvas Studio Button */}
-          <button
-            type="button"
-            onClick={() => {
-              triggerSound();
-              if (!notebookContent && messages.length > 0) {
-                const lastModel = [...messages].reverse().find((m) => m.role === 'model');
-                if (lastModel?.content) {
-                  setNotebookContent(lastModel.content);
-                  setNotebookTitle(`Apuntes ${meta.label} • ${new Date().toLocaleDateString('es-MX')}`);
-                }
-              }
-              setIsNotebookOpen(true);
-            }}
-            title="Abrir Cuaderno Visual LYAXIS (Notebook Studio)"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              backgroundColor: isNotebookOpen ? 'rgba(0, 217, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-              border: isNotebookOpen ? '1px solid rgba(0, 217, 255, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: '8px',
-              padding: isMobile ? '8px 12px' : '6px 10px',
-              minHeight: isMobile ? '44px' : '32px',
-              color: isNotebookOpen ? '#00D9FF' : '#ffffff',
-              fontSize: isMobile ? '13px' : '11.5px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <BookOpen size={15} color="#00D9FF" />
-            {!isMobile && <span>Notebook</span>}
-          </button>
-
-          {onExportPDF && messages.length > 0 && (
-            <button
-              type="button"
-              onClick={() => onExportPDF('Conversación LYAXIS', meta.label, meta.color, messages)}
-              title="Exportar chat a PDF"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                borderRadius: '8px',
-                padding: isMobile ? '8px 12px' : '6px 10px',
-                minHeight: isMobile ? '44px' : '32px',
-                color: '#ffffff',
-                fontSize: isMobile ? '13px' : '11.5px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              <FileDown size={15} color="#00D9FF" />
-              {!isMobile && <span>PDF</span>}
-            </button>
-          )}
-
-          {/* Futuristic Dashboard Button */}
-          {onOpenDashboard && (
-            <button
-              type="button"
-              onClick={() => {
-                triggerSound();
-                onOpenDashboard();
-              }}
-              title="Métricas y Dashboard de Modelos"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                borderRadius: '8px',
-                padding: isMobile ? '8px 12px' : '6px 10px',
-                minHeight: isMobile ? '44px' : '32px',
-                color: '#ffffff',
-                fontSize: isMobile ? '13px' : '11.5px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <LayoutDashboard size={15} color="#00D9FF" />
-              {!isMobile && <span>Dashboard</span>}
-            </button>
-          )}
-
-          {/* Info Drawer Button */}
-          {onOpenInfoDrawer && (
-            <button
-              type="button"
-              onClick={() => {
-                triggerSound();
-                onOpenInfoDrawer('manifesto');
-              }}
-              title="Información y Manifiesto LYAXIS"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                borderRadius: '8px',
-                padding: isMobile ? '8px 12px' : '6px 10px',
-                minHeight: isMobile ? '44px' : '32px',
-                color: '#ffffff',
-                fontSize: isMobile ? '13px' : '11.5px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <Info size={15} color="#00D9FF" />
-              {!isMobile && <span>Info</span>}
-            </button>
-          )}
-
-          {/* User Profile / Login Button */}
-          {user ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {user.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt={user.name || 'Usuario'}
-                  style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid rgba(0, 217, 255, 0.4)' }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '50%',
-                    backgroundColor: 'rgba(0, 217, 255, 0.2)',
-                    border: '1px solid rgba(0, 217, 255, 0.4)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    color: '#00D9FF',
-                  }}
-                >
-                  {(user.name || user.email || 'U').charAt(0).toUpperCase()}
-                </div>
-              )}
-              {onLogout && (
+                    {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )
+              ) : onOpenAuth ? (
                 <button
                   type="button"
                   onClick={() => {
                     triggerSound();
-                    onLogout();
+                    onOpenAuth();
                   }}
-                  title="Cerrar sesión"
+                  title="Iniciar sesión"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '6px',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                    borderRadius: '6px',
-                    color: '#EF4444',
+                    gap: '5px',
+                    backgroundColor: 'rgba(0, 217, 255, 0.1)',
+                    border: '1px solid rgba(0, 217, 255, 0.3)',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    minHeight: '44px',
+                    color: '#00D9FF',
+                    fontSize: '12.5px',
+                    fontWeight: 600,
                     cursor: 'pointer',
                   }}
                 >
-                  <LogOut size={14} />
+                  <LogIn size={15} color="#00D9FF" />
+                  <span>Acceder</span>
+                </button>
+              ) : null}
+
+              {/* Menú Desplegable de Tres Puntos (⋮) en Celular */}
+              <div style={{ position: 'relative' }} ref={mobileActionsRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileActionsOpen(!isMobileActionsOpen)}
+                  title="Más opciones"
+                  aria-label="Más opciones"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '44px',
+                    height: '44px',
+                    minWidth: '44px',
+                    minHeight: '44px',
+                    borderRadius: '10px',
+                    backgroundColor: isMobileActionsOpen ? 'rgba(0, 217, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                    border: isMobileActionsOpen ? '1px solid rgba(0, 217, 255, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
+                    color: isMobileActionsOpen ? '#00D9FF' : '#ffffff',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <MoreVertical size={20} />
+                </button>
+
+                {isMobileActionsOpen && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      right: 0,
+                      width: '220px',
+                      backgroundColor: '#0b0b12',
+                      border: '1px solid #222232',
+                      borderRadius: '12px',
+                      padding: '6px',
+                      boxShadow: '0 12px 40px rgba(0,0,0,0.95), 0 0 20px rgba(0, 217, 255, 0.12)',
+                      zIndex: 60,
+                      backdropFilter: 'blur(16px)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '3px',
+                      animation: 'fadeIn 0.2s ease-out',
+                    }}
+                  >
+                    <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 800, color: '#71717a', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                      Herramientas LYAXIS
+                    </div>
+
+                    {/* Notebook */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileActionsOpen(false);
+                        triggerSound();
+                        if (!notebookContent && messages.length > 0) {
+                          const lastModel = [...messages].reverse().find((m) => m.role === 'model');
+                          if (lastModel?.content) {
+                            setNotebookContent(lastModel.content);
+                            setNotebookTitle(`Apuntes ${meta.label} • ${new Date().toLocaleDateString('es-MX')}`);
+                          }
+                        }
+                        setIsNotebookOpen(true);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        color: '#f1f5f9',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <BookOpen size={16} color="#00D9FF" />
+                      <span>Notebook Studio</span>
+                    </button>
+
+                    {/* Export PDF */}
+                    {onExportPDF && messages.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileActionsOpen(false);
+                          triggerSound();
+                          onExportPDF('Conversación LYAXIS', meta.label, meta.color, messages);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          backgroundColor: 'transparent',
+                          color: '#f1f5f9',
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <FileDown size={16} color="#00D9FF" />
+                        <span>Exportar a PDF</span>
+                      </button>
+                    )}
+
+                    {/* Dashboard */}
+                    {onOpenDashboard && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileActionsOpen(false);
+                          triggerSound();
+                          onOpenDashboard();
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          backgroundColor: 'transparent',
+                          color: '#f1f5f9',
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <LayoutDashboard size={16} color="#00D9FF" />
+                        <span>Dashboard Métricas</span>
+                      </button>
+                    )}
+
+                    {/* Info */}
+                    {onOpenInfoDrawer && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileActionsOpen(false);
+                          triggerSound();
+                          onOpenInfoDrawer('manifesto');
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          backgroundColor: 'transparent',
+                          color: '#f1f5f9',
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <Info size={16} color="#00D9FF" />
+                        <span>Info y Manifiesto</span>
+                      </button>
+                    )}
+
+                    {/* Sound */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toggleSoundMute();
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        color: '#f1f5f9',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      {isMuted ? <VolumeX size={16} color="#71717a" /> : <Volume2 size={16} color="#00D9FF" />}
+                      <span>{isMuted ? 'Activar sonido' : 'Silenciar sonido'}</span>
+                    </button>
+
+                    {/* Logout */}
+                    {user && onLogout && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileActionsOpen(false);
+                          triggerSound();
+                          onLogout();
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                          color: '#f87171',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          marginTop: '4px',
+                        }}
+                      >
+                        <LogOut size={16} color="#f87171" />
+                        <span>Cerrar sesión</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            /* Botones en PC (>= 768px) */
+            <>
+              {/* Sound Mute Toggle */}
+              <button
+                type="button"
+                onClick={toggleSoundMute}
+                title={isMuted ? 'Activar efectos de audio' : 'Silenciar efectos de audio'}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: '32px',
+                  minHeight: '32px',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  backgroundColor: isMuted ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 217, 255, 0.08)',
+                  border: isMuted ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 217, 255, 0.25)',
+                  color: isMuted ? '#71717a' : '#00D9FF',
+                  cursor: 'pointer',
+                  boxShadow: isMuted ? 'none' : '0 0 10px rgba(0, 217, 255, 0.2)',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              </button>
+
+              {/* LYAXIS Notebook Canvas Studio Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  triggerSound();
+                  if (!notebookContent && messages.length > 0) {
+                    const lastModel = [...messages].reverse().find((m) => m.role === 'model');
+                    if (lastModel?.content) {
+                      setNotebookContent(lastModel.content);
+                      setNotebookTitle(`Apuntes ${meta.label} • ${new Date().toLocaleDateString('es-MX')}`);
+                    }
+                  }
+                  setIsNotebookOpen(true);
+                }}
+                title="Abrir Cuaderno Visual LYAXIS (Notebook Studio)"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  backgroundColor: isNotebookOpen ? 'rgba(0, 217, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                  border: isNotebookOpen ? '1px solid rgba(0, 217, 255, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '8px',
+                  padding: '6px 10px',
+                  minHeight: '32px',
+                  color: isNotebookOpen ? '#00D9FF' : '#ffffff',
+                  fontSize: '11.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <BookOpen size={15} color="#00D9FF" />
+                <span>Notebook</span>
+              </button>
+
+              {onExportPDF && messages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onExportPDF('Conversación LYAXIS', meta.label, meta.color, messages)}
+                  title="Exportar chat a PDF"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
+                    minHeight: '32px',
+                    color: '#ffffff',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <FileDown size={15} color="#00D9FF" />
+                  <span>PDF</span>
                 </button>
               )}
-            </div>
-          ) : onOpenAuth ? (
-            <button
-              type="button"
-              onClick={() => {
-                triggerSound();
-                onOpenAuth();
-              }}
-              title="Iniciar sesión"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                backgroundColor: 'rgba(0, 217, 255, 0.1)',
-                border: '1px solid rgba(0, 217, 255, 0.3)',
-                borderRadius: '8px',
-                padding: isMobile ? '8px 12px' : '6px 12px',
-                minHeight: isMobile ? '44px' : '32px',
-                color: '#00D9FF',
-                fontSize: isMobile ? '13px' : '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              <LogIn size={14} color="#00D9FF" />
-              <span>Acceder</span>
-            </button>
-          ) : null}
+
+              {/* Futuristic Dashboard Button */}
+              {onOpenDashboard && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerSound();
+                    onOpenDashboard();
+                  }}
+                  title="Métricas y Dashboard de Modelos"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
+                    minHeight: '32px',
+                    color: '#ffffff',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <LayoutDashboard size={15} color="#00D9FF" />
+                  <span>Dashboard</span>
+                </button>
+              )}
+
+              {/* Info Drawer Button */}
+              {onOpenInfoDrawer && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerSound();
+                    onOpenInfoDrawer('manifesto');
+                  }}
+                  title="Información y Manifiesto LYAXIS"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
+                    minHeight: '32px',
+                    color: '#ffffff',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <Info size={15} color="#00D9FF" />
+                  <span>Info</span>
+                </button>
+              )}
+
+              {/* User Profile / Login Button */}
+              {user ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {user.avatar ? (
+                    <img
+                      src={user.avatar}
+                      alt={user.name || 'Usuario'}
+                      style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid rgba(0, 217, 255, 0.4)' }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        backgroundColor: 'rgba(0, 217, 255, 0.2)',
+                        border: '1px solid rgba(0, 217, 255, 0.4)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: '#00D9FF',
+                      }}
+                    >
+                      {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  {onLogout && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerSound();
+                        onLogout();
+                      }}
+                      title="Cerrar sesión"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '6px',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        borderRadius: '6px',
+                        color: '#EF4444',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <LogOut size={14} />
+                    </button>
+                  )}
+                </div>
+              ) : onOpenAuth ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerSound();
+                    onOpenAuth();
+                  }}
+                  title="Iniciar sesión"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    backgroundColor: 'rgba(0, 217, 255, 0.1)',
+                    border: '1px solid rgba(0, 217, 255, 0.3)',
+                    borderRadius: '8px',
+                    padding: '6px 12px',
+                    minHeight: '32px',
+                    color: '#00D9FF',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <LogIn size={14} color="#00D9FF" />
+                  <span>Acceder</span>
+                </button>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
       
@@ -1300,13 +1675,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </div>
       </div>
 
-      {/* Input Area with Image Attachment & Nexus Suggestion (4. Selector de Imágenes) */}
+      {/* Input Area with Image Attachment & Nexus Suggestion (5. BARRA DE INPUT INFERIOR FLOTANTE) */}
       <div
         className="lyaxis-bottom-bar"
         style={{
-          padding: isMobile ? '10px 12px max(14px, env(safe-area-inset-bottom, 14px))' : '16px 24px 20px',
-          borderTop: '1px solid #121216',
-          backgroundColor: 'rgba(4, 4, 8, 0.96)',
+          padding: isMobile ? '8px 12px calc(12px + env(safe-area-inset-bottom, 12px))' : '16px 24px 20px',
+          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+          backgroundColor: 'rgba(5, 8, 17, 0.92)',
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
           position: 'sticky',
@@ -1439,13 +1814,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
-                padding: isMobile ? '6px 12px' : '5px 12px',
+                padding: isMobile ? '10px 16px' : '5px 12px',
+                minHeight: isMobile ? '44px' : 'auto',
                 borderRadius: '8px',
                 backgroundColor: isTriadActive ? 'rgba(124, 58, 237, 0.18)' : 'rgba(255, 255, 255, 0.04)',
                 border: isTriadActive ? '1px solid rgba(124, 58, 237, 0.55)' : '1px solid rgba(255, 255, 255, 0.1)',
                 color: isTriadActive ? '#ffffff' : '#a1a1aa',
                 cursor: 'pointer',
-                fontSize: '11.5px',
+                fontSize: isMobile ? '12px' : '11.5px',
                 fontWeight: 700,
                 letterSpacing: '0.3px',
                 transition: 'all 0.2s ease',

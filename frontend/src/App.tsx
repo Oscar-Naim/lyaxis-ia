@@ -97,7 +97,11 @@ export default function App() {
     const handleResize = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      if (!mobile) setIsSidebarOpen(true);
+      if (!mobile) {
+        setIsSidebarOpen(true);
+      } else {
+        setIsSidebarOpen(false);
+      }
     };
     handleResize();
     window.addEventListener('resize', handleResize);

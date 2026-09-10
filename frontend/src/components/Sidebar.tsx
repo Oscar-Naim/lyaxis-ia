@@ -104,17 +104,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Backdrop overlay for mobile with blur */}
+      {/* Backdrop overlay for mobile with blur (2. SIDEBAR ADAPTATIVO) */}
       {isMobile && isOpen && (
         <div
           onClick={onClose}
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
             backdropFilter: 'blur(8px)',
             WebkitBackdropFilter: 'blur(8px)',
             zIndex: 10000,
+            animation: 'fadeIn 0.2s ease-out',
           }}
         />
       )}
@@ -125,17 +126,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
           top: 0,
           left: 0,
           bottom: 0,
+          height: '100dvh',
+          maxHeight: '100dvh',
           zIndex: 10001,
-          width: isOpen ? (isMobile ? '85%' : '280px') : '0px',
-          maxWidth: isMobile ? '340px' : '280px',
-          display: isOpen ? 'flex' : 'none',
-          backgroundColor: '#0D0D15',
-          borderRight: '1px solid #232336',
+          width: isMobile ? '288px' : (isOpen ? '280px' : '0px'),
+          maxWidth: isMobile ? '85vw' : '280px',
+          display: 'flex',
+          transform: isMobile ? (isOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
+          visibility: isMobile ? (isOpen ? 'visible' : 'hidden') : (isOpen ? 'visible' : 'hidden'),
+          pointerEvents: !isOpen ? 'none' : 'auto',
+          backgroundColor: '#0A0A10',
+          borderRight: '1px solid #1E1E2C',
           flexDirection: 'column',
-          padding: isOpen ? '16px' : '0px',
+          padding: !isMobile && !isOpen ? '0px' : '16px',
           flexShrink: 0,
-          boxShadow: isMobile ? '12px 0 45px rgba(0,0,0,0.95)' : 'none',
-          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+          boxShadow: isMobile && isOpen ? '16px 0 50px rgba(0,0,0,0.95), 0 0 30px rgba(0, 217, 255, 0.1)' : 'none',
+          transition: 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), width 0.25s cubic-bezier(0.16, 1, 0.3, 1), padding 0.25s ease',
           overflow: 'hidden',
         }}
       >
