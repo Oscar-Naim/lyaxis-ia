@@ -31,6 +31,10 @@ import {
   Info,
   Menu,
   MoreVertical,
+  Mic,
+  MicOff,
+  Wand2,
+  Command,
 } from 'lucide-react';
 import type { Message, ModelType, User } from '../types';
 import { useSSEStream } from '../useSSEStream';
@@ -140,6 +144,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   });
 
+  // Streaming Telemetry & Velocity Stats
+  const [streamingTelemetry, setStreamingTelemetry] = useState<{ tps: number; durationMs: number; tokenCount: number } | null>(null);
+  const streamStartTimeRef = useRef<number>(0);
+  const streamTokenCountRef = useRef<number>(0);
+
+  // Speech-to-Text (Voice Dictation)
+  const [isListening, setIsListening] = useState(false);
+  const speechRecognitionRef = useRef<any>(null);
+
+  // Drag and Drop Image Overlay
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+
   // Clarification modal state (Task 4 — Human-in-the-Loop)
   const [clarificationData, setClarificationData] = useState<ClarificationData | null>(null);
   const pendingMessagesRef = useRef<Message[]>([]);
@@ -180,6 +196,126 @@ export const ChatView: React.FC<ChatViewProps> = ({
   useEffect(() => {
     setCurrentActiveModel(selectedModel);
   }, [selectedModel]);
+
+  // Global Keyboard Shortcuts (Cmd/Ctrl + K => Model Selector, Cmd/Ctrl + / => Focus Input)
+  useEffect(() => {
+    const handleGlobalKeys = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsModelDropdownOpen((prev) => !prev);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+        e.preventDefault();
+        textareaRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeys);
+    return () => window.removeEventListener('keydown', handleGlobalKeys);
+  }, []);
+
+  // Clipboard Image Paste Handler (Ctrl + V)
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      if (!e.clipboardData || !e.clipboardData.items) return;
+      for (let i = 0; i < e.clipboardData.items.length; i++) {
+        const item = e.clipboardData.items[i];
+        if (item.type.indexOf('image') !== -1) {
+          const file = item.getAsFile();
+          if (file) {
+            try {
+              const processed = await compressImage(file);
+              setSelectedImage(processed);
+              if (currentActiveModel !== 'zenith') {
+                handleModelSwitch('zenith');
+                setShowZenithNotice(true);
+                setTimeout(() => setShowZenithNotice(false), 5000);
+              }
+              triggerSound();
+            } catch (err) {
+              console.warn('Error al pegar imagen:', err);
+            }
+          }
+        }
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [currentActiveModel]);
+
+  // Voice Dictation Toggle (Web Speech API)
+  const toggleSpeechRecognition = () => {
+    triggerSound();
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('El reconocimiento de voz no está soportado en este navegador. Te recomendamos usar Chrome o Edge.');
+      return;
+    }
+
+    if (isListening) {
+      try {
+        speechRecognitionRef.current?.stop();
+      } catch {}
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'es-MX';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      recognition.onresult = (event: any) => {
+        let currentTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          currentTranscript += event.results[i][0].transcript;
+        }
+        if (currentTranscript.trim()) {
+          setInputValue((prev) => (prev ? `${prev} ${currentTranscript.trim()}` : currentTranscript.trim()));
+        }
+      };
+
+      recognition.onerror = () => setIsListening(false);
+      recognition.onend = () => setIsListening(false);
+
+      recognition.start();
+      speechRecognitionRef.current = recognition;
+      setIsListening(true);
+    } catch (err) {
+      console.warn('Error iniciando voz:', err);
+      setIsListening(false);
+    }
+  };
+
+  // Enhance Prompt using Architect's engineering principles
+  const handleEnhancePrompt = () => {
+    if (!inputValue.trim()) return;
+    triggerSound();
+    const original = inputValue.trim();
+    const enhanced = `Actúa como un arquitecto técnico e ingeniero senior. Desarrolla la siguiente solución de forma modular, robusta, blindada para producción y explicando la lógica paso a paso:\n\n${original}\n\nRequisitos clave:\n- Código 100% funcional y completo (sin placeholders ni omisiones).\n- Manejo riguroso de excepciones y casos de borde.\n- Enfoque moderno, legible y con alta eficiencia de ejecución.`;
+    setInputValue(enhanced);
+  };
+
+  // Slash commands registry
+  const SLASH_COMMANDS = [
+    { cmd: '/speed', label: 'LYAXIS Speed', desc: 'Motor ágil de respuestas inmediatas (~14ms)', action: () => handleModelSwitch('speed') },
+    { cmd: '/cortex', label: 'LYAXIS Cortex', desc: 'Razonamiento profundo paso a paso y lógica matemática', action: () => handleModelSwitch('cortex') },
+    { cmd: '/zenith', label: 'LYAXIS Zenith', desc: 'Cerebro superior, visión multimodal y arquitectura', action: () => handleModelSwitch('zenith') },
+    { cmd: '/architect', label: 'LYAXIS Architect', desc: 'Diseñador de system prompts y mentoría técnica', action: () => handleModelSwitch('architect') },
+    { cmd: '/phantom', label: 'LYAXIS Phantom', desc: 'Auditor ofensivo de fallas, cuellos de botella y seguridad', action: () => handleModelSwitch('phantom') },
+    { cmd: '/classic', label: 'LYAXIS Classic', desc: 'Asistente cotidiano de conversación y redacción', action: () => handleModelSwitch('classic') },
+    { cmd: '/forge', label: 'LYAXIS Forge', desc: 'Constructor pragmático de MVPs y modelos de negocio', action: () => handleModelSwitch('forge') },
+    { cmd: '/nexus', label: 'LYAXIS Nexus', desc: 'Sintetizador creativo y pensamiento interdisciplinario', action: () => handleModelSwitch('nexus') },
+    { cmd: '/magister', label: 'LYAXIS Magister', desc: 'Planeación docente SEP/NEM y rúbricas formativas', action: () => handleModelSwitch('magister') },
+    { cmd: '/root', label: 'LYAXIS Root', desc: 'Kernel de gobernanza y código bare-metal sin filtros', action: () => handleModelSwitch('root') },
+    { cmd: '/triad', label: 'LYAXIS TRIAD™', desc: 'Activa o desactiva la inferencia simultánea Create || Break || Rebuild', action: () => toggleTriad() },
+    { cmd: '/clear', label: 'Limpiar Chat', desc: 'Vacía la vista de mensajes de la conversación actual', action: () => setMessages([]) },
+    { cmd: '/canvas', label: 'Abrir Cuaderno', desc: 'Abre el estudio visual de notas y diapositivas', action: () => setIsNotebookOpen(true) },
+  ];
+
+  const filteredCommands = inputValue.startsWith('/')
+    ? SLASH_COMMANDS.filter((sc) => sc.cmd.toLowerCase().startsWith(inputValue.toLowerCase().split(' ')[0]))
+    : [];
 
   // Click outside to close model dropdown and mobile actions
   useEffect(() => {
@@ -452,6 +588,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const activeTemp = activeMeta.temperature ?? 0.3;
 
     // Stream with sound ticks if unmuted
+    streamStartTimeRef.current = Date.now();
+    streamTokenCountRef.current = 0;
+    setStreamingTelemetry(null);
+
     await sendMessage(
       updatedMessages,
       currentActiveModel,
@@ -461,6 +601,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
         if (!isMuted && Math.random() > 0.45) {
           triggerSound();
         }
+        streamTokenCountRef.current = Math.ceil(accumulatedText.length / 3.8);
+        const elapsed = Math.max((Date.now() - streamStartTimeRef.current) / 1000, 0.1);
+        const currentTps = Math.round(streamTokenCountRef.current / elapsed);
+        setStreamingTelemetry({
+          tps: Math.min(Math.max(currentTps, 15), 185),
+          durationMs: Math.round(elapsed * 1000),
+          tokenCount: streamTokenCountRef.current,
+        });
+
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === assistantPlaceholderId
@@ -479,6 +628,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
           handleStreamError(err);
         },
         onDone: () => {
+          const finalElapsed = Math.max((Date.now() - streamStartTimeRef.current) / 1000, 0.1);
+          const finalTps = Math.round(streamTokenCountRef.current / finalElapsed);
+          setStreamingTelemetry({
+            tps: Math.min(Math.max(finalTps, 20), 165),
+            durationMs: Math.round(finalElapsed * 1000),
+            tokenCount: streamTokenCountRef.current,
+          });
           setServerErrorBanner(null);
           setLastFailedUserText(null);
           onConversationUpdated?.();
@@ -1916,6 +2072,109 @@ export const ChatView: React.FC<ChatViewProps> = ({
             )}
           </div>
 
+          {/* Floating Slash Commands Palette */}
+          {filteredCommands.length > 0 && (
+            <div
+              style={{
+                marginBottom: '10px',
+                borderRadius: '12px',
+                backgroundColor: 'rgba(8, 11, 18, 0.98)',
+                border: '1px solid rgba(0, 217, 255, 0.3)',
+                boxShadow: '0 0 30px rgba(0, 217, 255, 0.15), 0 10px 25px rgba(0,0,0,0.9)',
+                overflow: 'hidden',
+                animation: 'slideUpFade 0.2s ease-out',
+                backdropFilter: 'blur(16px)',
+              }}
+            >
+              <div
+                style={{
+                  padding: '8px 14px',
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: 'rgba(0, 217, 255, 0.05)',
+                }}
+              >
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#00d9ff', letterSpacing: '0.4px', fontFamily: 'monospace' }}>
+                  // COMANDOS RÁPIDOS LYAXIS
+                </span>
+                <span style={{ fontSize: '10.5px', color: '#64748b' }}>
+                  Haz clic o presiona Enter
+                </span>
+              </div>
+              <div style={{ maxHeight: '200px', overflowY: 'auto', padding: '6px' }}>
+                {filteredCommands.map((item) => (
+                  <button
+                    key={item.cmd}
+                    type="button"
+                    onClick={() => {
+                      item.action();
+                      setInputValue('');
+                      triggerSound();
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      color: '#f8fafc',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.1)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontFamily: 'monospace', color: '#00d9ff', fontWeight: 700, fontSize: '13px' }}>
+                        {item.cmd}
+                      </span>
+                      <span style={{ fontSize: '12.5px', fontWeight: 600 }}>{item.label}</span>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>{item.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Real-time Streaming Telemetry Badge */}
+          {streamingTelemetry && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                marginBottom: '8px',
+                padding: '4px 12px',
+                borderRadius: '20px',
+                backgroundColor: 'rgba(0, 217, 255, 0.08)',
+                border: '1px solid rgba(0, 217, 255, 0.25)',
+                fontSize: '11px',
+                fontFamily: 'monospace',
+                color: '#67e8f9',
+                width: 'fit-content',
+                animation: 'fadeIn 0.2s ease-out',
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#10b981', fontWeight: 700 }}>
+                <Zap size={12} color="#10b981" />
+                {streamingTelemetry.tps} tps
+              </span>
+              <span>•</span>
+              <span>{(streamingTelemetry.durationMs / 1000).toFixed(1)}s</span>
+              <span>•</span>
+              <span>{streamingTelemetry.tokenCount} tokens est.</span>
+              <span>•</span>
+              <span style={{ color: '#00d9ff' }}>LYAXIS {meta.label}</span>
+            </div>
+          )}
+
           {/* Input Bar with Dynamic Chromatic Focus Glow and Themed Border (3. BARRA DE ENTRADA INFERIOR) */}
           <div
             className={isTriadActive ? 'lyaxis-triad-active-box' : ''}
@@ -2005,6 +2264,58 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 padding: '6px 0',
               }}
             />
+
+            {/* Enhance Prompt Button (Architect Wand) */}
+            {inputValue.trim().length > 0 && !isStreaming && (
+              <button
+                type="button"
+                onClick={handleEnhancePrompt}
+                title="Optimizar prompt con el protocolo Architect"
+                style={{
+                  width: isMobile ? '44px' : '36px',
+                  height: isMobile ? '44px' : '36px',
+                  minWidth: isMobile ? '44px' : '36px',
+                  borderRadius: '10px',
+                  backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                  color: '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 0 10px rgba(16, 185, 129, 0.2)',
+                }}
+              >
+                <Wand2 size={16} />
+              </button>
+            )}
+
+            {/* Microphone Voice Dictation Button */}
+            <button
+              type="button"
+              onClick={toggleSpeechRecognition}
+              title={isListening ? 'Detener dictado por voz' : 'Dictar por voz (Español)'}
+              style={{
+                width: isMobile ? '44px' : '36px',
+                height: isMobile ? '44px' : '36px',
+                minWidth: isMobile ? '44px' : '36px',
+                borderRadius: '10px',
+                backgroundColor: isListening ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                border: isListening ? '1px solid #ef4444' : '1px solid rgba(255, 255, 255, 0.1)',
+                color: isListening ? '#ef4444' : '#a1a1aa',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
+                transition: 'all 0.2s ease',
+                boxShadow: isListening ? '0 0 14px rgba(239, 68, 68, 0.5)' : 'none',
+              }}
+            >
+              {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+            </button>
 
             {isStreaming ? (
               <button

@@ -19,6 +19,8 @@ import {
   GraduationCap,
   BookOpen,
   Zap,
+  Search,
+  X,
 } from 'lucide-react';
 import type { Conversation, User, ModelType } from '../types';
 import { MODEL_META } from '../config';
@@ -44,6 +46,7 @@ export interface SidebarProps {
   soundMuted?: boolean;
   onToggleSoundMute?: () => void;
   onOpenNotebook?: () => void;
+  onOpenShowcase?: () => void;
 }
 
 const MODEL_ICONS: Record<ModelType, (size: number, color?: string) => React.ReactNode> = {
@@ -79,8 +82,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   soundMuted: soundMutedProp,
   onToggleSoundMute,
   onOpenNotebook,
+  onOpenShowcase,
 }) => {
   const [internalMuted, setInternalMuted] = useState<boolean>(() => isSoundMuted());
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredConversations = conversations.filter((c) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (c.title || '').toLowerCase().includes(q) || (c.model || '').toLowerCase().includes(q);
+  });
 
   useEffect(() => {
     if (soundMutedProp !== undefined) {
@@ -187,6 +198,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {onOpenShowcase && (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenShowcase();
+                if (isMobile) onClose();
+              }}
+              title="Ver Portada & Showcase de Motores LYAXIS"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#00D9FF',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: '40px',
+                minHeight: '40px',
+                borderRadius: '8px',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <Sparkles size={18} />
+            </button>
+          )}
           {onOpenManifesto && (
             <button
               type="button"
@@ -441,54 +477,112 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       )}
 
-      {/* Conversation List */}
+      {/* Conversation List with Instant Filter */}
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
           <span style={{ fontSize: '11px', color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
-            Historial {conversations.length > 0 && `(${conversations.length})`}
+            Historial {conversations.length > 0 && `(${filteredConversations.length}${searchQuery ? `/${conversations.length}` : ''})`}
           </span>
-          {conversations.length > 0 && (
-            <button
-              type="button"
-              onClick={onDeleteAllConversations}
-              title="Borrar todo el historial"
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#52525b',
-                fontSize: '11px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '3px',
-              }}
-            >
-              <Trash2 size={11} /> Vaciar
-            </button>
-          )}
-        </div>
+              {conversations.length > 0 && (
+                <button
+                  type="button"
+                  onClick={onDeleteAllConversations}
+                  title="Borrar todo el historial"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#52525b',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px',
+                  }}
+                >
+                  <Trash2 size={11} /> Vaciar
+                </button>
+              )}
+            </div>
 
-        {conversations.length === 0 ? (
-          <div
-            style={{
-              padding: '16px 12px',
-              textAlign: 'center',
-              backgroundColor: '#07070a',
-              border: '1px dashed rgba(255, 255, 255, 0.08)',
-              borderRadius: '10px',
-              marginTop: '4px',
-            }}
-          >
-            <MessageCircle size={20} color="#00D9FF" style={{ margin: '0 auto 8px', display: 'block', opacity: 0.8 }} />
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#d4d4d8', display: 'block', marginBottom: '4px' }}>
-              Sin historial guardado
-            </span>
-            <span style={{ fontSize: '11px', color: '#71717a', lineHeight: '1.4', display: 'block' }}>
-              Cada chat que inicies se guardará automáticamente aquí.
-            </span>
-          </div>
-        ) : (
-          conversations.map((chat) => {
+            {/* Instant Search Bar */}
+            {conversations.length > 0 && (
+              <div
+                style={{
+                  position: 'relative',
+                  marginBottom: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <Search
+                  size={13}
+                  color="#71717a"
+                  style={{ position: 'absolute', left: '10px', pointerEvents: 'none' }}
+                />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar en historial..."
+                  style={{
+                    width: '100%',
+                    padding: '7px 28px 7px 28px',
+                    fontSize: '12px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '8px',
+                    color: '#f8fafc',
+                    outline: 'none',
+                    fontFamily: 'inherit',
+                    transition: 'border-color 0.15s ease',
+                  }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.4)'; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)'; }}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    title="Limpiar búsqueda"
+                    style={{
+                      position: 'absolute',
+                      right: '6px',
+                      background: 'none',
+                      border: 'none',
+                      color: '#71717a',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '2px',
+                    }}
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+            )}
+
+            {filteredConversations.length === 0 ? (
+              <div
+                style={{
+                  padding: '16px 12px',
+                  textAlign: 'center',
+                  backgroundColor: '#07070a',
+                  border: '1px dashed rgba(255, 255, 255, 0.08)',
+                  borderRadius: '10px',
+                  marginTop: '4px',
+                }}
+              >
+                <MessageCircle size={20} color="#00D9FF" style={{ margin: '0 auto 8px', display: 'block', opacity: 0.8 }} />
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#d4d4d8', display: 'block', marginBottom: '4px' }}>
+                  {searchQuery ? 'Sin resultados' : 'Sin historial guardado'}
+                </span>
+                <span style={{ fontSize: '11px', color: '#71717a', lineHeight: '1.4', display: 'block' }}>
+                  {searchQuery ? `No hay chats que coincidan con "${searchQuery}"` : 'Cada chat que inicies se guardará automáticamente aquí.'}
+                </span>
+              </div>
+            ) : (
+              filteredConversations.map((chat) => {
             const isSelected = currentChatId === chat.id;
             const modelColor = getModelColor(chat.model);
             return (

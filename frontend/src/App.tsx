@@ -11,6 +11,7 @@ import { InstallPwaPrompt } from './InstallPwaPrompt';
 import { BootSplash } from './components/BootSplash';
 import { exportChatToPDF } from './pdfExporter';
 import { isSoundMuted, setSoundMuted, playCyberClick } from './sound';
+import { LandingPage } from './LandingPage';
 
 export default function App() {
   const [showBoot, setShowBoot] = useState(() =>
@@ -19,6 +20,7 @@ export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [isInfoDrawerOpen, setIsInfoDrawerOpen] = useState(false);
+  const [isShowcaseOpen, setIsShowcaseOpen] = useState(false);
   const [infoDrawerTab, setInfoDrawerTab] = useState<'manifesto' | 'ecosystem' | 'security' | 'terms'>('manifesto');
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 768));
@@ -338,6 +340,7 @@ export default function App() {
           onSelectModel={(m) => switchModel(m)}
           soundMuted={!soundEnabled}
           onToggleSoundMute={toggleSound}
+          onOpenShowcase={() => setIsShowcaseOpen(true)}
         />
 
         <ChatView
@@ -391,6 +394,18 @@ export default function App() {
         />
 
         <InstallPwaPrompt />
+
+        {isShowcaseOpen && (
+          <LandingPage
+            onEnterChat={() => setIsShowcaseOpen(false)}
+            onEnterChatWithModel={(model, prompt) => {
+              setIsShowcaseOpen(false);
+              switchModel(model);
+            }}
+            onOpenAuth={() => setIsAuthOpen(true)}
+            onOpenInfo={(tab) => openInfoDrawer(tab)}
+          />
+        )}
       </div>
     </GoogleOAuthProvider>
   );

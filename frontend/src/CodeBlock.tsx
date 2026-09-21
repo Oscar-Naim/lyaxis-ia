@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/atom-one-dark.css';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Play, Workflow } from 'lucide-react';
+import { ArtifactsCanvasModal } from './components/ArtifactsCanvasModal';
+import { playCyberClick } from './sound';
 
 export interface CodeBlockProps {
   language?: any;
@@ -11,6 +13,9 @@ export interface CodeBlockProps {
 
 export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, value }) => {
   const [copied, setCopied] = useState(false);
+  const [isCanvasOpen, setIsCanvasOpen] = useState(false);
+  const [mermaidSvg, setMermaidSvg] = useState<string | null>(null);
+  const [showMermaidSource, setShowMermaidSource] = useState(false);
 
   // Normalize code content from either codeString or value prop
   const rawCode = (codeString !== undefined ? codeString : value !== undefined ? value : '').replace(/\r\n/g, '\n');
@@ -22,6 +27,42 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
   } else if (Array.isArray(language) && language.length > 0 && language[0]) {
     langStr = String(language[0]).replace(/^language-/, '').split(',')[0].trim().toLowerCase();
   }
+
+  // Check if code is runnable in live canvas sandbox
+  const isRunnable = ['html', 'xml', 'svg', 'react', 'jsx', 'tsx', 'javascript', 'js', 'css', 'vue'].includes(langStr) ||
+    rawCode.trim().startsWith('<!DOCTYPE') ||
+    rawCode.trim().startsWith('<html') ||
+    rawCode.trim().startsWith('<svg');
+
+  // Render Mermaid diagrams dynamically
+  useEffect(() => {
+    if (langStr === 'mermaid') {
+      let isMounted = true;
+      (async () => {
+        try {
+          const mermaidModule = await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
+          const mermaid = mermaidModule.default;
+          mermaid.initialize({
+            startOnLoad: false,
+            theme: 'dark',
+            darkMode: true,
+            themeVariables: {
+              primaryColor: '#00d9ff',
+              primaryTextColor: '#ffffff',
+              lineColor: '#3b82f6',
+              mainBkg: '#070b14',
+            },
+          });
+          const id = `mermaid-${Math.random().toString(36).substring(2, 9)}`;
+          const { svg } = await mermaid.render(id, rawCode);
+          if (isMounted) setMermaidSvg(svg);
+        } catch (err) {
+          console.warn('Aviso renderizando Mermaid:', err);
+        }
+      })();
+      return () => { isMounted = false; };
+    }
+  }, [langStr, rawCode]);
 
   // Highlight code
   let highlightedCode = '';
@@ -125,99 +166,178 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
           </div>
         </div>
 
-        {/* Copy Button */}
-        <button
-          type="button"
-          onClick={handleCopy}
-          title="Copiar código al portapapeles"
-          style={{
-            background: copied ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-            border: copied ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
-            color: copied ? '#10b981' : '#a1a1aa',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontSize: '11.5px',
-            fontWeight: 600,
-            padding: '4px 10px',
-            borderRadius: '6px',
-            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-            boxShadow: copied ? '0 0 10px rgba(16, 185, 129, 0.25)' : 'none',
-          }}
-          onMouseEnter={(e) => {
-            if (!copied) {
-              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
-              e.currentTarget.style.color = '#ffffff';
-              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!copied) {
-              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.04)';
-              e.currentTarget.style.color = '#a1a1aa';
-              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-            }
-          }}
-        >
-          {copied ? <Check size={13} color="#10b981" /> : <Copy size={13} />}
-          <span>{copied ? '¡Copiado!' : 'Copiar'}</span>
-        </button>
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {isRunnable && (
+            <button
+              type="button"
+              onClick={() => { setIsCanvasOpen(true); playCyberClick(); }}
+              title="Previsualizar y ejecutar código en vivo (LYAXIS Canvas)"
+              style={{
+                background: 'rgba(0, 217, 255, 0.12)',
+                border: '1px solid rgba(0, 217, 255, 0.4)',
+                color: '#00d9ff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                fontSize: '11px',
+                fontWeight: 700,
+                padding: '4px 10px',
+                borderRadius: '6px',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 0 10px rgba(0, 217, 255, 0.15)',
+              }}
+            >
+              <Play size={12} fill="#00d9ff" />
+              <span>Ejecutar en Vivo</span>
+            </button>
+          )}
+
+          {mermaidSvg && (
+            <button
+              type="button"
+              onClick={() => { setShowMermaidSource(!showMermaidSource); playCyberClick(); }}
+              title="Alternar entre diagrama y código fuente"
+              style={{
+                background: 'rgba(59, 130, 246, 0.15)',
+                border: '1px solid rgba(59, 130, 246, 0.4)',
+                color: '#60a5fa',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                fontSize: '11px',
+                fontWeight: 600,
+                padding: '4px 10px',
+                borderRadius: '6px',
+              }}
+            >
+              <Workflow size={12} />
+              <span>{showMermaidSource ? 'Ver Diagrama' : 'Ver Código'}</span>
+            </button>
+          )}
+
+          {/* Copy Button */}
+          <button
+            type="button"
+            onClick={handleCopy}
+            title="Copiar código al portapapeles"
+            style={{
+              background: copied ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+              border: copied ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+              color: copied ? '#10b981' : '#a1a1aa',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '11.5px',
+              fontWeight: 600,
+              padding: '4px 10px',
+              borderRadius: '6px',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              boxShadow: copied ? '0 0 10px rgba(16, 185, 129, 0.25)' : 'none',
+            }}
+            onMouseEnter={(e) => {
+              if (!copied) {
+                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!copied) {
+                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.04)';
+                e.currentTarget.style.color = '#a1a1aa';
+                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+              }
+            }}
+          >
+            {copied ? <Check size={13} color="#10b981" /> : <Copy size={13} />}
+            <span>{copied ? '¡Copiado!' : 'Copiar'}</span>
+          </button>
+        </div>
       </div>
 
-      {/* Code Body with Line Numbers & Custom Scrollbar */}
-      <div style={{ display: 'flex', position: 'relative', overflow: 'hidden' }}>
-        {/* Discrete Line Numbers Gutter */}
+      {/* Mermaid Diagram Render View */}
+      {mermaidSvg && !showMermaidSource ? (
         <div
           style={{
-            userSelect: 'none',
-            textAlign: 'right',
-            padding: '14px 12px 14px 14px',
-            color: 'rgba(255, 255, 255, 0.22)',
-            fontSize: '12px',
-            fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-            lineHeight: '1.6',
-            borderRight: '1px solid rgba(255, 255, 255, 0.06)',
-            backgroundColor: '#030306',
-            flexShrink: 0,
-            minWidth: '38px',
-          }}
-        >
-          {displayLines.map((_, i) => (
-            <div key={i}>{i + 1}</div>
-          ))}
-        </div>
-
-        {/* Code Content — Deep OLED Black with zero grey boxes */}
-        <pre
-          className="lyaxis-code-pre"
-          style={{
-            margin: 0,
-            padding: '14px 16px',
+            padding: '24px 16px',
+            backgroundColor: '#040711',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
             overflowX: 'auto',
-            flex: 1,
-            fontSize: '13px',
-            lineHeight: '1.6',
-            fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-            backgroundColor: '#030306',
-            color: '#f8fafc',
-            whiteSpace: 'pre',
-            wordWrap: 'normal',
           }}
-        >
-          <code
-            className={`hljs language-${langStr}`}
+          dangerouslySetInnerHTML={{ __html: mermaidSvg }}
+        />
+      ) : (
+        /* Code Body with Line Numbers & Custom Scrollbar */
+        <div style={{ display: 'flex', position: 'relative', overflow: 'hidden' }}>
+          {/* Discrete Line Numbers Gutter */}
+          <div
             style={{
-              background: 'transparent !important',
-              backgroundColor: 'transparent !important',
-              padding: 0,
-              fontFamily: 'inherit',
-              fontSize: 'inherit',
+              userSelect: 'none',
+              textAlign: 'right',
+              padding: '14px 12px 14px 14px',
+              color: 'rgba(255, 255, 255, 0.22)',
+              fontSize: '12px',
+              fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+              lineHeight: '1.6',
+              borderRight: '1px solid rgba(255, 255, 255, 0.06)',
+              backgroundColor: '#030306',
+              flexShrink: 0,
+              minWidth: '38px',
             }}
-            dangerouslySetInnerHTML={{ __html: highlightedCode }}
-          />
-        </pre>
-      </div>
+          >
+            {displayLines.map((_, i) => (
+              <div key={i}>{i + 1}</div>
+            ))}
+          </div>
+
+          {/* Code Content — Deep OLED Black with zero grey boxes */}
+          <pre
+            className="lyaxis-code-pre"
+            style={{
+              margin: 0,
+              padding: '14px 16px',
+              overflowX: 'auto',
+              flex: 1,
+              fontSize: '13px',
+              lineHeight: '1.6',
+              fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+              backgroundColor: '#030306',
+              color: '#f8fafc',
+              whiteSpace: 'pre',
+              wordWrap: 'normal',
+            }}
+          >
+            <code
+              className={`hljs language-${langStr}`}
+              style={{
+                background: 'transparent !important',
+                backgroundColor: 'transparent !important',
+                padding: 0,
+                fontFamily: 'inherit',
+                fontSize: 'inherit',
+              }}
+              dangerouslySetInnerHTML={{ __html: highlightedCode }}
+            />
+          </pre>
+        </div>
+      )}
+
+      {/* Artifacts Canvas Modal */}
+      {isRunnable && (
+        <ArtifactsCanvasModal
+          isOpen={isCanvasOpen}
+          onClose={() => setIsCanvasOpen(false)}
+          initialCode={rawCode}
+          language={langStr}
+          title="LYAXIS Live Canvas"
+        />
+      )}
     </div>
   );
 };

@@ -150,14 +150,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   return (
     <div
       style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 99998,
         width: '100%',
-        minHeight: '100vh',
+        height: '100vh',
+        overflowY: 'auto',
         backgroundColor: '#030307',
         color: '#ffffff',
         display: 'flex',
         flexDirection: 'column',
-        position: 'relative',
         overflowX: 'hidden',
+        animation: 'fadeIn 0.25s ease-out',
       }}
     >
       {/* Background Cybernetic Grid & Glowing Orbs */}

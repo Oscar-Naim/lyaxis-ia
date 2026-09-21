@@ -20,28 +20,88 @@ export interface ModelTheme {
 export const THEMES: Record<string, ModelTheme> = {
   speed: {
     primary: '#3b82f6',
-    glow: 'rgba(59, 130, 246, 0.22)',
+    glow: 'rgba(59, 130, 246, 0.25)',
     border: 'border-blue-500/40',
     text: 'text-blue-400',
-    shadow: 'shadow-[0_0_25px_rgba(59,130,246,0.15)]',
+    shadow: 'shadow-[0_0_25px_rgba(59,130,246,0.18)]',
   },
   cortex: {
     primary: '#a855f7',
-    glow: 'rgba(168, 85, 247, 0.22)',
+    glow: 'rgba(168, 85, 247, 0.25)',
     border: 'border-purple-500/40',
     text: 'text-purple-400',
-    shadow: 'shadow-[0_0_25px_rgba(168,85,247,0.15)]',
+    shadow: 'shadow-[0_0_25px_rgba(168,85,247,0.18)]',
   },
   zenith: {
-    primary: '#06b6d4',
-    glow: 'rgba(6, 182, 212, 0.22)',
-    border: 'border-cyan-500/40',
+    primary: '#00d9ff',
+    glow: 'rgba(0, 217, 255, 0.25)',
+    border: 'border-cyan-400/40',
     text: 'text-cyan-400',
-    shadow: 'shadow-[0_0_25px_rgba(6,182,212,0.15)]',
+    shadow: 'shadow-[0_0_25px_rgba(0,217,255,0.18)]',
+  },
+  architect: {
+    primary: '#10b981',
+    glow: 'rgba(16, 185, 129, 0.25)',
+    border: 'border-emerald-500/40',
+    text: 'text-emerald-400',
+    shadow: 'shadow-[0_0_25px_rgba(16,185,129,0.18)]',
+  },
+  classic: {
+    primary: '#f59e0b',
+    glow: 'rgba(245, 158, 11, 0.25)',
+    border: 'border-amber-500/40',
+    text: 'text-amber-400',
+    shadow: 'shadow-[0_0_25px_rgba(245,158,11,0.18)]',
+  },
+  phantom: {
+    primary: '#ef4444',
+    glow: 'rgba(239, 68, 68, 0.25)',
+    border: 'border-red-500/40',
+    text: 'text-red-400',
+    shadow: 'shadow-[0_0_25px_rgba(239,68,68,0.18)]',
+  },
+  nexus: {
+    primary: '#ec4899',
+    glow: 'rgba(236, 72, 153, 0.25)',
+    border: 'border-pink-500/40',
+    text: 'text-pink-400',
+    shadow: 'shadow-[0_0_25px_rgba(236,72,153,0.18)]',
+  },
+  forge: {
+    primary: '#f97316',
+    glow: 'rgba(249, 115, 22, 0.25)',
+    border: 'border-orange-500/40',
+    text: 'text-orange-400',
+    shadow: 'shadow-[0_0_25px_rgba(249,115,22,0.18)]',
+  },
+  magister: {
+    primary: '#06b6d4',
+    glow: 'rgba(6, 182, 212, 0.25)',
+    border: 'border-teal-500/40',
+    text: 'text-teal-400',
+    shadow: 'shadow-[0_0_25px_rgba(6,182,212,0.18)]',
+  },
+  root: {
+    primary: '#00ff66',
+    glow: 'rgba(0, 255, 102, 0.25)',
+    border: 'border-green-400/40',
+    text: 'text-green-400',
+    shadow: 'shadow-[0_0_25px_rgba(0,255,102,0.22)]',
   },
 };
 
-export const ALL_MODELS: ModelType[] = ['speed', 'cortex', 'zenith'];
+export const ALL_MODELS: ModelType[] = [
+  'speed',
+  'cortex',
+  'zenith',
+  'architect',
+  'classic',
+  'phantom',
+  'nexus',
+  'forge',
+  'magister',
+  'root'
+];
 
 export const MODEL_META: Record<ModelType, { label: string; tagline: string; color: string; description: string; temperature: number }> = {
   speed: {
