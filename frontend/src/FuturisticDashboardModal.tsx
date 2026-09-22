@@ -327,7 +327,7 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
           {activeTab === 'engine' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <span style={{ fontSize: '12px', color: '#a1a1aa', fontWeight: 600 }}>SELECCIONAR MOTOR DE RAZONAMIENTO ACTIVADO</span>
-              {(['speed', 'cortex', 'architect', 'classic', 'phantom', 'nexus', 'forge', 'magister', 'root'] as const).map((m) => {
+              {(['speed', 'cortex', 'zenith', 'architect', 'classic', 'phantom', 'nexus', 'forge', 'magister', 'root'] as const).map((m) => {
                 const isCurrent = selectedModel === m;
                 const info = modelMetrics[m];
                 const color = info.color;

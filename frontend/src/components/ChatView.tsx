@@ -152,6 +152,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   // Speech-to-Text (Voice Dictation)
   const [isListening, setIsListening] = useState(false);
   const speechRecognitionRef = useRef<any>(null);
+  const speechBaseTextRef = useRef<string>('');
 
   // Drag and Drop Image Overlay
   const [isDraggingOver, setIsDraggingOver] = useState(false);
@@ -242,7 +243,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
     return () => window.removeEventListener('paste', handlePaste);
   }, [currentActiveModel]);
 
-  // Voice Dictation Toggle (Web Speech API)
+  // Cleanup speech recognition on unmount
+  useEffect(() => {
+    return () => {
+      try {
+        speechRecognitionRef.current?.stop();
+      } catch {}
+    };
+  }, []);
+
+  // Voice Dictation Toggle (Web Speech API) con transcripción acumulativa sin repeticiones
   const toggleSpeechRecognition = () => {
     triggerSound();
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -256,6 +266,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         speechRecognitionRef.current?.stop();
       } catch {}
       setIsListening(false);
+      speechBaseTextRef.current = '';
       return;
     }
 
@@ -264,19 +275,37 @@ export const ChatView: React.FC<ChatViewProps> = ({
       recognition.lang = 'es-MX';
       recognition.continuous = true;
       recognition.interimResults = true;
+      // Guardar el texto base previamente escrito para no sobrescribirlo ni duplicarlo
+      speechBaseTextRef.current = inputValue ? inputValue.trim() : '';
 
       recognition.onresult = (event: any) => {
-        let currentTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          currentTranscript += event.results[i][0].transcript;
+        let finalAccumulated = '';
+        let interimAccumulated = '';
+        for (let i = 0; i < event.results.length; i++) {
+          const res = event.results[i];
+          if (res.isFinal) {
+            finalAccumulated += res[0].transcript;
+          } else {
+            interimAccumulated += res[0].transcript;
+          }
         }
-        if (currentTranscript.trim()) {
-          setInputValue((prev) => (prev ? `${prev} ${currentTranscript.trim()}` : currentTranscript.trim()));
+        const spoken = (finalAccumulated + interimAccumulated).trim();
+        const base = speechBaseTextRef.current;
+        if (spoken) {
+          setInputValue(base ? `${base} ${spoken}` : spoken);
         }
       };
 
-      recognition.onerror = () => setIsListening(false);
-      recognition.onend = () => setIsListening(false);
+      recognition.onerror = (e: any) => {
+        console.warn('Aviso reconocimiento de voz:', e);
+        setIsListening(false);
+        speechBaseTextRef.current = '';
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        speechBaseTextRef.current = '';
+      };
 
       recognition.start();
       speechRecognitionRef.current = recognition;
@@ -284,6 +313,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     } catch (err) {
       console.warn('Error iniciando voz:', err);
       setIsListening(false);
+      speechBaseTextRef.current = '';
     }
   };
 
@@ -296,18 +326,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setInputValue(enhanced);
   };
 
-  // Slash commands registry
+  // Slash commands registry enfocado en los 3 modelos principales
   const SLASH_COMMANDS = [
     { cmd: '/speed', label: 'LYAXIS Speed', desc: 'Motor ágil de respuestas inmediatas (~14ms)', action: () => handleModelSwitch('speed') },
     { cmd: '/cortex', label: 'LYAXIS Cortex', desc: 'Razonamiento profundo paso a paso y lógica matemática', action: () => handleModelSwitch('cortex') },
     { cmd: '/zenith', label: 'LYAXIS Zenith', desc: 'Cerebro superior, visión multimodal y arquitectura', action: () => handleModelSwitch('zenith') },
-    { cmd: '/architect', label: 'LYAXIS Architect', desc: 'Diseñador de system prompts y mentoría técnica', action: () => handleModelSwitch('architect') },
-    { cmd: '/phantom', label: 'LYAXIS Phantom', desc: 'Auditor ofensivo de fallas, cuellos de botella y seguridad', action: () => handleModelSwitch('phantom') },
-    { cmd: '/classic', label: 'LYAXIS Classic', desc: 'Asistente cotidiano de conversación y redacción', action: () => handleModelSwitch('classic') },
-    { cmd: '/forge', label: 'LYAXIS Forge', desc: 'Constructor pragmático de MVPs y modelos de negocio', action: () => handleModelSwitch('forge') },
-    { cmd: '/nexus', label: 'LYAXIS Nexus', desc: 'Sintetizador creativo y pensamiento interdisciplinario', action: () => handleModelSwitch('nexus') },
-    { cmd: '/magister', label: 'LYAXIS Magister', desc: 'Planeación docente SEP/NEM y rúbricas formativas', action: () => handleModelSwitch('magister') },
-    { cmd: '/root', label: 'LYAXIS Root', desc: 'Kernel de gobernanza y código bare-metal sin filtros', action: () => handleModelSwitch('root') },
     { cmd: '/triad', label: 'LYAXIS TRIAD™', desc: 'Activa o desactiva la inferencia simultánea Create || Break || Rebuild', action: () => toggleTriad() },
     { cmd: '/clear', label: 'Limpiar Chat', desc: 'Vacía la vista de mensajes de la conversación actual', action: () => setMessages([]) },
     { cmd: '/canvas', label: 'Abrir Cuaderno', desc: 'Abre el estudio visual de notas y diapositivas', action: () => setIsNotebookOpen(true) },
@@ -857,130 +880,195 @@ export const ChatView: React.FC<ChatViewProps> = ({
             )
           )}
 
-          {/* Interactive In-Chat Model Selector con Identidad Cromática */}
-          <div style={{ position: 'relative' }} ref={dropdownRef}>
-            <button
-              type="button"
-              onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-              title="Cambiar modelo de IA dentro de esta conversación"
+          {/* Barra de Selección de Modelos (Solo Speed, Cortex y Zenith) */}
+          {!isMobile ? (
+            <div
+              className="lyaxis-model-bar"
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                backgroundColor: `${currentTheme.primary}12`,
-                border: `1px solid ${currentTheme.primary}55`,
-                borderRadius: '10px',
-                padding: isMobile ? '8px 12px' : '6px 12px',
-                minHeight: isMobile ? '44px' : '36px',
-                color: '#ffffff',
-                cursor: 'pointer',
-                boxShadow: `0 0 18px ${currentTheme.glow}`,
-                transition: 'all 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.09)',
+                borderRadius: '11px',
+                padding: '3px',
+                gap: '4px',
               }}
             >
-              <span
+              {ALL_MODELS.map((m) => {
+                const itemMeta = MODEL_META[m] || MODEL_META.speed;
+                const isSelected = currentActiveModel === m;
+                const theme = THEMES[m] || THEMES.speed;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => handleModelSwitch(m)}
+                    title={`LYAXIS ${itemMeta.label}: ${itemMeta.tagline}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '7px',
+                      padding: '6px 13px',
+                      borderRadius: '8px',
+                      border: isSelected ? `1px solid ${theme.primary}77` : '1px solid transparent',
+                      backgroundColor: isSelected ? `${theme.primary}20` : 'transparent',
+                      color: isSelected ? '#ffffff' : '#94a3b8',
+                      fontSize: '13px',
+                      fontWeight: isSelected ? 700 : 500,
+                      cursor: 'pointer',
+                      boxShadow: isSelected ? `0 0 16px ${theme.glow}` : 'none',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                        e.currentTarget.style.color = '#e2e8f0';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.color = '#94a3b8';
+                      }
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: '7px',
+                        height: '7px',
+                        borderRadius: '50%',
+                        backgroundColor: theme.primary,
+                        boxShadow: isSelected ? `0 0 8px ${theme.primary}` : 'none',
+                        display: 'inline-block',
+                      }}
+                    />
+                    <span>LYAXIS {itemMeta.label}</span>
+                    <span style={{ fontSize: '10.5px', color: isSelected ? `${theme.primary}` : '#64748b', fontFamily: 'monospace' }}>
+                      T:{itemMeta.temperature}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            /* Interactive In-Chat Model Selector con Identidad Cromática en Celular */
+            <div style={{ position: 'relative' }} ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                title="Cambiar modelo de IA"
                 style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor: currentTheme.primary,
-                  boxShadow: `0 0 10px ${currentTheme.primary}`,
-                  display: 'inline-block',
-                  transition: 'all 300ms ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  backgroundColor: `${currentTheme.primary}12`,
+                  border: `1px solid ${currentTheme.primary}55`,
+                  borderRadius: '10px',
+                  padding: '8px 12px',
+                  minHeight: '44px',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  boxShadow: `0 0 18px ${currentTheme.glow}`,
+                  transition: 'all 300ms cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
-              />
-              <span style={{ fontSize: isMobile ? '14px' : '13px', fontWeight: 700, letterSpacing: '0.3px', color: '#ffffff' }}>
-                LYAXIS {meta.label}
-              </span>
-              {!isMobile && (
-                <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '2px', fontFamily: 'monospace' }}>
-                  T:{meta.temperature}
-                </span>
-              )}
-              <ChevronDown
-                size={14}
-                color={currentTheme.primary}
-                style={{
-                  transform: isModelDropdownOpen ? 'rotate(180deg)' : 'none',
-                  transition: 'transform 0.2s ease, color 0.3s ease',
-                }}
-              />
-            </button>
-
-            {isModelDropdownOpen && (
-              <>
-                <div
-                  style={{ position: 'fixed', inset: 0, zIndex: 45, backgroundColor: 'transparent' }}
-                  onClick={() => setIsModelDropdownOpen(false)}
-                />
-                <div
+              >
+                <span
                   style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 6px)',
-                    left: 0,
-                    width: isMobile ? 'calc(100vw - 28px)' : '300px',
-                    maxWidth: '340px',
-                    backgroundColor: '#0a0a0f',
-                    border: '1px solid #22222e',
-                    borderRadius: '12px',
-                    padding: '6px',
-                    boxShadow: '0 10px 35px rgba(0,0,0,0.9), 0 0 20px rgba(0, 217, 255, 0.1)',
-                    zIndex: 50,
-                    backdropFilter: 'blur(16px)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '2px',
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: currentTheme.primary,
+                    boxShadow: `0 0 10px ${currentTheme.primary}`,
+                    display: 'inline-block',
+                    transition: 'all 300ms ease',
                   }}
-                >
-                  <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 800, color: '#71717a', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
-                    Cambiar Modelo en este Chat
-                  </div>
-                  {ALL_MODELS.map((m) => {
-                    const itemMeta = modelMeta[m] || MODEL_META[m] || MODEL_META.classic;
-                    const isSelected = currentActiveModel === m;
-                    return (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => handleModelSwitch(m)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '8px 10px',
-                          borderRadius: '8px',
-                          border: 'none',
-                          backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-                          color: isSelected ? '#ffffff' : '#a1a1aa',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          transition: 'all 0.15s ease',
-                          gap: '8px',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isSelected ? 'rgba(255, 255, 255, 0.08)' : 'transparent'; }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0, flex: 1 }}>
-                          <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: itemMeta.color, flexShrink: 0 }} />
-                          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-                            <span style={{ fontSize: '13px', fontWeight: isSelected ? 700 : 500, color: isSelected ? '#ffffff' : '#e2e8f0', lineHeight: 1.3 }}>
-                              {itemMeta.label}
-                            </span>
-                            <span style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {itemMeta.tagline}
-                            </span>
+                />
+                <span style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '0.3px', color: '#ffffff' }}>
+                  LYAXIS {meta.label}
+                </span>
+                <ChevronDown
+                  size={14}
+                  color={currentTheme.primary}
+                  style={{
+                    transform: isModelDropdownOpen ? 'rotate(180deg)' : 'none',
+                    transition: 'transform 0.2s ease, color 0.3s ease',
+                  }}
+                />
+              </button>
+
+              {isModelDropdownOpen && (
+                <>
+                  <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 45, backgroundColor: 'transparent' }}
+                    onClick={() => setIsModelDropdownOpen(false)}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      left: 0,
+                      width: 'calc(100vw - 28px)',
+                      maxWidth: '300px',
+                      backgroundColor: '#0a0a0f',
+                      border: '1px solid #22222e',
+                      borderRadius: '12px',
+                      padding: '6px',
+                      boxShadow: '0 10px 35px rgba(0,0,0,0.9), 0 0 20px rgba(0, 217, 255, 0.1)',
+                      zIndex: 50,
+                      backdropFilter: 'blur(16px)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '2px',
+                    }}
+                  >
+                    <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 800, color: '#71717a', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                      Seleccionar Motor LYAXIS
+                    </div>
+                    {ALL_MODELS.map((m) => {
+                      const itemMeta = MODEL_META[m] || MODEL_META.speed;
+                      const isSelected = currentActiveModel === m;
+                      return (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => handleModelSwitch(m)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+                            color: isSelected ? '#ffffff' : '#a1a1aa',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 0.15s ease',
+                            gap: '8px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0, flex: 1 }}>
+                            <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: itemMeta.color, flexShrink: 0 }} />
+                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+                              <span style={{ fontSize: '13.5px', fontWeight: isSelected ? 700 : 500, color: isSelected ? '#ffffff' : '#e2e8f0', lineHeight: 1.3 }}>
+                                {itemMeta.label}
+                              </span>
+                              <span style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {itemMeta.tagline}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                        <span style={{ fontSize: '10.5px', color: '#71717a', fontFamily: 'monospace', flexShrink: 0 }}>
-                          T:{itemMeta.temperature}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
+                          <span style={{ fontSize: '10.5px', color: '#71717a', fontFamily: 'monospace', flexShrink: 0 }}>
+                            T:{itemMeta.temperature}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Zone 2 (Center): Telemetría en PC (>= 768px) */}

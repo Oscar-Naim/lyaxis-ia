@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, MessageCircle, Crosshair, Waypoints, Hammer, GraduationCap, Zap, Cpu, Activity, Send, Layers } from 'lucide-react';
 
-type ModelType = 'speed' | 'cortex' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'root';
+type ModelType = 'speed' | 'cortex' | 'zenith' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'root';
 
 interface LandingPageProps {
   onEnterChat: () => void;
@@ -43,6 +43,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       desc: 'Motor de razonamiento profundo para arquitecturas complejas, algoritmos y auditoría analítica.',
       prompt: 'Analiza la complejidad temporal y optimiza este algoritmo de ordenamiento',
       badge: 'Razonamiento',
+    },
+    {
+      id: 'zenith' as ModelType,
+      name: 'LYAXIS Zenith',
+      version: 'v3.5 Omnimodal',
+      color: '#00D9FF',
+      icon: <Sparkles size={20} color="#00D9FF" />,
+      tps: '145 t/s',
+      latency: '~16ms',
+      desc: 'Cerebro superior multimodal. Análisis visual profundo, arquitectura de sistemas y máxima inteligencia.',
+      prompt: 'Analiza la arquitectura de este sistema y optimiza su flujo de datos',
+      badge: 'Multimodal / Superior',
     },
     {
       id: 'architect' as ModelType,

@@ -93,14 +93,7 @@ export const THEMES: Record<string, ModelTheme> = {
 export const ALL_MODELS: ModelType[] = [
   'speed',
   'cortex',
-  'zenith',
-  'architect',
-  'classic',
-  'phantom',
-  'nexus',
-  'forge',
-  'magister',
-  'root'
+  'zenith'
 ];
 
 export const MODEL_META: Record<ModelType, { label: string; tagline: string; color: string; description: string; temperature: number }> = {
