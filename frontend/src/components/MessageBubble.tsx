@@ -1036,26 +1036,52 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         }}
       >
         {isUser ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-            <div
-              style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '8px',
-                backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#cbd5e1',
-                flexShrink: 0,
-              }}
-            >
-              <UserIcon size={15} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+              <div
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#cbd5e1',
+                  flexShrink: 0,
+                }}
+              >
+                <UserIcon size={15} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontWeight: 700, fontSize: '13px', color: '#ffffff', letterSpacing: '0.3px' }}>Tú</span>
+                <span style={{ fontSize: '10px', color: '#71717a', fontFamily: 'monospace' }}>// PROMPT ENVIADO</span>
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontWeight: 700, fontSize: '13px', color: '#ffffff', letterSpacing: '0.3px' }}>Tú</span>
-              <span style={{ fontSize: '10px', color: '#71717a', fontFamily: 'monospace' }}>// PROMPT ENVIADO</span>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                title="Copiar prompt"
+                onClick={handleCopyText}
+                style={{
+                  background: copied ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                  border: copied ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '6px',
+                  padding: '3px 8px',
+                  color: copied ? '#10b981' : '#a1a1aa',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  fontSize: '11px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {copied ? <Check size={12} color="#10B981" /> : <Copy size={12} />}
+                <span>{copied ? 'Copiado' : 'Copiar'}</span>
+              </button>
             </div>
           </div>
         ) : (

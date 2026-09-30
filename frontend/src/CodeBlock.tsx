@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/atom-one-dark.css';
 import { Copy, Check, Play, Workflow } from 'lucide-react';
-import { ArtifactsCanvasModal } from './components/ArtifactsCanvasModal';
+import { LiveCanvasWorkspace } from './components/LiveCanvasWorkspace';
 import { playCyberClick } from './sound';
 
 export interface CodeBlockProps {
@@ -328,14 +328,15 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
         </div>
       )}
 
-      {/* Artifacts Canvas Modal */}
+      {/* Artifacts Live Canvas Studio */}
       {isRunnable && (
-        <ArtifactsCanvasModal
+        <LiveCanvasWorkspace
           isOpen={isCanvasOpen}
           onClose={() => setIsCanvasOpen(false)}
-          initialCode={rawCode}
+          code={rawCode}
           language={langStr}
-          title="LYAXIS Live Canvas"
+          title={`LYAXIS Live Canvas · ${langStr.toUpperCase()}`}
+          accentColor="#00d9ff"
         />
       )}
     </div>

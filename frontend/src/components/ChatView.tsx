@@ -71,6 +71,7 @@ export interface ChatViewProps {
   onOpenInfoDrawer?: (tab?: 'manifesto' | 'ecosystem' | 'security' | 'terms') => void;
   isScanlineActive?: boolean;
   isChromaticActive?: boolean;
+  onOpenCommandPalette?: () => void;
 }
 
 const MODEL_ICONS: Record<ModelType, (size: number, color?: string) => React.ReactNode> = {
@@ -110,6 +111,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onOpenInfoDrawer,
   isScanlineActive = false,
   isChromaticActive = false,
+  onOpenCommandPalette,
 }) => {
   const [currentActiveModel, setCurrentActiveModel] = useState<ModelType>(selectedModel || 'speed');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
@@ -326,12 +328,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setInputValue(enhanced);
   };
 
-  // Slash commands registry enfocado en los 3 modelos principales
+  // Slash commands registry con todos los 10 modelos neuronales y utilidades
   const SLASH_COMMANDS = [
     { cmd: '/speed', label: 'LYAXIS Speed', desc: 'Motor ágil de respuestas inmediatas (~14ms)', action: () => handleModelSwitch('speed') },
     { cmd: '/cortex', label: 'LYAXIS Cortex', desc: 'Razonamiento profundo paso a paso y lógica matemática', action: () => handleModelSwitch('cortex') },
     { cmd: '/zenith', label: 'LYAXIS Zenith', desc: 'Cerebro superior, visión multimodal y arquitectura', action: () => handleModelSwitch('zenith') },
+    { cmd: '/architect', label: 'LYAXIS Architect', desc: 'Ingeniería de software, arquitectura de sistemas y bases de datos', action: () => handleModelSwitch('architect') },
+    { cmd: '/classic', label: 'LYAXIS Classic', desc: 'Asistente general, redacción, resúmenes y charla cotidiana', action: () => handleModelSwitch('classic') },
+    { cmd: '/phantom', label: 'LYAXIS Phantom', desc: 'Auditoría de código, ciberseguridad y análisis de fallos', action: () => handleModelSwitch('phantom') },
+    { cmd: '/nexus', label: 'LYAXIS Nexus', desc: 'Pensador interdisciplinario y síntesis creativa transversal', action: () => handleModelSwitch('nexus') },
+    { cmd: '/forge', label: 'LYAXIS Forge', desc: 'Constructor pragmático, MVP y modelos de negocio', action: () => handleModelSwitch('forge') },
+    { cmd: '/magister', label: 'LYAXIS Magister', desc: 'Planeación docente SEP y secuencias didácticas NEM', action: () => handleModelSwitch('magister') },
+    { cmd: '/root', label: 'LYAXIS Root', desc: 'Kernel de gobernanza, código de bajo nivel y ejecución total', action: () => handleModelSwitch('root') },
     { cmd: '/triad', label: 'LYAXIS TRIAD™', desc: 'Activa o desactiva la inferencia simultánea Create || Break || Rebuild', action: () => toggleTriad() },
+    { cmd: '/cmd', label: 'Paleta de Comandos (Ctrl+K)', desc: 'Abre el HUD de búsqueda y atajos rápidos', action: () => onOpenCommandPalette?.() },
     { cmd: '/clear', label: 'Limpiar Chat', desc: 'Vacía la vista de mensajes de la conversación actual', action: () => setMessages([]) },
     { cmd: '/canvas', label: 'Abrir Cuaderno', desc: 'Abre el estudio visual de notas y diapositivas', action: () => setIsNotebookOpen(true) },
   ];
@@ -1489,6 +1499,47 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 >
                   <FileDown size={15} color="#00D9FF" />
                   <span>PDF</span>
+                </button>
+              )}
+
+              {/* Command Palette Button */}
+              {onOpenCommandPalette && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerSound();
+                    onOpenCommandPalette();
+                  }}
+                  title="Paleta de Comandos (Ctrl+K)"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    backgroundColor: 'rgba(0, 217, 255, 0.08)',
+                    border: '1px solid rgba(0, 217, 255, 0.3)',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
+                    minHeight: '32px',
+                    color: '#ffffff',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 0 10px rgba(0, 217, 255, 0.1)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.16)';
+                    e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.6)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.08)';
+                    e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.3)';
+                  }}
+                >
+                  <Command size={14} color="#00D9FF" />
+                  <span className="hidden sm:inline">Comandos</span>
+                  <kbd style={{ fontSize: '10px', opacity: 0.7, backgroundColor: 'rgba(255,255,255,0.1)', padding: '1px 4px', borderRadius: '4px' }}>Ctrl+K</kbd>
                 </button>
               )}
 

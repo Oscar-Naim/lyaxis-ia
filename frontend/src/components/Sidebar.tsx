@@ -21,6 +21,7 @@ import {
   Zap,
   Search,
   X,
+  Command,
 } from 'lucide-react';
 import type { Conversation, User, ModelType } from '../types';
 import { MODEL_META } from '../config';
@@ -47,6 +48,7 @@ export interface SidebarProps {
   onToggleSoundMute?: () => void;
   onOpenNotebook?: () => void;
   onOpenShowcase?: () => void;
+  onOpenCommandPalette?: () => void;
 }
 
 const MODEL_ICONS: Record<ModelType, (size: number, color?: string) => React.ReactNode> = {
@@ -83,6 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleSoundMute,
   onOpenNotebook,
   onOpenShowcase,
+  onOpenCommandPalette,
 }) => {
   const [internalMuted, setInternalMuted] = useState<boolean>(() => isSoundMuted());
   const [searchQuery, setSearchQuery] = useState('');
@@ -385,14 +388,56 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <Plus size={17} /> Nuevo Chat
       </button>
 
+      {/* Acceso a Paleta de Comandos */}
+      {onOpenCommandPalette && (
+        <button
+          type="button"
+          onClick={() => {
+            playCyberClick();
+            onOpenCommandPalette();
+          }}
+          title="Abrir Paleta de Comandos (Ctrl+K)"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            padding: '8px 12px',
+            backgroundColor: 'rgba(0, 217, 255, 0.04)',
+            border: '1px solid rgba(0, 217, 255, 0.22)',
+            borderRadius: '8px',
+            color: '#00d9ff',
+            fontSize: '12px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            marginBottom: '12px',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.1)';
+            e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.45)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.04)';
+            e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.22)';
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Command size={14} />
+            <span>Comandos Rápidos</span>
+          </div>
+          <kbd style={{ fontSize: '10px', opacity: 0.7, backgroundColor: 'rgba(255,255,255,0.08)', padding: '1px 4px', borderRadius: '3px' }}>Ctrl+K</kbd>
+        </button>
+      )}
+
       {/* Indicador / Selector de Motor Activo con Subtítulo Descriptivo */}
       {selectedModel && (
         <div
           onClick={() => {
-            if (onSelectModel) {
-              // Si se provee selector, puede rotar o abrir diálogo
-            }
+            playCyberClick();
+            if (onOpenCommandPalette) onOpenCommandPalette();
           }}
+          title="Haz clic para cambiar de motor de IA (Ctrl+K)"
           style={{
             padding: '10px 12px',
             backgroundColor: 'rgba(255, 255, 255, 0.03)',
@@ -401,21 +446,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
             marginBottom: '14px',
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'space-between',
             gap: '10px',
             boxShadow: `0 0 12px ${getModelColor(selectedModel)}15`,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)';
+            e.currentTarget.style.borderColor = `${getModelColor(selectedModel)}88`;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.03)';
+            e.currentTarget.style.borderColor = `${getModelColor(selectedModel)}44`;
           }}
         >
-          <div style={{ color: getModelColor(selectedModel), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            {MODEL_ICONS[selectedModel]?.(18, getModelColor(selectedModel))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ color: getModelColor(selectedModel), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              {MODEL_ICONS[selectedModel]?.(18, getModelColor(selectedModel))}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', lineHeight: 1.25 }}>
+                LYAXIS {MODEL_META[selectedModel]?.label}
+              </span>
+              <span style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {MODEL_META[selectedModel]?.tagline}
+              </span>
+            </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', lineHeight: 1.25 }}>
-              LYAXIS {MODEL_META[selectedModel]?.label}
-            </span>
-            <span style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {MODEL_META[selectedModel]?.tagline}
-            </span>
-          </div>
+          <span style={{ fontSize: '10px', color: '#71717a', backgroundColor: 'rgba(255,255,255,0.06)', padding: '2px 5px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.08)' }}>
+            Cambiar
+          </span>
         </div>
       )}
 

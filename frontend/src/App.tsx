@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import type { ModelType, ModelId, Message, Conversation, User } from './types';
-import { ALL_MODELS, API_BASE, GOOGLE_CLIENT_ID, THEMES } from './config';
+import { ALL_MODELS, API_BASE, GOOGLE_CLIENT_ID, THEMES, MODEL_META } from './config';
 import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/ChatView';
 import { AuthModal } from './AuthModal';
@@ -12,6 +12,7 @@ import { BootSplash } from './components/BootSplash';
 import { exportChatToPDF } from './pdfExporter';
 import { isSoundMuted, setSoundMuted, playCyberClick } from './sound';
 import { LandingPage } from './LandingPage';
+import { CommandPalette } from './components/CommandPalette';
 
 export default function App() {
   const [showBoot, setShowBoot] = useState(() =>
@@ -21,6 +22,7 @@ export default function App() {
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [isInfoDrawerOpen, setIsInfoDrawerOpen] = useState(false);
   const [isShowcaseOpen, setIsShowcaseOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [infoDrawerTab, setInfoDrawerTab] = useState<'manifesto' | 'ecosystem' | 'security' | 'terms'>('manifesto');
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 768));
@@ -108,6 +110,17 @@ export default function App() {
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
   const toggleSound = () => {
@@ -341,6 +354,7 @@ export default function App() {
           soundMuted={!soundEnabled}
           onToggleSoundMute={toggleSound}
           onOpenShowcase={() => setIsShowcaseOpen(true)}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         />
 
         <ChatView
@@ -365,6 +379,36 @@ export default function App() {
           onOpenInfoDrawer={openInfoDrawer}
           isScanlineActive={isScanlineActive}
           isChromaticActive={isChromaticActive}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        />
+
+        <CommandPalette
+          isOpen={isCommandPaletteOpen}
+          onClose={() => setIsCommandPaletteOpen(false)}
+          onSelectModel={(m) => switchModel(m)}
+          currentModel={selectedModel}
+          onNewChat={() => handleNewConversation()}
+          onClearChat={() => setMessages([])}
+          onExportPDF={() => {
+            if (messages.length > 0) {
+              const meta = MODEL_META[selectedModel] || MODEL_META.speed;
+              exportChatToPDF(
+                conversations.find((c) => c.id === currentChatId)?.title || 'Sesión LYAXIS',
+                meta.label,
+                meta.color,
+                messages
+              );
+            }
+          }}
+          onOpenDashboard={() => setIsDashboardOpen(true)}
+          isScanlineActive={isScanlineActive}
+          onToggleScanline={() => setIsScanlineActive((p) => !p)}
+          isChromaticActive={isChromaticActive}
+          onToggleChromatic={() => setIsChromaticActive((p) => !p)}
+          soundEnabled={soundEnabled}
+          onToggleSound={toggleSound}
+          conversations={conversations}
+          onSelectConversation={selectConversation}
         />
 
         <AuthModal
