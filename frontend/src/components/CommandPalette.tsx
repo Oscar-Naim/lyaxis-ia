@@ -383,7 +383,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         display: 'flex',
         alignItems: 'flex-start',
         justifyContent: 'center',
-        padding: '14vh 16px 20px',
+        padding: 'min(7vh, 28px) 12px 20px',
         animation: 'fadeIn 0.15s ease',
       }}
       onClick={(e) => {
@@ -405,7 +405,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: '70vh',
+          maxHeight: 'min(78vh, 620px)',
           animation: 'slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
         onKeyDown={handleKeyDown}
@@ -416,7 +416,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
-            padding: '16px 20px',
+            padding: '14px 18px',
             borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
             backgroundColor: 'rgba(255, 255, 255, 0.02)',
           }}
@@ -427,14 +427,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Escribe un comando o busca en tu sesión (ej. 'cortex', 'triad', 'pdf', 'nuevo')..."
+            placeholder="Escribe un comando o busca ('/root', 'pdf', 'triad')..."
             style={{
               width: '100%',
               backgroundColor: 'transparent',
               border: 'none',
               outline: 'none',
               color: '#ffffff',
-              fontSize: '15px',
+              fontSize: '16px',
               fontWeight: 500,
               fontFamily: 'inherit',
             }}

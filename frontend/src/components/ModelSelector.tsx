@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { ModelType } from '../types';
-import { ALL_MODELS, MODEL_META } from '../config';
+import { ALL_MODELS, CORE_MODELS, MODEL_META } from '../config';
 
 export interface ModelSelectorProps {
   currentModel: ModelType;
@@ -19,6 +19,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const meta = MODEL_META[currentModel] || MODEL_META.speed;
+  const visibleModels: ModelType[] = CORE_MODELS.includes(currentModel)
+    ? [...CORE_MODELS]
+    : [...CORE_MODELS, currentModel];
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -114,9 +117,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 800, color: '#71717a', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
             Seleccionar Motor LYAXIS
           </div>
-          {ALL_MODELS.map((m) => {
-    const itemMeta = MODEL_META[m] || MODEL_META.speed;
+          {visibleModels.map((m) => {
+            const itemMeta = MODEL_META[m] || MODEL_META.speed;
             const isSelected = currentModel === m;
+            const isAdvancedSpecialist = !CORE_MODELS.includes(m);
             return (
               <button
                 key={m}
@@ -155,16 +159,23 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                     }}
                   />
                   <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-                    <span
-                      style={{
-                        fontSize: '13px',
-                        fontWeight: isSelected ? 700 : 500,
-                        color: isSelected ? '#ffffff' : '#e2e8f0',
-                        lineHeight: 1.3,
-                      }}
-                    >
-                      {itemMeta.label}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: isSelected ? 700 : 500,
+                          color: isSelected ? '#ffffff' : '#e2e8f0',
+                          lineHeight: 1.3,
+                        }}
+                      >
+                        {itemMeta.label}
+                      </span>
+                      {isAdvancedSpecialist && (
+                        <span style={{ fontSize: '9px', backgroundColor: `${itemMeta.color}33`, color: itemMeta.color, padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>
+                          ACTIVO
+                        </span>
+                      )}
+                    </div>
                     <span
                       style={{
                         fontSize: '12px',
@@ -185,6 +196,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               </button>
             );
           })}
+          <div style={{ padding: '8px 10px', fontSize: '11px', color: '#94a3b8', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            💡 Escribe <b>/</b> en el chat para modelos avanzados
+          </div>
         </div>
       )}
     </div>

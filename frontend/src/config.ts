@@ -90,6 +90,8 @@ export const THEMES: Record<string, ModelTheme> = {
   },
 };
 
+export const CORE_MODELS: ModelType[] = ['speed', 'cortex', 'zenith'];
+
 export const ALL_MODELS: ModelType[] = [
   'speed',
   'cortex',

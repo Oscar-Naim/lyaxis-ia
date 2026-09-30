@@ -43,7 +43,7 @@ import { ClarificationModal } from './ClarificationModal';
 import type { ClarificationData, ClarificationSubmitPayload } from './ClarificationModal';
 import { NotebookStudio } from './NotebookStudio';
 import { isSoundMuted, setSoundMuted, playCyberClick as globalPlayCyberClick } from '../sound';
-import { API_BASE, ALL_MODELS, MODEL_META, MODEL_QUICK_ACTIONS, THEMES } from '../config';
+import { API_BASE, ALL_MODELS, CORE_MODELS, MODEL_META, MODEL_QUICK_ACTIONS, THEMES } from '../config';
 import { exportChatToPDF } from '../pdfExporter';
 
 export interface ChatViewProps {
@@ -367,6 +367,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const meta = modelMeta[currentActiveModel] || MODEL_META[currentActiveModel] || MODEL_META.speed;
   const currentTheme = THEMES[currentActiveModel] || THEMES.speed;
+
+  // A la vista solo están los 3 modelos principales (Speed, Cortex, Zenith)
+  // Si se activa otro modelo especializado mediante comando '/', se muestra temporalmente
+  const visibleModels: ModelType[] = CORE_MODELS.includes(currentActiveModel)
+    ? [...CORE_MODELS]
+    : [...CORE_MODELS, currentActiveModel];
+
+  // Índice de comando seleccionado en el popup de comandos '/'
+  const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+
+  useEffect(() => {
+    setSlashSelectedIndex(0);
+  }, [inputValue]);
 
   const triggerSound = () => {
     if (!isMuted) {
@@ -763,7 +776,57 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Si la paleta flotante de '/' está visible con sugerencias
+    if (filteredCommands.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSlashSelectedIndex((prev) => (prev + 1) % filteredCommands.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSlashSelectedIndex((prev) => (prev - 1 + filteredCommands.length) % filteredCommands.length);
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const selected = filteredCommands[slashSelectedIndex] || filteredCommands[0];
+        if (selected) {
+          selected.action();
+          setInputValue('');
+          triggerSound();
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setInputValue('');
+        return;
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const selected = filteredCommands[slashSelectedIndex] || filteredCommands[0];
+        if (selected) {
+          selected.action();
+          setInputValue('');
+          triggerSound();
+        }
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
+      const trimmed = inputValue.trim().toLowerCase();
+      if (trimmed.startsWith('/')) {
+        const matched = SLASH_COMMANDS.find((sc) => sc.cmd.toLowerCase() === trimmed);
+        if (matched) {
+          e.preventDefault();
+          matched.action();
+          setInputValue('');
+          triggerSound();
+          return;
+        }
+      }
       e.preventDefault();
       handleSend();
     }
@@ -904,10 +967,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 gap: '4px',
               }}
             >
-              {ALL_MODELS.map((m) => {
+              {visibleModels.map((m) => {
                 const itemMeta = MODEL_META[m] || MODEL_META.speed;
                 const isSelected = currentActiveModel === m;
                 const theme = THEMES[m] || THEMES.speed;
+                const isAdvancedSpecialist = !CORE_MODELS.includes(m);
                 return (
                   <button
                     key={m}
@@ -953,6 +1017,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       }}
                     />
                     <span>LYAXIS {itemMeta.label}</span>
+                    {isAdvancedSpecialist && (
+                      <span style={{ fontSize: '9px', backgroundColor: `${theme.primary}33`, color: theme.primary, padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>
+                        ACTIVO
+                      </span>
+                    )}
                     <span style={{ fontSize: '10.5px', color: isSelected ? `${theme.primary}` : '#64748b', fontFamily: 'monospace' }}>
                       T:{itemMeta.temperature}
                     </span>
@@ -1034,9 +1103,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 800, color: '#71717a', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
                       Seleccionar Motor LYAXIS
                     </div>
-                    {ALL_MODELS.map((m) => {
+                    {visibleModels.map((m) => {
                       const itemMeta = MODEL_META[m] || MODEL_META.speed;
                       const isSelected = currentActiveModel === m;
+                      const isAdvancedSpecialist = !CORE_MODELS.includes(m);
                       return (
                         <button
                           key={m}
@@ -1060,9 +1130,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0, flex: 1 }}>
                             <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: itemMeta.color, flexShrink: 0 }} />
                             <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-                              <span style={{ fontSize: '13.5px', fontWeight: isSelected ? 700 : 500, color: isSelected ? '#ffffff' : '#e2e8f0', lineHeight: 1.3 }}>
-                                {itemMeta.label}
-                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '13.5px', fontWeight: isSelected ? 700 : 500, color: isSelected ? '#ffffff' : '#e2e8f0', lineHeight: 1.3 }}>
+                                  {itemMeta.label}
+                                </span>
+                                {isAdvancedSpecialist && (
+                                  <span style={{ fontSize: '9px', backgroundColor: `${itemMeta.color}33`, color: itemMeta.color, padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>
+                                    ACTIVO
+                                  </span>
+                                )}
+                              </div>
                               <span style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {itemMeta.tagline}
                               </span>
@@ -1074,6 +1151,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         </button>
                       );
                     })}
+                    <div style={{ padding: '8px 10px', fontSize: '11px', color: '#94a3b8', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Command size={12} color="#00D9FF" />
+                      <span>Escribe <b>/</b> en el chat para modelos avanzados</span>
+                    </div>
                   </div>
                 </>
               )}
@@ -1293,6 +1374,35 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       >
                         <FileDown size={16} color="#00D9FF" />
                         <span>Exportar a PDF</span>
+                      </button>
+                    )}
+
+                    {/* Command Palette Mobile */}
+                    {onOpenCommandPalette && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileActionsOpen(false);
+                          triggerSound();
+                          onOpenCommandPalette();
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          backgroundColor: 'rgba(0, 217, 255, 0.08)',
+                          color: '#00D9FF',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <Command size={16} color="#00D9FF" />
+                        <span>Comandos Rápidos (Ctrl+K)</span>
                       </button>
                     )}
 
@@ -2242,42 +2352,58 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   Haz clic o presiona Enter
                 </span>
               </div>
-              <div style={{ maxHeight: '200px', overflowY: 'auto', padding: '6px' }}>
-                {filteredCommands.map((item) => (
-                  <button
-                    key={item.cmd}
-                    type="button"
-                    onClick={() => {
-                      item.action();
-                      setInputValue('');
-                      triggerSound();
-                    }}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      color: '#f8fafc',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'background-color 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.1)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontFamily: 'monospace', color: '#00d9ff', fontWeight: 700, fontSize: '13px' }}>
-                        {item.cmd}
+              <div style={{ maxHeight: '220px', overflowY: 'auto', padding: '6px', WebkitOverflowScrolling: 'touch' }}>
+                {filteredCommands.map((item, idx) => {
+                  const isHighlighted = idx === slashSelectedIndex;
+                  return (
+                    <button
+                      key={item.cmd}
+                      type="button"
+                      onClick={() => {
+                        item.action();
+                        setInputValue('');
+                        triggerSound();
+                      }}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: isMobile ? '10px 12px' : '8px 12px',
+                        borderRadius: '8px',
+                        border: isHighlighted ? '1px solid rgba(0, 217, 255, 0.45)' : '1px solid transparent',
+                        backgroundColor: isHighlighted ? 'rgba(0, 217, 255, 0.14)' : 'transparent',
+                        color: '#f8fafc',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.15s ease',
+                        gap: '10px',
+                      }}
+                      onMouseEnter={() => setSlashSelectedIndex(idx)}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                        <span style={{ fontFamily: 'monospace', color: '#00d9ff', fontWeight: 700, fontSize: '13px' }}>
+                          {item.cmd}
+                        </span>
+                        <span style={{ fontSize: '12.5px', fontWeight: 600 }}>{item.label}</span>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          color: '#94a3b8',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          textAlign: 'right',
+                          flex: 1,
+                          minWidth: 0,
+                        }}
+                      >
+                        {item.desc}
                       </span>
-                      <span style={{ fontSize: '12.5px', fontWeight: 600 }}>{item.label}</span>
-                    </div>
-                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>{item.desc}</span>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
