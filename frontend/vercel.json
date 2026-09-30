@@ -2,6 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/api/gatekeeper-verify",
+      "destination": "https://zero-vip-gatekeeper-lyaxis.vercel.app/api/v1/keys/verify"
+    },
+    {
       "source": "/(.*)",
       "destination": "/"
     }

@@ -8,7 +8,7 @@ export const GOOGLE_CLIENT_ID = "1073688660808-amgupffpqddmmo89vemaaupje20531t6.
 export const APP_URL = "https://lyaxis-ia.vercel.app";
 export const GATEKEEPER_API_URL = 
   (import.meta.env.VITE_GATEKEEPER_API_URL as string) || 
-  'https://zero-vip-gatekeeper-lyaxis.vercel.app/api/validate';
+  'https://zero-vip-gatekeeper-lyaxis.vercel.app/api/v1/keys/verify';
 
 import type { ModelType } from './types';
 

@@ -75,23 +75,51 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
     setIsLoading(true);
     setError(null);
 
-    const apiUrl =
-      (import.meta.env.VITE_GATEKEEPER_API_URL as string) ||
-      'https://zero-vip-gatekeeper-lyaxis.vercel.app/api/validate';
+    const defaultApiUrl = 'https://zero-vip-gatekeeper-lyaxis.vercel.app/api/v1/keys/verify';
+    const apiUrl = (import.meta.env.VITE_GATEKEEPER_API_URL as string) || defaultApiUrl;
 
     try {
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ token: clean }),
-      });
+      let response: Response | null = null;
+      let data: GatekeeperApiResponse | null = null;
 
-      const data: GatekeeperApiResponse | null = await response.json().catch(() => null);
+      try {
+        response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({ token: clean }),
+        });
+        if (response.ok || response.status === 400 || response.status === 401 || response.status === 403) {
+          data = await response.json().catch(() => null);
+        } else if (response.status === 404 && apiUrl !== '/api/gatekeeper-verify') {
+          // Fallback al proxy interno same-origin
+          response = await fetch('/api/gatekeeper-verify', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify({ token: clean }),
+          });
+          data = await response.json().catch(() => null);
+        }
+      } catch (networkErr) {
+        // En caso de bloqueo CORS del navegador, reintentar automáticamente vía el proxy interno
+        console.warn('Reintentando validación mediante proxy interno...', networkErr);
+        response = await fetch('/api/gatekeeper-verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({ token: clean }),
+        });
+        data = await response.json().catch(() => null);
+      }
 
-      if (response.ok && data && (data.valid === true || data.success === true)) {
+      if (response && response.ok && data && (data.valid === true || data.success === true)) {
         const validatedTier = data.tier || data.user_tier || data.role || 'VIP';
         setIsSuccess(true);
 
@@ -109,8 +137,8 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
         const errorMsg =
           data?.message ||
           data?.error ||
-          (response.status === 404
-            ? 'Endpoint de validación no encontrado. Verifica VITE_GATEKEEPER_API_URL.'
+          (response && response.status === 404
+            ? 'Endpoint de validación no encontrado en el servidor Gatekeeper.'
             : 'Llave de invitación inválida o expirada.');
         setError(errorMsg);
       }
@@ -118,7 +146,7 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
       console.error('Error al validar token Gatekeeper:', err);
       setError(
         err?.message?.includes('Failed to fetch')
-          ? 'Error de conexión con el servicio Gatekeeper. Verifica tu conexión o CORS.'
+          ? 'Error de conexión con el servidor Gatekeeper. Verifica tu conexión a internet.'
           : 'Error de red al intentar validar la llave de acceso.'
       );
     } finally {
