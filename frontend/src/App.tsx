@@ -13,8 +13,42 @@ import { exportChatToPDF } from './pdfExporter';
 import { isSoundMuted, setSoundMuted, playCyberClick } from './sound';
 import { LandingPage } from './LandingPage';
 import { CommandPalette } from './components/CommandPalette';
+import { GatekeeperModal } from './components/GatekeeperModal';
 
 export default function App() {
+  // Control de Acceso Gatekeeper (Tokens con formato LYX-XXX-XXX)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const token = localStorage.getItem('lyaxis_access_token');
+    return !!token && token.trim().length > 0;
+  });
+
+  const [userTier, setUserTier] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('lyaxis_user_tier') || 'VIP';
+  });
+
+  useEffect(() => {
+    try {
+      const token = localStorage.getItem('lyaxis_access_token');
+      const tier = localStorage.getItem('lyaxis_user_tier');
+      if (token && token.trim().length > 0) {
+        setIsAuthenticated(true);
+        if (tier) setUserTier(tier);
+      } else {
+        setIsAuthenticated(false);
+      }
+    } catch {
+      setIsAuthenticated(false);
+    }
+  }, []);
+
+  const handleGatekeeperUnlock = (token: string, tier: string) => {
+    setIsAuthenticated(true);
+    setUserTier(tier);
+    if (soundEnabled) playCyberClick();
+  };
+
   const [showBoot, setShowBoot] = useState(() =>
     typeof window !== 'undefined' ? sessionStorage.getItem('lyaxis_boot_seen') !== 'true' : false
   );
@@ -380,6 +414,7 @@ export default function App() {
           isScanlineActive={isScanlineActive}
           isChromaticActive={isChromaticActive}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+          userTier={userTier}
         />
 
         <CommandPalette
@@ -450,6 +485,12 @@ export default function App() {
             onOpenInfo={(tab) => openInfoDrawer(tab)}
           />
         )}
+
+        {/* Modal Bloqueante de Control de Acceso Gatekeeper */}
+        <GatekeeperModal
+          isOpen={!isAuthenticated}
+          onUnlock={handleGatekeeperUnlock}
+        />
       </div>
     </GoogleOAuthProvider>
   );

@@ -72,6 +72,7 @@ export interface ChatViewProps {
   isScanlineActive?: boolean;
   isChromaticActive?: boolean;
   onOpenCommandPalette?: () => void;
+  userTier?: string | null;
 }
 
 const MODEL_ICONS: Record<ModelType, (size: number, color?: string) => React.ReactNode> = {
@@ -112,6 +113,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   isScanlineActive = false,
   isChromaticActive = false,
   onOpenCommandPalette,
+  userTier = null,
 }) => {
   const [currentActiveModel, setCurrentActiveModel] = useState<ModelType>(selectedModel || 'speed');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
@@ -1203,6 +1205,31 @@ export const ChatView: React.FC<ChatViewProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {isMobile ? (
             <>
+              {/* Indicador discreto de Tier en Móvil */}
+              {userTier && (
+                <div
+                  title={`Nivel de Acceso Validado: ${userTier}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    backgroundColor: 'rgba(0, 217, 255, 0.08)',
+                    border: '1px solid rgba(0, 217, 255, 0.25)',
+                    fontSize: '10.5px',
+                    fontFamily: 'monospace',
+                    fontWeight: 700,
+                    color: '#00d9ff',
+                    letterSpacing: '0.5px',
+                    flexShrink: 0,
+                  }}
+                >
+                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#00ff66', display: 'inline-block' }} />
+                  <span>{userTier}</span>
+                </div>
+              )}
+
               {/* Acceder / Usuario en móvil */}
               {user ? (
                 user.avatar ? (
@@ -1525,6 +1552,43 @@ export const ChatView: React.FC<ChatViewProps> = ({
           ) : (
             /* Botones en PC (>= 768px) */
             <>
+              {/* Indicador discreto de Tier en Escritorio */}
+              {userTier && (
+                <div
+                  title={`Nivel de Acceso Validado: ${userTier}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(0, 217, 255, 0.08)',
+                    border: '1px solid rgba(0, 217, 255, 0.25)',
+                    color: '#e2e8f0',
+                    fontSize: '11px',
+                    fontFamily: 'monospace',
+                    fontWeight: 700,
+                    letterSpacing: '0.8px',
+                    boxShadow: '0 0 10px rgba(0, 217, 255, 0.1)',
+                    flexShrink: 0,
+                    marginRight: '4px',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      backgroundColor: '#00ff66',
+                      boxShadow: '0 0 8px #00ff66',
+                      display: 'inline-block',
+                    }}
+                  />
+                  <span style={{ color: '#00D9FF' }}>TIER:</span>
+                  <span>{userTier}</span>
+                </div>
+              )}
+
               {/* Sound Mute Toggle */}
               <button
                 type="button"
