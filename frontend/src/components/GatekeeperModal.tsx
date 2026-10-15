@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Key, ShieldCheck, AlertCircle, Loader2, ArrowRight, Lock } from 'lucide-react';
+import { Key, ShieldCheck, Loader2, ArrowRight } from 'lucide-react';
 
 export interface GatekeeperModalProps {
   isOpen: boolean;
@@ -16,6 +16,11 @@ export interface GatekeeperApiResponse {
   error?: string;
 }
 
+/**
+ * @deprecated Protocolo "ZERO VIP Gatekeeper" deshabilitado.
+ * LYAXIS IA ahora opera con acceso 100% público e inmediato sin requerir llaves ni tokens.
+ * Este componente se mantiene desacoplado por compatibilidad de tipos e importaciones.
+ */
 export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
   isOpen,
   onUnlock,
@@ -26,32 +31,30 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
   const [isSuccess, setIsSuccess] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-focus al abrir
+  // Desbloqueo automático no bloqueante en caso de invocarse con isOpen=true
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100);
+      const timer = setTimeout(() => {
+        onUnlock('LYX-PUBLIC-CORE', 'public');
+      }, 50);
+      return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, onUnlock]);
 
   if (!isOpen) return null;
 
-  // Auto-formateo en mayúsculas a la estructura LYX-XXX-XXX
+  // Auto-formateo opcional en mayúsculas a la estructura LYX-XXX-XXX
   const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-    // Si el usuario pega un código de 6 caracteres sin 'LYX', anteponer 'LYX'
     if (raw.length === 6 && !raw.startsWith('LYX')) {
       raw = 'LYX' + raw;
     }
 
-    // Limitar a máximo 9 caracteres alfanuméricos (3 + 3 + 3)
     if (raw.length > 9) {
       raw = raw.slice(0, 9);
     }
 
-    // Construir estructura con guiones: LYX-XXX-XXX
     const parts: string[] = [];
     if (raw.length > 0) parts.push(raw.slice(0, 3));
     if (raw.length > 3) parts.push(raw.slice(3, 6));
@@ -63,95 +66,23 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const clean = tokenInput.trim().toUpperCase();
-
-    // Validar formato completo de 9 caracteres alfanuméricos (ej: LYX-XXX-XXX)
-    const alphanumericCount = clean.replace(/[^A-Z0-9]/g, '').length;
-    if (alphanumericCount < 9) {
-      setError('Formato incompleto. Introduce los 9 caracteres (LYX-XXX-XXX).');
-      return;
-    }
-
     setIsLoading(true);
     setError(null);
 
-    const defaultApiUrl = 'https://zero-vip-gatekeeper-lyaxis.vercel.app/api/v1/keys/verify';
-    const apiUrl = (import.meta.env.VITE_GATEKEEPER_API_URL as string) || defaultApiUrl;
+    // Bypass del protocolo Gatekeeper: Acceso público inmediato sin llamadas de red a VITE_GATEKEEPER_API_URL
+    setIsSuccess(true);
+    const resolvedTier = 'public';
 
     try {
-      let response: Response | null = null;
-      let data: GatekeeperApiResponse | null = null;
-
-      try {
-        response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify({ token: clean }),
-        });
-        if (response.ok || response.status === 400 || response.status === 401 || response.status === 403) {
-          data = await response.json().catch(() => null);
-        } else if (response.status === 404 && apiUrl !== '/api/gatekeeper-verify') {
-          // Fallback al proxy interno same-origin
-          response = await fetch('/api/gatekeeper-verify', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: JSON.stringify({ token: clean }),
-          });
-          data = await response.json().catch(() => null);
-        }
-      } catch (networkErr) {
-        // En caso de bloqueo CORS del navegador, reintentar automáticamente vía el proxy interno
-        console.warn('Reintentando validación mediante proxy interno...', networkErr);
-        response = await fetch('/api/gatekeeper-verify', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify({ token: clean }),
-        });
-        data = await response.json().catch(() => null);
-      }
-
-      if (response && response.ok && data && (data.valid === true || data.success === true)) {
-        const validatedTier = data.tier || data.user_tier || data.role || 'VIP';
-        setIsSuccess(true);
-
-        try {
-          localStorage.setItem('lyaxis_access_token', clean);
-          localStorage.setItem('lyaxis_user_tier', validatedTier);
-        } catch (storageErr) {
-          console.warn('Aviso guardando en localStorage:', storageErr);
-        }
-
-        setTimeout(() => {
-          onUnlock(clean, validatedTier);
-        }, 500);
-      } else {
-        const errorMsg =
-          data?.message ||
-          data?.error ||
-          (response && response.status === 404
-            ? 'Endpoint de validación no encontrado en el servidor Gatekeeper.'
-            : 'Llave de invitación inválida o expirada.');
-        setError(errorMsg);
-      }
-    } catch (err: any) {
-      console.error('Error al validar token Gatekeeper:', err);
-      setError(
-        err?.message?.includes('Failed to fetch')
-          ? 'Error de conexión con el servidor Gatekeeper. Verifica tu conexión a internet.'
-          : 'Error de red al intentar validar la llave de acceso.'
-      );
-    } finally {
-      setIsLoading(false);
+      localStorage.setItem('lyaxis_user_tier', resolvedTier);
+    } catch (storageErr) {
+      console.warn('Aviso guardando tier en localStorage:', storageErr);
     }
+
+    setTimeout(() => {
+      setIsLoading(false);
+      onUnlock(tokenInput || 'LYX-PUBLIC-CORE', resolvedTier);
+    }, 200);
   };
 
   return (
@@ -181,7 +112,7 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
             transform: 'translateX(-50%)',
             width: '650px',
             height: '350px',
-            background: 'radial-gradient(circle, rgba(0, 217, 255, 0.12), transparent 70%)',
+            background: 'radial-gradient(circle, rgba(0, 255, 102, 0.12), transparent 70%)',
             filter: 'blur(80px)',
           }}
         />
@@ -192,7 +123,7 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
             right: '-100px',
             width: '500px',
             height: '500px',
-            background: 'radial-gradient(circle, rgba(124, 58, 237, 0.08), transparent 70%)',
+            background: 'radial-gradient(circle, rgba(0, 217, 255, 0.08), transparent 70%)',
             filter: 'blur(90px)',
           }}
         />
@@ -208,7 +139,7 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
           border: '1px solid #27272a',
           borderRadius: '16px',
           padding: '28px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.9), 0 0 35px rgba(0, 217, 255, 0.1)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.9), 0 0 35px rgba(0, 255, 102, 0.1)',
           position: 'relative',
           overflow: 'hidden',
           fontFamily: 'monospace, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas',
@@ -222,7 +153,7 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
             left: 0,
             right: 0,
             height: '3px',
-            background: 'linear-gradient(90deg, #2563FF, #00D9FF, #7C3AED)',
+            background: 'linear-gradient(90deg, #00FF66, #00D9FF, #2563FF)',
           }}
         />
 
@@ -234,19 +165,15 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
               height: '56px',
               borderRadius: '14px',
               backgroundColor: '#050505',
-              border: '1px solid rgba(0, 217, 255, 0.35)',
+              border: '1px solid rgba(0, 255, 102, 0.35)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               marginBottom: '14px',
-              boxShadow: '0 0 20px rgba(0, 217, 255, 0.15), inset 0 0 12px rgba(0, 217, 255, 0.08)',
+              boxShadow: '0 0 20px rgba(0, 255, 102, 0.15), inset 0 0 12px rgba(0, 255, 102, 0.08)',
             }}
           >
-            {isSuccess ? (
-              <ShieldCheck size={28} color="#00ff66" />
-            ) : (
-              <Lock size={26} color="#00D9FF" />
-            )}
+            <ShieldCheck size={28} color="#00ff66" />
           </div>
 
           <div
@@ -256,13 +183,13 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
               gap: '6px',
               fontSize: '11px',
               fontWeight: 700,
-              color: '#00D9FF',
+              color: '#00ff66',
               letterSpacing: '1px',
               textTransform: 'uppercase',
               marginBottom: '4px',
             }}
           >
-            <span>TERMINAL BIOMÉTRICA // ZERO VIP</span>
+            <span>ACCESO PÚBLICO HABILITADO // OPEN CORE</span>
           </div>
 
           <h2
@@ -275,7 +202,7 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
               letterSpacing: '-0.3px',
             }}
           >
-            Control de Acceso LYAXIS
+            LYAXIS IA • Acceso Libre
           </h2>
 
           <p
@@ -287,31 +214,13 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
               maxWidth: '360px',
             }}
           >
-            El ecosistema neural está blindado. Introduce una llave de invitación válida para continuar.
+            El acceso es 100% público e inmediato. No se requieren llaves ni tokens de invitación para acceder al ecosistema.
           </p>
         </div>
 
-        {/* Formulario */}
+        {/* Formulario / Acción Inmediata */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <label
-              htmlFor="lyaxis-token-input"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '11px',
-                fontWeight: 700,
-                color: '#a1a1aa',
-                textTransform: 'uppercase',
-                letterSpacing: '0.8px',
-                marginBottom: '8px',
-              }}
-            >
-              <span>Llave de Invitación</span>
-              <span style={{ color: '#00D9FF', fontSize: '10px' }}>ESTRUCTURA LYX-XXX-XXX</span>
-            </label>
-
             <div style={{ position: 'relative' }}>
               <div
                 style={{
@@ -325,7 +234,7 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
                   color: '#71717a',
                 }}
               >
-                <Key size={18} color="#00D9FF" />
+                <Key size={18} color="#00ff66" />
               </div>
 
               <input
@@ -337,36 +246,27 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
                 value={tokenInput}
                 onChange={handleTokenChange}
                 disabled={isLoading || isSuccess}
-                placeholder="LYX-XXX-XXX"
-                maxLength={11}
-                className="w-full pl-11 pr-4 py-3.5 text-base sm:text-lg font-mono font-bold tracking-widest text-center text-white bg-[#050505] border border-zinc-800 focus:border-cyan-400 focus:outline-none rounded-xl transition-all shadow-inner"
+                placeholder="ACCESO PÚBLICO ACTIVO"
+                className="w-full pl-11 pr-4 py-3.5 text-base sm:text-lg font-mono font-bold tracking-widest text-center text-white bg-[#050505] border border-zinc-800 focus:border-green-400 focus:outline-none rounded-xl transition-all shadow-inner"
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
                   padding: '12px 16px 12px 42px',
-                  fontSize: '17px',
-                  fontWeight: 800,
+                  fontSize: '15px',
+                  fontWeight: 700,
                   fontFamily: 'monospace',
-                  letterSpacing: '3px',
+                  letterSpacing: '1px',
                   textAlign: 'center',
-                  color: '#ffffff',
+                  color: '#00ff66',
                   backgroundColor: '#050505',
-                  border: error ? '1px solid #ef4444' : '1px solid #27272a',
+                  border: '1px solid rgba(0, 255, 102, 0.3)',
                   borderRadius: '12px',
                   outline: 'none',
                   boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.8)',
-                  transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-                }}
-                onFocus={(e) => {
-                  if (!error) e.currentTarget.style.borderColor = '#00D9FF';
-                }}
-                onBlur={(e) => {
-                  if (!error) e.currentTarget.style.borderColor = '#27272a';
                 }}
               />
             </div>
 
-            {/* Mensaje de Error */}
             {error && (
               <div
                 style={{
@@ -380,42 +280,17 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  animation: 'fadeIn 0.2s ease',
                 }}
               >
-                <AlertCircle size={15} style={{ flexShrink: 0 }} />
                 <span>{error}</span>
-              </div>
-            )}
-
-            {/* Estado de Éxito */}
-            {isSuccess && (
-              <div
-                style={{
-                  marginTop: '10px',
-                  padding: '8px 12px',
-                  borderRadius: '10px',
-                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                  border: '1px solid rgba(16, 185, 129, 0.4)',
-                  color: '#34d399',
-                  fontSize: '11.5px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  animation: 'fadeIn 0.2s ease',
-                }}
-              >
-                <ShieldCheck size={15} style={{ flexShrink: 0 }} />
-                <span>Llave criptográfica autorizada. Desbloqueando sesión...</span>
               </div>
             )}
           </div>
 
-          {/* Botón de Envío Claro (Alto Contraste) */}
           <button
             type="submit"
-            disabled={isLoading || isSuccess || tokenInput.length < 5}
-            className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-white hover:bg-slate-200 text-black font-mono font-bold text-xs sm:text-sm tracking-wider uppercase transition-all shadow-lg shadow-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+            disabled={isLoading || isSuccess}
+            className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-white hover:bg-slate-200 text-black font-mono font-bold text-xs sm:text-sm tracking-wider uppercase transition-all shadow-lg shadow-white/10"
             style={{
               width: '100%',
               display: 'flex',
@@ -432,8 +307,7 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
               fontFamily: 'monospace',
               letterSpacing: '1px',
               textTransform: 'uppercase',
-              cursor: isLoading || isSuccess || tokenInput.length < 5 ? 'not-allowed' : 'pointer',
-              opacity: isLoading || isSuccess || tokenInput.length < 5 ? 0.45 : 1,
+              cursor: 'pointer',
               boxShadow: '0 4px 18px rgba(255, 255, 255, 0.18)',
               transition: 'all 0.2s ease',
             }}
@@ -441,16 +315,16 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
             {isLoading ? (
               <>
                 <Loader2 size={16} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
-                <span>Validando Credencial...</span>
+                <span>Iniciando Sesión...</span>
               </>
             ) : isSuccess ? (
               <>
                 <ShieldCheck size={16} />
-                <span>Acceso Autorizado</span>
+                <span>Acceso Concedido</span>
               </>
             ) : (
               <>
-                <span>Desbloquear Ecosistema</span>
+                <span>Entrar a LYAXIS IA</span>
                 <ArrowRight size={16} />
               </>
             )}
@@ -469,10 +343,10 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
           }}
         >
           <p style={{ margin: '0 0 4px 0' }}>
-            LYAXIS labs™ • Zero-Trust Perimeter Architecture
+            LYAXIS labs™ • Public Access Architecture
           </p>
           <p style={{ margin: 0, fontSize: '9.5px', color: '#475569' }}>
-            Para asistencia o emisión de tokens consulta la consola VIP Gatekeeper
+            Protocolo de acceso irrestricto activo para todos los usuarios
           </p>
         </div>
       </div>

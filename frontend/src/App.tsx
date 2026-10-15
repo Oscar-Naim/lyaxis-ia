@@ -13,41 +13,45 @@ import { exportChatToPDF } from './pdfExporter';
 import { isSoundMuted, setSoundMuted, playCyberClick } from './sound';
 import { LandingPage } from './LandingPage';
 import { CommandPalette } from './components/CommandPalette';
-import { GatekeeperModal } from './components/GatekeeperModal';
+// Componente GatekeeperModal desacoplado del flujo principal para acceso 100% público
 
 export default function App() {
-  // Control de Acceso Gatekeeper (Tokens con formato LYX-XXX-XXX)
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    const token = localStorage.getItem('lyaxis_access_token');
-    return !!token && token.trim().length > 0;
-  });
+  // Protocolo ZERO VIP Gatekeeper removido: Plataforma 100% de acceso público e inmediato
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(true);
+  const [accessGranted, setAccessGranted] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
 
+  // Nivel de acceso predeterminado como "public" / "open_core" para montaje inmediato
   const [userTier, setUserTier] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('lyaxis_user_tier') || 'VIP';
+    if (typeof window === 'undefined') return 'public';
+    const saved = localStorage.getItem('lyaxis_user_tier');
+    return saved && saved !== 'VIP' ? saved : 'public';
   });
 
-  useEffect(() => {
-    try {
-      const token = localStorage.getItem('lyaxis_access_token');
-      const tier = localStorage.getItem('lyaxis_user_tier');
-      if (token && token.trim().length > 0) {
-        setIsAuthenticated(true);
-        if (tier) setUserTier(tier);
-      } else {
-        setIsAuthenticated(false);
-      }
-    } catch {
-      setIsAuthenticated(false);
-    }
-  }, []);
-
-  const handleGatekeeperUnlock = (token: string, tier: string) => {
+  const handleGatekeeperUnlock = (_token: string = 'LYX-PUBLIC-CORE', tier: string = 'public') => {
+    setIsUnlocked(true);
+    setAccessGranted(true);
     setIsAuthenticated(true);
     setUserTier(tier);
     if (soundEnabled) playCyberClick();
   };
+
+  useEffect(() => {
+    // Inicialización no bloqueante: se remueve la verificación forzada de lyaxis_access_token en localStorage
+    try {
+      const savedTier = localStorage.getItem('lyaxis_user_tier');
+      if (!savedTier || savedTier === 'VIP') {
+        localStorage.setItem('lyaxis_user_tier', 'public');
+        setUserTier('public');
+      }
+    } catch {
+      // Ignorar fallos de storage
+    }
+
+    if (!isAuthenticated || !isUnlocked || !accessGranted) {
+      handleGatekeeperUnlock();
+    }
+  }, [isAuthenticated, isUnlocked, accessGranted]);
 
   const [showBoot, setShowBoot] = useState(() =>
     typeof window !== 'undefined' ? sessionStorage.getItem('lyaxis_boot_seen') !== 'true' : false
@@ -486,11 +490,7 @@ export default function App() {
           />
         )}
 
-        {/* Modal Bloqueante de Control de Acceso Gatekeeper */}
-        <GatekeeperModal
-          isOpen={!isAuthenticated}
-          onUnlock={handleGatekeeperUnlock}
-        />
+        {/* Protocolo Gatekeeper desacoplado: acceso público irrestricto sin modal bloqueante */}
       </div>
     </GoogleOAuthProvider>
   );

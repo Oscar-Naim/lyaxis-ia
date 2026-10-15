@@ -6,9 +6,12 @@ export const API_BASE =
 
 export const GOOGLE_CLIENT_ID = "1073688660808-amgupffpqddmmo89vemaaupje20531t6.apps.googleusercontent.com";
 export const APP_URL = "https://lyaxis-ia.vercel.app";
-export const GATEKEEPER_API_URL = 
-  (import.meta.env.VITE_GATEKEEPER_API_URL as string) || 
-  'https://zero-vip-gatekeeper-lyaxis.vercel.app/api/v1/keys/verify';
+
+// Protocolo ZERO VIP Gatekeeper deshabilitado: Fallbacks seguros sin requerir variables en local o Vercel
+export const GATEKEEPER_API_URL: string =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GATEKEEPER_API_URL) || '';
+export const GATEKEEPER_MASTER_KEY: string =
+  (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_GATEKEEPER_MASTER_KEY || import.meta.env?.GATEKEEPER_MASTER_KEY)) || '';
 
 import type { ModelType } from './types';
 
