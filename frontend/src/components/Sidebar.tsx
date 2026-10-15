@@ -22,6 +22,7 @@ import {
   Search,
   X,
   Command,
+  Sliders,
 } from 'lucide-react';
 import type { Conversation, User, ModelType } from '../types';
 import { MODEL_META } from '../config';
@@ -49,6 +50,7 @@ export interface SidebarProps {
   onOpenNotebook?: () => void;
   onOpenShowcase?: () => void;
   onOpenCommandPalette?: () => void;
+  onOpenDirectives?: () => void;
 }
 
 const MODEL_ICONS: Record<ModelType, (size: number, color?: string) => React.ReactNode> = {
@@ -86,11 +88,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenNotebook,
   onOpenShowcase,
   onOpenCommandPalette,
+  onOpenDirectives,
 }) => {
   const [internalMuted, setInternalMuted] = useState<boolean>(() => isSoundMuted());
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedFilterModel, setSelectedFilterModel] = useState<string>('all');
 
   const filteredConversations = conversations.filter((c) => {
+    if (selectedFilterModel !== 'all' && c.model !== selectedFilterModel) {
+      return false;
+    }
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (c.title || '').toLowerCase().includes(q) || (c.model || '').toLowerCase().includes(q);
@@ -623,6 +630,65 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             )}
 
+            {/* Model Filter Pills */}
+            {conversations.length > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  overflowX: 'auto',
+                  paddingBottom: '6px',
+                  marginBottom: '8px',
+                  scrollbarWidth: 'none',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setSelectedFilterModel('all')}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: '12px',
+                    fontSize: '10.5px',
+                    fontWeight: 600,
+                    border: 'none',
+                    backgroundColor: selectedFilterModel === 'all' ? '#00d9ff' : 'rgba(255, 255, 255, 0.05)',
+                    color: selectedFilterModel === 'all' ? '#000000' : '#94a3b8',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  Todos
+                </button>
+                {(['speed', 'cortex', 'architect', 'root', 'forge', 'magister', 'phantom'] as const).map((m) => {
+                  const isSel = selectedFilterModel === m;
+                  const mMeta = MODEL_META[m];
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setSelectedFilterModel(isSel ? 'all' : m)}
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: '12px',
+                        fontSize: '10.5px',
+                        fontWeight: 600,
+                        border: isSel ? `1px solid ${mMeta?.color || '#00d9ff'}` : '1px solid rgba(255, 255, 255, 0.06)',
+                        backgroundColor: isSel ? `${mMeta?.color || '#00d9ff'}25` : 'rgba(255, 255, 255, 0.03)',
+                        color: isSel ? '#ffffff' : '#94a3b8',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {mMeta?.label || m}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {filteredConversations.length === 0 ? (
               <div
                 style={{
@@ -723,29 +789,66 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <span style={{ fontSize: '11px', color: '#52525b', letterSpacing: '0.3px' }}>
           Create. Break. Rebuild. • 2026
         </span>
-        <button
-          type="button"
-          onClick={handleToggleMute}
-          title={internalMuted ? 'Activar sonido cyber' : 'Silenciar sonido cyber'}
-          style={{
-            background: internalMuted ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 217, 255, 0.08)',
-            border: internalMuted ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 217, 255, 0.3)',
-            borderRadius: '6px',
-            color: internalMuted ? '#52525b' : '#00D9FF',
-            cursor: 'pointer',
-            padding: '4px 8px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px',
-            fontSize: '11px',
-            fontWeight: 600,
-            boxShadow: internalMuted ? 'none' : '0 0 10px rgba(0, 217, 255, 0.2)',
-            transition: 'all 0.2s ease',
-          }}
-        >
-          {internalMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
-          <span>{internalMuted ? 'Muted' : 'Audio'}</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {onOpenDirectives && (
+            <button
+              type="button"
+              onClick={() => {
+                playCyberClick();
+                onOpenDirectives();
+              }}
+              title="Configurar Directivas y Memoria Personal"
+              style={{
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '6px',
+                color: '#94a3b8',
+                cursor: 'pointer',
+                padding: '4px 8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                fontSize: '11px',
+                fontWeight: 600,
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#00D9FF';
+                e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = '#94a3b8';
+                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+              }}
+            >
+              <Sliders size={13} />
+              <span>Memoria</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleToggleMute}
+            title={internalMuted ? 'Activar sonido cyber' : 'Silenciar sonido cyber'}
+            style={{
+              background: internalMuted ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 217, 255, 0.08)',
+              border: internalMuted ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 217, 255, 0.3)',
+              borderRadius: '6px',
+              color: internalMuted ? '#52525b' : '#00D9FF',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              fontSize: '11px',
+              fontWeight: 600,
+              boxShadow: internalMuted ? 'none' : '0 0 10px rgba(0, 217, 255, 0.2)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {internalMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+            <span>{internalMuted ? 'Muted' : 'Audio'}</span>
+          </button>
+        </div>
       </div>
     </aside>
   </>

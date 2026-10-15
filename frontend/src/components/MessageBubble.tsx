@@ -8,7 +8,7 @@ import 'katex/dist/katex.min.css';
 import { 
   Copy, Check, FileDown, ChevronDown, ChevronRight, Sparkles, BookOpen, 
   Zap, Crosshair, Brain, Compass, MessageCircle, Waypoints, Hammer, 
-  GraduationCap, Terminal, User as UserIcon, ShieldAlert, Cpu
+  GraduationCap, Terminal, User as UserIcon, ShieldAlert, Cpu, Pencil, Save, X
 } from 'lucide-react';
 import type { Message, ModelType } from '../types';
 import { CodeBlock } from '../CodeBlock';
@@ -106,6 +106,7 @@ export interface MessageBubbleProps {
   onExportPDF?: (title: string, label: string, color: string, msgs: Message[]) => void;
   onOpenInNotebook?: (content: string, model: ModelType) => void;
   renderPresentation?: (content: string) => React.ReactNode;
+  onEditMessage?: (newContent: string) => void;
 }
 
 export interface ParsedTriad {
@@ -337,9 +338,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onExportPDF,
   onOpenInNotebook,
   renderPresentation,
+  onEditMessage,
 }) => {
   const [copied, setCopied] = useState(false);
   const [copiedVerdict, setCopiedVerdict] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(message.content || '');
 
   const parsedTriad = parseTriadContent(message.content || '');
   const isTriad = parsedTriad.isTriad;
@@ -1061,6 +1065,40 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {onEditMessage && !isEditing && (
+                <button
+                  type="button"
+                  title="Editar este prompt"
+                  onClick={() => {
+                    setEditText(message.content || '');
+                    setIsEditing(true);
+                  }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '6px',
+                    padding: '3px 8px',
+                    color: '#a1a1aa',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    fontSize: '11px',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#00d9ff';
+                    e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#a1a1aa';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                  }}
+                >
+                  <Pencil size={12} />
+                  <span>Editar</span>
+                </button>
+              )}
               <button
                 type="button"
                 title="Copiar prompt"
@@ -1267,7 +1305,75 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           opacity: !isUser && message.isStreaming ? 0.92 : 1,
         }}
       >
-        {!message.content && message.isStreaming ? (
+        {isUser && isEditing ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+            <textarea
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              rows={Math.max(2, Math.min(8, editText.split('\n').length + 1))}
+              style={{
+                width: '100%',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(0, 217, 255, 0.4)',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                color: '#ffffff',
+                fontSize: '14px',
+                lineHeight: '1.45',
+                outline: 'none',
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                boxShadow: '0 0 12px rgba(0, 217, 255, 0.15)',
+              }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditText(message.content || '');
+                  setIsEditing(false);
+                }}
+                style={{
+                  background: 'none',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '6px',
+                  padding: '5px 12px',
+                  color: '#94a3b8',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (editText.trim() && onEditMessage) {
+                    onEditMessage(editText.trim());
+                    setIsEditing(false);
+                  }
+                }}
+                style={{
+                  backgroundColor: '#00d9ff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '5px 14px',
+                  color: '#070b14',
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 0 12px rgba(0, 217, 255, 0.35)',
+                }}
+              >
+                <Save size={13} />
+                <span>Actualizar y Reenviar</span>
+              </button>
+            </div>
+          </div>
+        ) : !message.content && message.isStreaming ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 2px' }}>
             <span className="lyaxis-loading-dot" />
             <span className="lyaxis-loading-dot" />

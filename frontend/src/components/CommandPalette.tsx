@@ -22,6 +22,9 @@ import {
   ArrowRight,
   Command,
   X,
+  FileText,
+  Sliders,
+  FileCode,
 } from 'lucide-react';
 import type { ModelType, Conversation } from '../types';
 import { ALL_MODELS, MODEL_META, THEMES } from '../config';
@@ -38,6 +41,9 @@ export interface CommandPaletteProps {
   onNewChat: () => void;
   onClearChat?: () => void;
   onExportPDF?: () => void;
+  onExportMarkdown?: () => void;
+  onExportJSON?: () => void;
+  onOpenDirectives?: () => void;
   onOpenNotebook?: () => void;
   onOpenDashboard?: () => void;
   isScanlineActive?: boolean;
@@ -85,6 +91,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onNewChat,
   onClearChat,
   onExportPDF,
+  onExportMarkdown,
+  onExportJSON,
+  onOpenDirectives,
   onOpenNotebook,
   onOpenDashboard,
   isScanlineActive = false,
@@ -189,6 +198,53 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         shortcut: 'PDF',
         onExecute: () => {
           onExportPDF();
+          onClose();
+        },
+      });
+    }
+
+    if (onExportMarkdown) {
+      list.push({
+        id: 'action-export-md',
+        category: 'chat',
+        title: 'Exportar Conversación a Markdown (.md)',
+        subtitle: 'Descarga un archivo .md limpio con estructura y bloques de código',
+        icon: <FileText size={16} color="#00d9ff" />,
+        color: '#00d9ff',
+        shortcut: 'MD',
+        onExecute: () => {
+          onExportMarkdown();
+          onClose();
+        },
+      });
+    }
+
+    if (onExportJSON) {
+      list.push({
+        id: 'action-export-json',
+        category: 'chat',
+        title: 'Exportar Conversación a JSON (.json)',
+        subtitle: 'Exporta datos estructurados completos de la sesión',
+        icon: <FileCode size={16} color="#f59e0b" />,
+        color: '#f59e0b',
+        shortcut: 'JSON',
+        onExecute: () => {
+          onExportJSON();
+          onClose();
+        },
+      });
+    }
+
+    if (onOpenDirectives) {
+      list.push({
+        id: 'action-open-directives',
+        category: 'views',
+        title: 'Configurar Directivas y Memoria Personal',
+        subtitle: 'Define tu rol, preferencias y reglas de respuesta para todos los modelos',
+        icon: <Sliders size={16} color="#a855f7" />,
+        color: '#a855f7',
+        onExecute: () => {
+          onOpenDirectives();
           onClose();
         },
       });

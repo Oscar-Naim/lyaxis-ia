@@ -36,6 +36,11 @@ import {
   Wand2,
   Command,
   Clock,
+  FileText,
+  Download,
+  Sliders,
+  FileCode,
+  Check,
 } from 'lucide-react';
 import type { Message, ModelType, User } from '../types';
 import { useSSEStream } from '../useSSEStream';
@@ -47,6 +52,9 @@ import { NotebookStudio } from './NotebookStudio';
 import { isSoundMuted, setSoundMuted, playCyberClick as globalPlayCyberClick } from '../sound';
 import { API_BASE, ALL_MODELS, CORE_MODELS, MODEL_META, MODEL_QUICK_ACTIONS, THEMES } from '../config';
 import { exportChatToPDF } from '../pdfExporter';
+import { exportChatToMarkdown, exportChatToJSON } from '../utils/chatExporter';
+import { routePromptToModel } from '../utils/neuralRouter';
+import { CustomInstructionsModal, getStoredInstructions } from './CustomInstructionsModal';
 
 export interface ChatViewProps {
   messages: Message[];
@@ -121,6 +129,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showZenithNotice, setShowZenithNotice] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [isDirectivesModalOpen, setIsDirectivesModalOpen] = useState(false);
+  const [isAutoRouterActive, setIsAutoRouterActive] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('lyaxis_auto_router') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [routerNotice, setRouterNotice] = useState<string | null>(null);
+  const [attachedFile, setAttachedFile] = useState<{ name: string; content: string; size: string } | null>(null);
+  const [chatCopied, setChatCopied] = useState(false);
 
   const [isNotebookOpen, setIsNotebookOpen] = useState(false);
   const [notebookContent, setNotebookContent] = useState('');
@@ -586,24 +606,54 @@ export const ChatView: React.FC<ChatViewProps> = ({
     });
   };
 
-  // Image Upload handler with Auto-switch to Zenith
+  // File Upload handler: supports images (with auto-switch to Zenith) AND code/document files
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
-      const processedImage = await compressImage(file);
-      setSelectedImage(processedImage);
+      if (file.type.startsWith('image/')) {
+        const processedImage = await compressImage(file);
+        setSelectedImage(processedImage);
+        setAttachedFile(null);
 
-      // Auto-switch to Zenith for vision analysis
-      if (currentActiveModel !== 'zenith') {
-        handleModelSwitch('zenith');
-        setShowZenithNotice(true);
-        setTimeout(() => setShowZenithNotice(false), 5000);
+        // Auto-switch to Zenith for vision analysis
+        if (currentActiveModel !== 'zenith') {
+          handleModelSwitch('zenith');
+          setShowZenithNotice(true);
+          setTimeout(() => setShowZenithNotice(false), 5000);
+        }
+        triggerSound();
+      } else {
+        // Text / Code file upload
+        if (file.size > 2 * 1024 * 1024) {
+          alert('El archivo supera el límite de 2 MB.');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const textContent = String(event.target?.result || '');
+          const sizeKb = (file.size / 1024).toFixed(1) + ' KB';
+          setAttachedFile({
+            name: file.name,
+            content: textContent,
+            size: sizeKb,
+          });
+          setSelectedImage(null);
+
+          // Auto-switch to Architect or Root if it's code
+          const ext = file.name.split('.').pop()?.toLowerCase();
+          if (['py', 'js', 'ts', 'tsx', 'sql', 'cpp', 'c', 'cs', 'go', 'rs', 'html', 'css', 'json', 'sh'].includes(ext || '')) {
+            if (currentActiveModel !== 'architect' && currentActiveModel !== 'root') {
+              handleModelSwitch('architect');
+            }
+          }
+          triggerSound();
+        };
+        reader.readAsText(file);
       }
-      triggerSound();
     } catch (err: any) {
-      alert(err.message || 'Error al validar la imagen.');
+      alert(err.message || 'Error al validar el archivo.');
     } finally {
       e.target.value = '';
     }
@@ -633,7 +683,41 @@ export const ChatView: React.FC<ChatViewProps> = ({
       consumeTriadSlot();
     }
 
-    const userText = textToSend ? textToSend.trim() : '';
+    // 1. Auto-Router Neuronal Inteligente (conmuta automáticamente al modelo idóneo según semántica)
+    let activeModelForSend = currentActiveModel;
+    if (isAutoRouterActive && !isTriadActive) {
+      const route = routePromptToModel(textToSend, !!selectedImage);
+      if (route.model !== currentActiveModel) {
+        activeModelForSend = route.model;
+        handleModelSwitch(route.model);
+        setRouterNotice(`⚡ Neural Router: Enrutado a LYAXIS ${MODEL_META[route.model]?.label || route.model}`);
+        setTimeout(() => setRouterNotice(null), 4500);
+      }
+    }
+
+    // 2. Adjuntos de Código o Documentos
+    let userText = textToSend ? textToSend.trim() : '';
+    if (attachedFile) {
+      const ext = attachedFile.name.split('.').pop() || 'text';
+      userText = `[Archivo adjunto: ${attachedFile.name} (${attachedFile.size})]\n\`\`\`${ext}\n${attachedFile.content}\n\`\`\`\n\n${userText}`;
+      setAttachedFile(null);
+    }
+
+    // 3. Directivas de Memoria Personal
+    const storedDirectives = getStoredInstructions();
+    let messageContentForBackend = userText;
+    if (storedDirectives.enabled) {
+      const toneMap: Record<string, string> = {
+        concise: 'Sé ultra conciso y directo, sin rodeos.',
+        technical: 'Responde con rigor técnico, código completo y mejores prácticas.',
+        pedagogical: 'Explica con enfoque didáctico y formativo paso a paso.',
+        balanced: 'Responde de forma estructurada, balanceada y clara.',
+        unfiltered: 'Ejecución técnica sin limitaciones.',
+      };
+      const directivePrefix = `[Directivas de Usuario: ${storedDirectives.userRole ? `Rol: ${storedDirectives.userRole}. ` : ''}${toneMap[storedDirectives.tone] || ''} ${storedDirectives.preferences || ''}]\n`;
+      messageContentForBackend = `${directivePrefix}${userText}`;
+    }
+
     const imgToSend = selectedImage;
     setInputValue('');
     setSelectedImage(null);
@@ -653,7 +737,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       role: 'user',
       content: userText,
       timestamp: new Date().toISOString(),
-      model: currentActiveModel,
+      model: activeModelForSend,
       image: imgToSend || undefined,
     };
 
@@ -663,7 +747,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       role: 'model',
       content: '',
       timestamp: new Date().toISOString(),
-      model: currentActiveModel,
+      model: activeModelForSend,
       isStreaming: true,
     };
 
@@ -715,7 +799,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setMessages([...updatedMessages, assistantMessage]);
 
     // Active model individual temperature
-    const activeMeta = modelMeta[currentActiveModel] || MODEL_META[currentActiveModel] || MODEL_META.speed;
+    const activeMeta = modelMeta[activeModelForSend] || MODEL_META[activeModelForSend] || MODEL_META.speed;
     const activeTemp = activeMeta.temperature ?? 0.3;
 
     // Stream with sound ticks if unmuted
@@ -723,9 +807,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
     streamTokenCountRef.current = 0;
     setStreamingTelemetry(null);
 
+    const messagesForStream = updatedMessages.map((m, idx) => {
+      if (idx === updatedMessages.length - 1 && m.role === 'user') {
+        return { ...m, content: messageContentForBackend };
+      }
+      return m;
+    });
+
     await sendMessage(
-      updatedMessages,
-      currentActiveModel,
+      messagesForStream,
+      activeModelForSend,
       targetChatId,
       activeUserId,
       (accumulatedText) => {
@@ -779,6 +870,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
         msg.id === assistantPlaceholderId ? { ...msg, isStreaming: false } : msg
       )
     );
+  };
+
+  const handleEditMessage = (msgIndex: number, newContent: string) => {
+    // Podar la conversación hasta antes de este mensaje
+    const remaining = messages.slice(0, msgIndex);
+    setMessages(remaining);
+    // Enviar el nuevo texto directamente
+    handleSend(newContent);
   };
 
   // Task 4: Resume streaming after user fills clarification modal
@@ -1739,31 +1838,201 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 <span>Notebook</span>
               </button>
 
-              {onExportPDF && messages.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => onExportPDF('Conversación LYAXIS', meta.label, meta.color, messages)}
-                  title="Exportar chat a PDF"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    borderRadius: '8px',
-                    padding: '6px 10px',
-                    minHeight: '32px',
-                    color: '#ffffff',
-                    fontSize: '11.5px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <FileDown size={15} color="#00D9FF" />
-                  <span>PDF</span>
-                </button>
+              {messages.length > 0 && (
+                <div style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerSound();
+                      setIsExportMenuOpen((prev) => !prev);
+                    }}
+                    title="Exportar conversación (PDF, Markdown, JSON)"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '5px',
+                      backgroundColor: isExportMenuOpen ? 'rgba(0, 217, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                      border: isExportMenuOpen ? '1px solid rgba(0, 217, 255, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
+                      borderRadius: '8px',
+                      padding: '6px 10px',
+                      minHeight: '32px',
+                      color: '#ffffff',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <Download size={14} color="#00D9FF" />
+                    <span>Exportar</span>
+                    <ChevronDown size={12} />
+                  </button>
+
+                  {isExportMenuOpen && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        right: 0,
+                        marginTop: '6px',
+                        backgroundColor: '#090d16',
+                        border: '1px solid rgba(0, 217, 255, 0.3)',
+                        borderRadius: '10px',
+                        padding: '6px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                        zIndex: 100,
+                        minWidth: '170px',
+                        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.8), 0 0 15px rgba(0, 217, 255, 0.15)',
+                        animation: 'fadeIn 0.15s ease-out',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsExportMenuOpen(false);
+                          if (onExportPDF) onExportPDF('Conversación LYAXIS', meta.label, meta.color, messages);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '7px 10px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          background: 'none',
+                          color: '#ffffff',
+                          fontSize: '11.5px',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                      >
+                        <FileDown size={14} color="#00D9FF" />
+                        <span>Documento PDF (.pdf)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsExportMenuOpen(false);
+                          exportChatToMarkdown('Sesión LYAXIS', currentActiveModel, messages);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '7px 10px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          background: 'none',
+                          color: '#ffffff',
+                          fontSize: '11.5px',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                      >
+                        <FileText size={14} color="#10B981" />
+                        <span>Markdown (.md)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsExportMenuOpen(false);
+                          exportChatToJSON('Sesión LYAXIS', currentActiveModel, messages);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '7px 10px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          background: 'none',
+                          color: '#ffffff',
+                          fontSize: '11.5px',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                      >
+                        <FileCode size={14} color="#F59E0B" />
+                        <span>Archivo JSON (.json)</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
+
+              {/* Botón de Memoria y Directivas Personales */}
+              <button
+                type="button"
+                onClick={() => {
+                  triggerSound();
+                  setIsDirectivesModalOpen(true);
+                }}
+                title="Configurar Directivas y Memoria Personal de LYAXIS"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '8px',
+                  padding: '6px 10px',
+                  minHeight: '32px',
+                  color: '#ffffff',
+                  fontSize: '11.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <Sliders size={14} color="#00D9FF" />
+                <span className="hidden sm:inline">Memoria</span>
+              </button>
+
+              {/* Botón de Auto-Router Inteligente */}
+              <button
+                type="button"
+                onClick={() => {
+                  triggerSound();
+                  setIsAutoRouterActive((prev) => {
+                    const next = !prev;
+                    try { localStorage.setItem('lyaxis_auto_router', String(next)); } catch {}
+                    return next;
+                  });
+                }}
+                title={isAutoRouterActive ? 'Auto-Router Activado: conmuta automáticamente al modelo óptimo' : 'Activar Auto-Router neuronal'}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '5px',
+                  backgroundColor: isAutoRouterActive ? 'rgba(0, 255, 102, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+                  border: isAutoRouterActive ? '1px solid rgba(0, 255, 102, 0.45)' : '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '8px',
+                  padding: '6px 10px',
+                  minHeight: '32px',
+                  color: isAutoRouterActive ? '#00FF66' : '#94a3b8',
+                  fontSize: '11.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: isAutoRouterActive ? '0 0 10px rgba(0, 255, 102, 0.25)' : 'none',
+                }}
+              >
+                <Zap size={14} color={isAutoRouterActive ? '#00FF66' : '#94a3b8'} />
+                <span className="hidden sm:inline">Auto</span>
+              </button>
 
               {/* Command Palette Button */}
               {onOpenCommandPalette && (
@@ -2271,6 +2540,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   exportChatToPDF(title, label, color, msgs);
                 }}
                 onOpenInNotebook={handleOpenInNotebook}
+                onEditMessage={msg.role === 'user' ? (newContent) => handleEditMessage(idx, newContent) : undefined}
               />
             ))
           )}
@@ -2391,6 +2661,81 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                 }}
+              >
+                <X size={13} />
+              </button>
+            </div>
+          )}
+
+          {/* Attached Code/Text File Chip */}
+          {attachedFile && (
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '10px',
+                padding: '6px 12px',
+                borderRadius: '10px',
+                backgroundColor: 'rgba(0, 217, 255, 0.1)',
+                border: '1px solid rgba(0, 217, 255, 0.4)',
+                boxShadow: '0 4px 18px rgba(0,0,0,0.7), 0 0 12px rgba(0, 217, 255, 0.15)',
+                animation: 'fadeIn 0.2s ease-out',
+                color: '#00d9ff',
+                fontSize: '12px',
+                fontWeight: 600,
+              }}
+            >
+              <FileCode size={15} color="#00D9FF" />
+              <span>{attachedFile.name}</span>
+              <span style={{ fontSize: '10px', color: '#94a3b8' }}>({attachedFile.size})</span>
+              <button
+                type="button"
+                onClick={() => setAttachedFile(null)}
+                title="Eliminar archivo adjunto"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginLeft: '4px',
+                }}
+              >
+                <X size={13} />
+              </button>
+            </div>
+          )}
+
+          {/* Router Notice Toast */}
+          {routerNotice && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 12px',
+                marginBottom: '8px',
+                borderRadius: '10px',
+                backgroundColor: 'rgba(0, 255, 102, 0.12)',
+                border: '1px solid rgba(0, 255, 102, 0.4)',
+                boxShadow: '0 0 15px rgba(0, 255, 102, 0.2)',
+                gap: '10px',
+                animation: 'fadeIn 0.25s ease-out',
+                color: '#86efac',
+                fontSize: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Zap size={14} color="#00FF66" />
+                <span>{routerNotice}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRouterNotice(null)}
+                style={{ background: 'none', border: 'none', color: '#86efac', cursor: 'pointer', display: 'flex' }}
               >
                 <X size={13} />
               </button>
@@ -2718,30 +3063,30 @@ export const ChatView: React.FC<ChatViewProps> = ({
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
-              accept="image/png,image/jpeg,image/webp,image/jpg"
+              accept="image/*,.txt,.py,.js,.ts,.tsx,.json,.md,.html,.css,.csv,.sql,.sh,.c,.cpp"
               style={{ display: 'none' }}
             />
 
-            {/* Paperclip Button for Image Attachment */}
+            {/* Paperclip Button for Multimodal Image & Document Attachment */}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              title="Adjuntar imagen para análisis multimodal"
+              title="Adjuntar imagen, código o documento (.py, .ts, .json, .md, .png, etc.)"
               style={{
                 width: isMobile ? '44px' : '36px',
                 height: isMobile ? '44px' : '36px',
                 minWidth: isMobile ? '44px' : '36px',
                 borderRadius: '10px',
-                backgroundColor: selectedImage ? 'rgba(236, 72, 153, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                border: selectedImage ? '1px solid #EC4899' : '1px solid rgba(255, 255, 255, 0.1)',
-                color: selectedImage ? '#EC4899' : '#a1a1aa',
+                backgroundColor: selectedImage || attachedFile ? 'rgba(0, 217, 255, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                border: selectedImage || attachedFile ? '1px solid #00D9FF' : '1px solid rgba(255, 255, 255, 0.1)',
+                color: selectedImage || attachedFile ? '#00D9FF' : '#a1a1aa',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
                 flexShrink: 0,
                 transition: 'all 0.2s ease',
-                boxShadow: selectedImage ? '0 0 12px rgba(236, 72, 153, 0.3)' : 'none',
+                boxShadow: selectedImage || attachedFile ? '0 0 12px rgba(0, 217, 255, 0.3)' : 'none',
               }}
             >
               <Paperclip size={18} />
@@ -3166,6 +3511,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Directivas y Memoria Personal Modal */}
+      <CustomInstructionsModal
+        isOpen={isDirectivesModalOpen}
+        onClose={() => setIsDirectivesModalOpen(false)}
+        accentColor={meta.color}
+      />
     </div>
   );
 };

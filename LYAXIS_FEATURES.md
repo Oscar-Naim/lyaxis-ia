@@ -70,10 +70,26 @@ El sistema está construido para ser escalable, rápido y seguro:
 
 ---
 
-## 🚀 4. Flujo y Reglas de la IA (System Prompts)
-Los prompts de LYAXIS están diseñados meticulosamente con reglas estrictas:
-1. **Identidad:** Siempre saben quiénes son y actúan de acuerdo a su color y personalidad.
-2. **Exclusividad:** Respetan profundamente sus funciones. (Ej. Architect no escribirá poemas, te mandará a Classic).
-3. **Formato:** Entregan respuestas limpias en formato Markdown, con un uso inteligente de negritas e íconos.
+---
+
+## ⚡ 5. Nuevas Funciones Avanzadas (Release v2.0)
+
+1. **⚡ Neural Auto-Router (Conmutación Inteligente):**
+   - El sistema analiza la semántica de la consulta del usuario y conmuta dinámicamente al modelo ideal en tiempo real (ej. términos didácticos a *Magister*, seguridad/pentest a *Phantom*, código profundo a *Root*, arquitectura a *Architect*, startups a *Forge*). Incluye botón toggle ON/OFF y avisos visuales en el chat.
+2. **📝 Edición y Reintento In-Line de Mensajes:**
+   - Permite al usuario editar cualquier mensaje previo directamente desde la interfaz con botón "Editar", modificar su consulta y hacer clic en "Actualizar y Reenviar" para podar el hilo y regenerar una respuesta optimizada.
+3. **📁 Exportación Multi-Formato Profesional:**
+   - Menú desplegable con descarga directa en **PDF estilizado**, **Markdown (.md)** estructurado y **JSON estructurado (.json)** con timestamps y metadatos de los núcleos.
+4. **🧠 Directivas Personales & Memoria de Usuario:**
+   - Panel de configuración persistente donde el usuario puede establecer su profesión/rol y su tono de respuesta preferido (*Ultra Conciso, Técnico/Ingeniero, Pedagógico, Equilibrado, Bare-Metal*), inyectándose automáticamente en el contexto de los modelos.
+5. **🔍 Filtrado Avanzado por Chips en el Historial:**
+   - Selector horizontal de píldoras por modelo en el Sidebar (`Todos`, `Speed`, `Cortex`, `Architect`, `Root`, etc.) complementado con búsqueda de texto instantánea en tiempo real.
+6. **📎 Adjuntos Multimodales y Archivos de Código:**
+   - El botón de adjuntos ahora soporta imágenes para análisis visual con *Zenith*, y archivos de código/texto (`.py`, `.ts`, `.json`, `.md`, `.sql`, etc.) con previsualización en chip y enrutamiento automático a *Architect* o *Root*.
+7. **⌨️ Integración en Command Palette (`Ctrl+K`):**
+   - Nuevos comandos rápidos para exportación instantánea a Markdown y JSON, y acceso directo a la configuración de memoria y directivas.
+
+---
 
 > *"La perfección no se alcanza cuando no hay nada más que añadir, sino cuando no hay nada más que quitar."* — LYAXIS IA
+

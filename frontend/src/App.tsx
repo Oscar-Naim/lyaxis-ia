@@ -13,6 +13,8 @@ import { exportChatToPDF } from './pdfExporter';
 import { isSoundMuted, setSoundMuted, playCyberClick } from './sound';
 import { LandingPage } from './LandingPage';
 import { CommandPalette } from './components/CommandPalette';
+import { exportChatToMarkdown, exportChatToJSON } from './utils/chatExporter';
+import { CustomInstructionsModal } from './components/CustomInstructionsModal';
 // Componente GatekeeperModal desacoplado del flujo principal para acceso 100% público
 
 export default function App() {
@@ -61,6 +63,7 @@ export default function App() {
   const [isInfoDrawerOpen, setIsInfoDrawerOpen] = useState(false);
   const [isShowcaseOpen, setIsShowcaseOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isDirectivesOpen, setIsDirectivesOpen] = useState(false);
   const [infoDrawerTab, setInfoDrawerTab] = useState<'manifesto' | 'ecosystem' | 'security' | 'terms'>('manifesto');
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 768));
@@ -393,6 +396,7 @@ export default function App() {
           onToggleSoundMute={toggleSound}
           onOpenShowcase={() => setIsShowcaseOpen(true)}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+          onOpenDirectives={() => setIsDirectivesOpen(true)}
         />
 
         <ChatView
@@ -439,6 +443,25 @@ export default function App() {
               );
             }
           }}
+          onExportMarkdown={() => {
+            if (messages.length > 0) {
+              exportChatToMarkdown(
+                conversations.find((c) => c.id === currentChatId)?.title || 'Sesión LYAXIS',
+                selectedModel,
+                messages
+              );
+            }
+          }}
+          onExportJSON={() => {
+            if (messages.length > 0) {
+              exportChatToJSON(
+                conversations.find((c) => c.id === currentChatId)?.title || 'Sesión LYAXIS',
+                selectedModel,
+                messages
+              );
+            }
+          }}
+          onOpenDirectives={() => setIsDirectivesOpen(true)}
           onOpenDashboard={() => setIsDashboardOpen(true)}
           isScanlineActive={isScanlineActive}
           onToggleScanline={() => setIsScanlineActive((p) => !p)}
@@ -489,6 +512,13 @@ export default function App() {
             onOpenInfo={(tab) => openInfoDrawer(tab)}
           />
         )}
+
+        {/* Directivas y Memoria Personal */}
+        <CustomInstructionsModal
+          isOpen={isDirectivesOpen}
+          onClose={() => setIsDirectivesOpen(false)}
+          accentColor={currentTheme.primary}
+        />
 
         {/* Protocolo Gatekeeper desacoplado: acceso público irrestricto sin modal bloqueante */}
       </div>
