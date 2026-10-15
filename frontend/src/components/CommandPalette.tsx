@@ -119,18 +119,22 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       const quota = checkTriadLimit();
       const quotaRemaining = quota.remaining;
       const isExhausted = quotaRemaining === 0;
+      const isInCooldown = quota.isInCooldown;
+      const cooldownFormatted = quota.cooldownFormatted;
       const timeFormatted = formatResetCountdown(quota.nextResetInMs);
 
       list.push({
         id: 'toggle-triad',
         category: 'triad',
-        title: `LYAXIS TRIAD™ [${quotaRemaining}/3] : ${isTriadActive ? 'Desactivar Modo' : isExhausted ? 'CUOTA AGOTADA' : 'ACTIVAR MODO SIMULTÁNEO'}`,
+        title: `LYAXIS TRIAD™ [${quotaRemaining}/3] : ${isTriadActive ? 'Desactivar Modo' : isExhausted ? 'CUOTA AGOTADA' : isInCooldown ? `ENFRIAMIENTO (${cooldownFormatted})` : 'ACTIVAR MODO SIMULTÁNEO'}`,
         subtitle: isExhausted
           ? `Límite de 3 consultas/6h alcanzado. ${timeFormatted}. Modo monomodelo activo.`
+          : isInCooldown
+          ? `Enfriamiento de seguridad activo (${cooldownFormatted}). Modo listo para activarse.`
           : 'Inferencia concurrente a 3 núcleos: Create (Speed) + Break (Phantom) + Rebuild (Cortex)',
-        badge: isExhausted ? '0/3' : isTriadActive ? 'ACTIVO' : `${quotaRemaining}/3`,
-        icon: <Zap size={16} color={isExhausted ? '#ef4444' : isTriadActive ? '#00ff66' : '#a855f7'} />,
-        color: isExhausted ? '#ef4444' : isTriadActive ? '#00ff66' : '#a855f7',
+        badge: isExhausted ? '0/3' : isInCooldown ? `⏳ ${cooldownFormatted}` : isTriadActive ? 'ACTIVO' : `${quotaRemaining}/3`,
+        icon: <Zap size={16} color={isExhausted ? '#ef4444' : isInCooldown ? '#fbbf24' : isTriadActive ? '#00ff66' : '#a855f7'} />,
+        color: isExhausted ? '#ef4444' : isInCooldown ? '#fbbf24' : isTriadActive ? '#00ff66' : '#a855f7',
         shortcut: '/triad',
         onExecute: () => {
           onToggleTriad();

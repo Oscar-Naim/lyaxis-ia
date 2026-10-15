@@ -2,13 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 
 /**
  * ==============================================================================
- * LYAXIS TRIAD™ — Sliding Window Rate Limiting Hook
- * Regla de negocio: Máximo 3 consultas cada 6 horas (21,600,000 ms).
+ * LYAXIS TRIAD™ — Sliding Window Rate Limiting Hook + 2-Minute Cooldown
+ * Regla de negocio:
+ * 1. Máximo 3 consultas cada 6 horas (21,600,000 ms).
+ * 2. Enfriamiento obligatorio de 2 minutos (120,000 ms) entre consultas.
  * Los modelos individuales estándar (Speed, Classic, etc.) permanecen ilimitados.
  * ==============================================================================
  */
 
 export const TRIAD_WINDOW_MS = 6 * 60 * 60 * 1000; // 6 horas en milisegundos (21,600,000 ms)
+export const TRIAD_COOLDOWN_MS = 2 * 60 * 1000;    // 2 minutos de enfriamiento (120,000 ms)
 export const TRIAD_MAX_REQUESTS = 3;
 export const TRIAD_STORAGE_KEY = 'lyaxis_triad_usage';
 
@@ -18,6 +21,9 @@ export interface TriadQuotaCheck {
   nextResetInMs: number;
   resetTime: number;
   activeCount: number;
+  isInCooldown: boolean;
+  cooldownRemainingMs: number;
+  cooldownFormatted: string;
 }
 
 /**
@@ -43,7 +49,7 @@ export function formatResetCountdown(ms: number): string {
 
 /**
  * Inspecciona el estado de la cuota deslizante de TRIAD sin alterar el estado.
- * Limpia automáticamente timestamps que ya hayan expirado fuera de la ventana de 6h.
+ * Valida tanto la ventana de 6h como el enfriamiento de 2 minutos.
  */
 export function checkTriadLimit(): TriadQuotaCheck {
   if (typeof window === 'undefined') {
@@ -53,6 +59,9 @@ export function checkTriadLimit(): TriadQuotaCheck {
       nextResetInMs: 0,
       resetTime: 0,
       activeCount: 0,
+      isInCooldown: false,
+      cooldownRemainingMs: 0,
+      cooldownFormatted: '0s',
     };
   }
 
@@ -88,12 +97,26 @@ export function checkTriadLimit(): TriadQuotaCheck {
   const resetTime = oldest + TRIAD_WINDOW_MS;
   const nextResetInMs = activeCount > 0 ? Math.max(0, resetTime - now) : 0;
 
+  // Enfriamiento obligatorio de 2 minutos (120,000 ms) desde la última ejecución
+  const newest = activeTimestamps.length > 0 ? activeTimestamps[activeTimestamps.length - 1] : 0;
+  const timeSinceLast = newest > 0 ? (now - newest) : Infinity;
+  const cooldownRemainingMs = timeSinceLast < TRIAD_COOLDOWN_MS ? Math.max(0, TRIAD_COOLDOWN_MS - timeSinceLast) : 0;
+  const isInCooldown = cooldownRemainingMs > 0;
+
+  const cooldownSeconds = Math.ceil(cooldownRemainingMs / 1000);
+  const cooldownFormatted = cooldownSeconds >= 60
+    ? `${Math.floor(cooldownSeconds / 60)}m ${cooldownSeconds % 60}s`
+    : `${cooldownSeconds}s`;
+
   return {
-    allowed: activeCount < TRIAD_MAX_REQUESTS,
+    allowed: activeCount < TRIAD_MAX_REQUESTS && !isInCooldown,
     remaining,
     nextResetInMs,
     resetTime,
     activeCount,
+    isInCooldown,
+    cooldownRemainingMs,
+    cooldownFormatted,
   };
 }
 
@@ -148,19 +171,38 @@ export function consumeTriadSlot(): boolean {
 
 /**
  * Sincroniza el almacenamiento local en caso de que el backend responda HTTP 429
- * evitando discrepancias si el usuario manipuló el localStorage.
+ * Maneja tanto enfriamiento (COOLDOWN de 2m) como límite de cuota (WINDOW_EXCEEDED de 6h).
  */
-export function syncServerQuota(retryAfterMs?: number): void {
+export function syncServerQuota(retryAfterMs?: number, reason?: string): void {
   if (typeof window === 'undefined') return;
 
   const now = Date.now();
-  const simulatedOldest = retryAfterMs && retryAfterMs > 0
-    ? now - (TRIAD_WINDOW_MS - retryAfterMs)
-    : now - 1000;
-
-  const filledTimestamps = [simulatedOldest, simulatedOldest + 10, simulatedOldest + 20];
+  let timestamps: number[] = [];
   try {
-    localStorage.setItem(TRIAD_STORAGE_KEY, JSON.stringify(filledTimestamps));
+    const raw = localStorage.getItem(TRIAD_STORAGE_KEY);
+    if (raw) timestamps = JSON.parse(raw);
+  } catch {
+    timestamps = [];
+  }
+
+  if (reason === 'COOLDOWN') {
+    const simulatedLast = retryAfterMs && retryAfterMs > 0
+      ? now - (TRIAD_COOLDOWN_MS - retryAfterMs)
+      : now;
+    if (timestamps.length === 0) {
+      timestamps = [simulatedLast];
+    } else {
+      timestamps[timestamps.length - 1] = simulatedLast;
+    }
+  } else {
+    const simulatedOldest = retryAfterMs && retryAfterMs > 0
+      ? now - (TRIAD_WINDOW_MS - retryAfterMs)
+      : now - 1000;
+    timestamps = [simulatedOldest, simulatedOldest + 10, simulatedOldest + 20];
+  }
+
+  try {
+    localStorage.setItem(TRIAD_STORAGE_KEY, JSON.stringify(timestamps));
   } catch {}
 
   window.dispatchEvent(new CustomEvent('lyaxis_triad_quota_changed'));
@@ -184,7 +226,7 @@ export function useTriadQuota() {
     window.addEventListener('lyaxis_triad_quota_changed', handleUpdate);
     window.addEventListener('storage', handleUpdate);
 
-    // Actualizador de cuenta regresiva en vivo si se han consumido slots
+    // Actualizador de cuenta regresiva en vivo si se han consumido slots o en enfriamiento
     const interval = setInterval(() => {
       refresh();
     }, 1000);
@@ -197,9 +239,13 @@ export function useTriadQuota() {
   }, [refresh]);
 
   const timeRemainingFormatted = formatResetCountdown(quota.nextResetInMs);
-  const badgeLabel = `⚡ TRIAD [${quota.remaining}/${TRIAD_MAX_REQUESTS}]`;
-  const isFull = quota.remaining === TRIAD_MAX_REQUESTS;
-  const statusLabel = isFull
+  const badgeLabel = quota.isInCooldown
+    ? `⏳ TRIAD [${quota.remaining}/${TRIAD_MAX_REQUESTS}] (${quota.cooldownFormatted})`
+    : `⚡ TRIAD [${quota.remaining}/${TRIAD_MAX_REQUESTS}]`;
+  const isFull = quota.remaining === TRIAD_MAX_REQUESTS && !quota.isInCooldown;
+  const statusLabel = quota.isInCooldown
+    ? `Enfriamiento (${quota.cooldownFormatted})`
+    : isFull
     ? `${TRIAD_MAX_REQUESTS}/${TRIAD_MAX_REQUESTS} disponibles`
     : timeRemainingFormatted;
 
@@ -211,8 +257,8 @@ export function useTriadQuota() {
       refresh();
       return consumed;
     },
-    syncServerQuota: (retryAfterMs?: number) => {
-      syncServerQuota(retryAfterMs);
+    syncServerQuota: (retryAfterMs?: number, reason?: string) => {
+      syncServerQuota(retryAfterMs, reason);
       refresh();
     },
     timeRemainingFormatted,

@@ -727,6 +727,7 @@ class VerifyOtpPayload(BaseModel):
 # Las consultas con modelos individuales estándar permanecen ilimitadas.
 # ==============================================================================
 TRIAD_WINDOW_SECONDS: float = 6.0 * 3600.0  # 6 horas = 21,600 segundos
+TRIAD_COOLDOWN_SECONDS: float = 120.0       # 2 minutos de enfriamiento obligatorio entre consultas (120 segundos)
 TRIAD_MAX_REQUESTS: int = 3
 _in_memory_triad_history: dict = {}
 _triad_lock = asyncio.Lock()
@@ -749,16 +750,38 @@ def get_client_identifier(request: Request, user_id: Optional[str] = None) -> st
     ip_hash = hashlib.sha256(raw_ip.encode("utf-8")).hexdigest()[:16]
     return f"ip:{ip_hash}"
 
-async def check_and_consume_triad_quota(client_id: str) -> tuple[bool, int, int]:
+async def check_and_consume_triad_quota(client_id: str) -> tuple[bool, int, int, str]:
     """
-    Verifica si el cliente tiene solicitudes restantes en la ventana deslizante de 6h.
-    Retorna (allowed, remaining, retry_after_ms).
+    Verifica si el cliente puede ejecutar TRIAD:
+    1. Verifica si está activo el enfriamiento obligatorio de 2 minutos (120s) desde el último uso.
+    2. Verifica si el cliente tiene solicitudes restantes en la ventana deslizante de 6h (máx 3).
+    Retorna (allowed: bool, remaining: int, retry_after_ms: int, reason: str).
+    reason puede ser 'OK', 'COOLDOWN' o 'WINDOW_EXCEEDED'.
     """
     now = time.time()
     cutoff = now - TRIAD_WINDOW_SECONDS
 
     # 1. Intentar persistencia mediante Base de Datos (SQLite / PostgreSQL)
     try:
+        # A) Cooldown de 2 minutos desde la última ejecución
+        last_row = db.fetchone(
+            "SELECT timestamp FROM triad_rate_limits WHERE client_id = ? ORDER BY timestamp DESC LIMIT 1",
+            (client_id,)
+        )
+        if last_row:
+            last_ts = float(last_row["timestamp"] if isinstance(last_row, dict) else last_row[0])
+            elapsed = now - last_ts
+            if elapsed < TRIAD_COOLDOWN_SECONDS:
+                retry_after_sec = max(1.0, TRIAD_COOLDOWN_SECONDS - elapsed)
+                retry_after_ms = int(retry_after_sec * 1000)
+                active_rows = db.fetchall(
+                    "SELECT timestamp FROM triad_rate_limits WHERE client_id = ? AND timestamp > ?",
+                    (client_id, cutoff)
+                )
+                current_remaining = max(0, TRIAD_MAX_REQUESTS - (len(active_rows) if active_rows else 0))
+                return False, current_remaining, retry_after_ms, "COOLDOWN"
+
+        # B) Ventana deslizante de 6 horas
         db.execute("DELETE FROM triad_rate_limits WHERE timestamp < ?", (cutoff,))
         rows = db.fetchall(
             "SELECT timestamp FROM triad_rate_limits WHERE client_id = ? ORDER BY timestamp ASC",
@@ -769,16 +792,16 @@ async def check_and_consume_triad_quota(client_id: str) -> tuple[bool, int, int]
         if active_count >= TRIAD_MAX_REQUESTS:
             oldest_val = rows[0]["timestamp"] if isinstance(rows[0], dict) else rows[0][0]
             oldest = float(oldest_val)
-            retry_after_sec = max(0.0, (oldest + TRIAD_WINDOW_SECONDS) - now)
+            retry_after_sec = max(1.0, (oldest + TRIAD_WINDOW_SECONDS) - now)
             retry_after_ms = int(retry_after_sec * 1000)
-            return False, 0, retry_after_ms
+            return False, 0, retry_after_ms, "WINDOW_EXCEEDED"
 
         db.execute(
             "INSERT INTO triad_rate_limits (client_id, timestamp) VALUES (?, ?)",
             (client_id, now)
         )
         remaining = max(0, TRIAD_MAX_REQUESTS - (active_count + 1))
-        return True, remaining, 0
+        return True, remaining, 0, "OK"
     except Exception as e_db_rl:
         print(f"Aviso en rate limiter DB ({e_db_rl}), usando fallback en memoria.")
 
@@ -786,18 +809,29 @@ async def check_and_consume_triad_quota(client_id: str) -> tuple[bool, int, int]
     async with _triad_lock:
         history = _in_memory_triad_history.get(client_id, [])
         active = [ts for ts in history if ts > cutoff]
+        _in_memory_triad_history[client_id] = active
 
+        # A) Cooldown de 2 minutos en memoria
+        if active:
+            last_ts = active[-1]
+            elapsed = now - last_ts
+            if elapsed < TRIAD_COOLDOWN_SECONDS:
+                retry_after_sec = max(1.0, TRIAD_COOLDOWN_SECONDS - elapsed)
+                retry_after_ms = int(retry_after_sec * 1000)
+                remaining = max(0, TRIAD_MAX_REQUESTS - len(active))
+                return False, remaining, retry_after_ms, "COOLDOWN"
+
+        # B) Límite de 3 consultas cada 6 horas en memoria
         if len(active) >= TRIAD_MAX_REQUESTS:
             oldest = active[0]
-            retry_after_sec = max(0.0, (oldest + TRIAD_WINDOW_SECONDS) - now)
+            retry_after_sec = max(1.0, (oldest + TRIAD_WINDOW_SECONDS) - now)
             retry_after_ms = int(retry_after_sec * 1000)
-            _in_memory_triad_history[client_id] = active
-            return False, 0, retry_after_ms
+            return False, 0, retry_after_ms, "WINDOW_EXCEEDED"
 
         active.append(now)
         _in_memory_triad_history[client_id] = active
         remaining = max(0, TRIAD_MAX_REQUESTS - len(active))
-        return True, remaining, 0
+        return True, remaining, 0, "OK"
 
 @app.get("/")
 def root():
@@ -1002,70 +1036,143 @@ def _get_active_keys() -> List[str]:
             clean_keys.append(k)
     return clean_keys
 
-# --- Clientes de IA duales (Groq + NVIDIA NIM) ---
-client_groq = openai.AsyncOpenAI(api_key=(os.getenv("GROQ_API_KEY") or "gsk_placeholder"), base_url="https://api.groq.com/openai/v1")
-client_nvidia = openai.AsyncOpenAI(api_key=(os.getenv("NVIDIA_API_KEY") or "nvapi_placeholder"), base_url="https://integrate.api.nvidia.com/v1")
+def _get_active_groq_key() -> Optional[str]:
+    k = (os.getenv("GROQ_API_KEY") or "").strip().strip('"').strip("'")
+    if k and "placeholder" not in k and "TuClave" not in k and k != "":
+        return k
+    return None
+
+def _get_active_gemini_key() -> Optional[str]:
+    k = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip().strip('"').strip("'")
+    if k and "placeholder" not in k and "TuClave" not in k and k != "":
+        return k
+    return None
+
+def _get_active_openrouter_key() -> Optional[str]:
+    k = (os.getenv("OPENROUTER_API_KEY") or os.getenv("PATEWAY_API_KEY") or "").strip().strip('"').strip("'")
+    if k and "placeholder" not in k and "TuClave" not in k and k != "":
+        return k
+    return None
+
+def _get_openrouter_base_url() -> str:
+    url = (os.getenv("OPENROUTER_BASE_URL") or os.getenv("PATEWAY_BASE_URL") or "https://api.pateway.ai/v1").strip()
+    return url
+
+# --- Clientes de IA triádicos y multi-proveedor (NVIDIA NIM + OpenRouter/Pateway + Groq + Google AI Studio) ---
+client_groq = openai.AsyncOpenAI(
+    api_key=(os.getenv("GROQ_API_KEY") or "gsk_placeholder"),
+    base_url="https://api.groq.com/openai/v1"
+)
+client_nvidia = openai.AsyncOpenAI(
+    api_key=(os.getenv("NVIDIA_API_KEY") or "nvapi_placeholder"),
+    base_url="https://integrate.api.nvidia.com/v1"
+)
+client_gemini = openai.AsyncOpenAI(
+    api_key=(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "gemini_placeholder"),
+    base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+)
+client_openrouter = openai.AsyncOpenAI(
+    api_key=(os.getenv("OPENROUTER_API_KEY") or os.getenv("PATEWAY_API_KEY") or "openrouter_placeholder"),
+    base_url=_get_openrouter_base_url()
+)
+
+# --- Monitor de Rate Limit (429) por Proveedor para Failover Cruzado Inmediato ---
+_provider_rate_limit_until: dict = {
+    "nvidia": 0.0,
+    "groq": 0.0,
+    "gemini": 0.0,
+    "openrouter": 0.0,
+}
+
+def _mark_provider_rate_limited(provider: str, cooldown_seconds: float = 60.0):
+    prov = provider.lower().strip()
+    until = time.time() + cooldown_seconds
+    _provider_rate_limit_until[prov] = max(_provider_rate_limit_until.get(prov, 0.0), until)
+    print(f"[FAILOVER CRUZADO] Proveedor '{prov}' reporto 429 (Rate Limit). Cooldown de {int(cooldown_seconds)}s activado. Saltando de inmediato a infraestructura alterna...")
+
+def _is_provider_rate_limited(provider: str) -> bool:
+    prov = provider.lower().strip()
+    return time.time() < _provider_rate_limit_until.get(prov, 0.0)
+
+def _is_rate_limit_error(err: Exception) -> bool:
+    if isinstance(err, openai.RateLimitError):
+        return True
+    msg = str(err).lower()
+    return any(p in msg for p in ("429", "rate limit", "ratelimit", "resource_exhausted", "quota", "too many requests"))
 
 MODELS = {
-    # zenith: Cerebro Superior & Multimodal (NVIDIA Vision + Groq + Llama 70B)
+    # zenith: Cerebro Superior & Multimodal (NVIDIA Vision ↔ Gemini Flash ↔ Groq ↔ Llama 70B)
     "zenith": [
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+        {"provider": "gemini", "model": "gemini-2.5-flash"},
+        {"provider": "groq", "model": "llama-3.3-70b-versatile"},
+        {"provider": "nvidia", "model": "meta/llama-3.2-90b-vision-instruct"},
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
-        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
     ],
-    # speed y classic: Primario qwen/qwen3.8-27b (Groq), Fallback meta/llama-3.2-11b-vision-instruct (NVIDIA)
+    # speed y classic: Groq (llama-3.1-8b-instant) ↔ Gemini Flash ↔ NVIDIA NIM
     "speed": [
+        {"provider": "groq", "model": "llama-3.1-8b-instant"},
+        {"provider": "gemini", "model": "gemini-2.5-flash"},
+        {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
-        {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
     ],
     "classic": [
-        {"provider": "groq", "model": "qwen/qwen3.8-27b"},
-        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+        {"provider": "groq", "model": "llama-3.1-8b-instant"},
+        {"provider": "gemini", "model": "gemini-2.5-flash"},
         {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
+        {"provider": "groq", "model": "qwen/qwen3.8-27b"},
     ],
-    # cortex: Primario openai/gpt-oss-120b (Groq), Fallback meta/llama-3.2-11b-vision-instruct (NVIDIA)
+    # cortex: Gemini Flash ↔ NVIDIA Nemotron ↔ Groq GPT-OSS
     "cortex": [
+        {"provider": "gemini", "model": "gemini-2.5-flash"},
+        {"provider": "nvidia", "model": "nvidia/llama-3.1-nemotron-70b-instruct"},
         {"provider": "groq", "model": "openai/gpt-oss-120b"},
-        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
         {"provider": "nvidia", "model": "deepseek-ai/deepseek-r1"},
-        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
+        {"provider": "groq", "model": "llama-3.3-70b-versatile"},
     ],
-    # phantom y architect: Primario qwen/qwen3.8-27b (Groq), Fallback meta/llama-3.2-11b-vision-instruct (NVIDIA)
+    # phantom: NVIDIA 70B ↔ Groq 70B ↔ Gemini Flash
     "phantom": [
+        {"provider": "nvidia", "model": "meta/llama-3.1-70b-instruct"},
+        {"provider": "groq", "model": "llama-3.3-70b-versatile"},
+        {"provider": "gemini", "model": "gemini-2.5-flash"},
+        {"provider": "nvidia", "model": "nvidia/llama-3.1-nemotron-70b-instruct"},
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
-        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
-        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
     ],
+    # architect: NVIDIA 70B ↔ Groq 70B ↔ Gemini Flash
     "architect": [
-        {"provider": "groq", "model": "qwen/qwen3.8-27b"},
-        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
-        {"provider": "nvidia", "model": "meta/llama-3.3-70b-instruct"},
+        {"provider": "nvidia", "model": "meta/llama-3.1-70b-instruct"},
+        {"provider": "groq", "model": "llama-3.3-70b-versatile"},
+        {"provider": "gemini", "model": "gemini-2.5-flash"},
     ],
-    # nexus: Primario meta/llama-3.2-11b-vision-instruct (NVIDIA NIM), Fallback qwen/qwen3.8-27b (Groq)
+    # nexus: Gemini Flash ↔ NVIDIA NIM ↔ Groq
     "nexus": [
+        {"provider": "gemini", "model": "gemini-2.5-flash"},
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
     ],
-    # forge: Primario meta/llama-3.2-11b-vision-instruct (NVIDIA), Fallback qwen/qwen3.8-27b (Groq)
+    # forge: NVIDIA NIM ↔ Groq ↔ Gemini Flash
     "forge": [
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
-        {"provider": "groq", "model": "qwen/qwen3.8-27b"},
+        {"provider": "groq", "model": "llama-3.3-70b-versatile"},
+        {"provider": "gemini", "model": "gemini-2.5-flash"},
         {"provider": "nvidia", "model": "nvidia/llama-3.1-nemotron-70b-instruct"},
     ],
-    # magister: Copiloto pedagógico SEP (Groq qwen/qwen3.8-27b, fallbacks Llama)
+    # magister: Copiloto pedagógico SEP (Gemini Flash ↔ Groq ↔ NVIDIA NIM)
     "magister": [
+        {"provider": "gemini", "model": "gemini-2.5-flash"},
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
-        {"provider": "nvidia", "model": "meta/llama-3.1-70b-instruct"},
     ],
-    # root: Primario deepseek-ai/deepseek-r1 (NVIDIA), Fallback meta/llama-3.2-11b-vision-instruct (NVIDIA)
+    # root: NVIDIA NIM ↔ Gemini Flash ↔ Groq
     "root": [
+        {"provider": "nvidia", "model": "deepseek-ai/deepseek-r1"},
+        {"provider": "gemini", "model": "gemini-2.5-flash"},
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
         {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
-        {"provider": "nvidia", "model": "deepseek-ai/deepseek-r1"},
     ],
 }
+
 
 MODEL_TEMPERATURES = {
     "zenith": 0.4,
@@ -1129,7 +1236,15 @@ async def _stream_candidate_configs(
     last_err = None
     interrupted = False
 
-    for target in candidate_configs:
+    # Filtramos y ordenamos para priorizar proveedores que NO estén en rate limit (429)
+    active_candidates = list(candidate_configs)
+    healthy_candidates = [c for c in active_candidates if not _is_provider_rate_limited(c.get("provider", ""))]
+    rate_limited_candidates = [c for c in active_candidates if _is_provider_rate_limited(c.get("provider", ""))]
+    ordered_candidates = healthy_candidates + rate_limited_candidates
+
+    tried_candidates = set()
+
+    for idx, target in enumerate(ordered_candidates):
         if full_text or interrupted:
             break
 
@@ -1138,10 +1253,23 @@ async def _stream_candidate_configs(
         if not model_name:
             continue
 
+        cand_id = f"{provider}:{model_name}"
+        if cand_id in tried_candidates:
+            continue
+        tried_candidates.add(cand_id)
+
+        # Si el proveedor está en cooldown activo por 429 reciente y aún hay candidatos alternos viables, saltar de inmediato
+        if _is_provider_rate_limited(provider) and any(not _is_provider_rate_limited(c.get("provider", "")) for c in ordered_candidates[idx + 1:]):
+            print(f"[FAILOVER CRUZADO] Omitiendo {model_name} ({provider}) por enfriamiento activo 429. Saltando a infraestructura alterna...")
+            continue
+
+        # =========================================================================
+        # 1. PROVEEDOR GROQ
+        # =========================================================================
         if provider == "groq":
-            groq_key = os.getenv("GROQ_API_KEY", "").strip()
-            if not groq_key or groq_key == "gsk_placeholder" or "placeholder" in groq_key:
-                print(f"[GROQ] Sin GROQ_API_KEY activa. Saltando a fallback ({model_name}).")
+            groq_key = _get_active_groq_key()
+            if not groq_key:
+                print(f"[GROQ] Sin GROQ_API_KEY activa. Saltando a proveedor alternativo ({model_name}).")
                 continue
 
             if client_groq.api_key != groq_key:
@@ -1168,6 +1296,8 @@ async def _stream_candidate_configs(
                             yield f"data: {json.dumps(payload)}\n\n", delta
                 except Exception as chunk_err:
                     print(f"Error streaming Groq ({model_name}): {chunk_err}")
+                    if _is_rate_limit_error(chunk_err):
+                        _mark_provider_rate_limited("groq", 60.0)
                     if not full_text:
                         last_err = chunk_err
                         continue
@@ -1179,18 +1309,82 @@ async def _stream_candidate_configs(
                     except Exception:
                         pass
 
-                if interrupted:
-                    break
-                if full_text:
+                if interrupted or full_text:
                     last_err = None
                     break
 
             except Exception as err_groq:
                 last_err = err_groq
-                print(f"[GROQ] Error ({model_name}): {err_groq}. Saltando a fallback...")
+                if _is_rate_limit_error(err_groq):
+                    _mark_provider_rate_limited("groq", 60.0)
+                print(f"[GROQ] Error ({model_name}): {err_groq}. Saltando de inmediato a proveedor alternativo (Gemini / NVIDIA NIM)...")
                 continue
 
+        # =========================================================================
+        # 2. PROVEEDOR GOOGLE AI STUDIO (GEMINI FLASH)
+        # =========================================================================
+        elif provider == "gemini":
+            gemini_key = _get_active_gemini_key()
+            if not gemini_key:
+                print(f"[GEMINI] Sin GEMINI_API_KEY activa. Saltando a proveedor alternativo ({model_name}).")
+                continue
+
+            if client_gemini.api_key != gemini_key:
+                client_gemini.api_key = gemini_key
+
+            try:
+                print(f"[IA Engine - Google AI Studio / Gemini] Streaming {model_name}...")
+                stream = await client_gemini.chat.completions.create(
+                    model=model_name,
+                    messages=oai_messages,
+                    temperature=temperature,
+                    max_tokens=4096,
+                    stream=True,
+                    timeout=25.0
+                )
+                try:
+                    async for chunk in stream:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            delta = chunk.choices[0].delta.content
+                            full_text += delta
+                            payload = {"token": delta}
+                            if metadata:
+                                payload.update(metadata)
+                            yield f"data: {json.dumps(payload)}\n\n", delta
+                except Exception as chunk_err:
+                    print(f"Error streaming Gemini ({model_name}): {chunk_err}")
+                    if _is_rate_limit_error(chunk_err):
+                        _mark_provider_rate_limited("gemini", 60.0)
+                    if not full_text:
+                        last_err = chunk_err
+                        continue
+                    interrupted = True
+                    break
+                finally:
+                    try:
+                        await stream.close()
+                    except Exception:
+                        pass
+
+                if interrupted or full_text:
+                    last_err = None
+                    break
+
+            except Exception as err_gemini:
+                last_err = err_gemini
+                if _is_rate_limit_error(err_gemini):
+                    _mark_provider_rate_limited("gemini", 60.0)
+                print(f"[GEMINI] Error ({model_name}): {err_gemini}. Saltando de inmediato a proveedor alternativo (NVIDIA NIM / Groq)...")
+                continue
+
+        # =========================================================================
+        # 3. PROVEEDOR NVIDIA NIM
+        # =========================================================================
         elif provider == "nvidia":
+            if not nvidia_keys:
+                print(f"[NVIDIA] Sin claves activas de NVIDIA. Saltando a proveedor alternativo ({model_name}).")
+                continue
+
             print(f"[IA Engine - NVIDIA NIM] Streaming {model_name}...")
             for key_idx, current_key in enumerate(nvidia_keys):
                 if client_nvidia.api_key != current_key:
@@ -1216,6 +1410,8 @@ async def _stream_candidate_configs(
                                 yield f"data: {json.dumps(payload)}\n\n", delta
                     except Exception as chunk_err:
                         print(f"Error streaming NVIDIA ({model_name}): {chunk_err}")
+                        if _is_rate_limit_error(chunk_err):
+                            _mark_provider_rate_limited("nvidia", 60.0)
                         if not full_text:
                             last_err = chunk_err
                             break
@@ -1236,11 +1432,79 @@ async def _stream_candidate_configs(
                     if "401" in err_str or "Unauthorized" in err_str or "Authentication" in err_str:
                         print(f"[NVIDIA] Clave #{key_idx+1} no autorizada (401). Probando siguiente clave...")
                         continue
+
+                    # Si es 429 Rate Limit: NO reintentamos con más claves locales de NVIDIA;
+                    # activamos cooldown de 60s en NVIDIA y saltamos inmediatamente a Groq / Gemini
+                    if _is_rate_limit_error(err_nvidia):
+                        _mark_provider_rate_limited("nvidia", 60.0)
+                        print(f"[NVIDIA] Rate limit 429 en NVIDIA. Rompiendo reintentos locales y saltando de inmediato a proveedor alternativo (Groq / Gemini)...")
+                        break
+
                     print(f"[NVIDIA] Error {model_name}: {err_nvidia}. Probando fallback...")
                     break
 
             if interrupted or full_text:
                 break
+
+        # =========================================================================
+        # 4. PROVEEDOR OPENROUTER / PATEWAY
+        # =========================================================================
+        elif provider in ("openrouter", "pateway"):
+            openrouter_key = _get_active_openrouter_key()
+            if not openrouter_key:
+                print(f"[OPENROUTER] Sin OPENROUTER_API_KEY activa. Saltando a proveedor alternativo ({model_name}).")
+                continue
+
+            if client_openrouter.api_key != openrouter_key:
+                client_openrouter.api_key = openrouter_key
+            base_url = _get_openrouter_base_url()
+            if str(client_openrouter.base_url) != base_url:
+                client_openrouter.base_url = base_url
+
+            try:
+                print(f"[IA Engine - OpenRouter / Pateway] Streaming {model_name}...")
+                stream = await client_openrouter.chat.completions.create(
+                    model=model_name,
+                    messages=oai_messages,
+                    temperature=temperature,
+                    max_tokens=4096,
+                    stream=True,
+                    timeout=25.0
+                )
+                try:
+                    async for chunk in stream:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            delta = chunk.choices[0].delta.content
+                            full_text += delta
+                            payload = {"token": delta}
+                            if metadata:
+                                payload.update(metadata)
+                            yield f"data: {json.dumps(payload)}\n\n", delta
+                except Exception as chunk_err:
+                    print(f"Error streaming OpenRouter ({model_name}): {chunk_err}")
+                    if _is_rate_limit_error(chunk_err):
+                        _mark_provider_rate_limited("openrouter", 60.0)
+                    if not full_text:
+                        last_err = chunk_err
+                        continue
+                    interrupted = True
+                    break
+                finally:
+                    try:
+                        await stream.close()
+                    except Exception:
+                        pass
+
+                if interrupted or full_text:
+                    last_err = None
+                    break
+
+            except Exception as err_openrouter:
+                last_err = err_openrouter
+                if _is_rate_limit_error(err_openrouter):
+                    _mark_provider_rate_limited("openrouter", 60.0)
+                print(f"[OPENROUTER] Error ({model_name}): {err_openrouter}. Saltando de inmediato a proveedor alternativo...")
+                continue
 
     if not full_text and last_err:
         err_msg = "⚠️ Error temporal al generar este bloque neural."
@@ -1328,11 +1592,32 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         print("[LYAXIS TRIAD] Activando orquestacion simultanea a la par (Speed || Phantom || Cortex Pro)...")
         user_query_text = (last_user_msg.content or "").strip() if last_user_msg else "Consulta técnica"
 
-        # NÚCLEO I · CREATE (Speed - #2563FF)
+        # Contexto conversacional previo ultra-conciso (máximo 2 turnos previos sintetizados para ahorrar tokens)
+        prior_context_text = ""
+        prior_turns = [m for m in messages if m != last_user_msg][-3:]
+        if prior_turns:
+            context_snippets = []
+            for pm in prior_turns:
+                c = (pm.content or "").strip()
+                if "[TRIAD_CORE:rebuild]" in c:
+                    part = c.split("[TRIAD_CORE:rebuild]")[-1].split("[/TRIAD_CORE:rebuild]")[0].strip()
+                    c = part[:200] + "..." if len(part) > 200 else part
+                else:
+                    c = c[:200] + "..." if len(c) > 200 else c
+                role_label = "Usuario" if pm.role == "user" else "Asistente"
+                context_snippets.append(f"{role_label}: {c}")
+            if context_snippets:
+                prior_context_text = "CONTEXTO PREVIO CONCISO:\n" + "\n".join(context_snippets) + "\n\n"
+
+        # NÚCLEO I · CREATE (Speed - #2563FF) -> Groq (llama-3.1-8b-instant) / Gemini Flash / OpenRouter
         candidate_create = [
+            {"provider": "groq", "model": "llama-3.1-8b-instant"},
+            {"provider": "gemini", "model": "gemini-2.5-flash"},
+            {"provider": "openrouter", "model": "deepseek-v4-flash"},
+            {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
+            {"provider": "openrouter", "model": "qwen3.6-plus"},
             {"provider": "groq", "model": "qwen/qwen3.8-27b"},
             {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
-            {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
         ]
         meta_create = {"core": "create", "core_name": "Speed", "color": "#2563FF"}
         create_prompt = (
@@ -1342,14 +1627,18 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         )
         create_messages = [
             {"role": "system", "content": create_prompt},
-            {"role": "user", "content": user_query_text}
+            {"role": "user", "content": f"{prior_context_text}CONSULTA DEL USUARIO:\n{user_query_text}".strip()}
         ]
 
-        # NÚCLEO II · BREAK (Phantom - #EF4444)
+        # NÚCLEO II · BREAK (Phantom - #EF4444) -> NVIDIA NIM (llama-3.1-70b-instruct) / Groq / OpenRouter
         candidate_break = [
-            {"provider": "groq", "model": "qwen/qwen3.8-27b"},
             {"provider": "nvidia", "model": "meta/llama-3.1-70b-instruct"},
+            {"provider": "groq", "model": "llama-3.3-70b-versatile"},
+            {"provider": "openrouter", "model": "deepseek-v4-pro"},
+            {"provider": "gemini", "model": "gemini-2.5-flash"},
             {"provider": "nvidia", "model": "nvidia/llama-3.1-nemotron-70b-instruct"},
+            {"provider": "openrouter", "model": "claude-haiku-4-5-20251001"},
+            {"provider": "groq", "model": "qwen/qwen3.8-27b"},
             {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
         ]
         meta_break = {"core": "break", "core_name": "Phantom", "color": "#EF4444"}
@@ -1360,15 +1649,20 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         )
         break_messages = [
             {"role": "system", "content": break_prompt},
-            {"role": "user", "content": f"CONSULTA TÉCNICA DEL USUARIO:\n{user_query_text}\n\nAudita de forma implacable señalando vulnerabilidades, riesgos y fallas potenciales en viñetas claras."}
+            {"role": "user", "content": f"{prior_context_text}CONSULTA TÉCNICA DEL USUARIO:\n{user_query_text}\n\nAudita de forma implacable señalando vulnerabilidades, riesgos y fallas potenciales en viñetas claras.".strip()}
         ]
 
-        # NÚCLEO III · REBUILD (Cortex Pro - #7C3AED)
+        # NÚCLEO III · REBUILD (Cortex Pro - #7C3AED) -> OpenRouter / Gemini Flash / NVIDIA Nemotron / Groq
         candidate_rebuild = [
+            {"provider": "openrouter", "model": "deepseek-v4-pro"},
+            {"provider": "gemini", "model": "gemini-2.5-flash"},
+            {"provider": "nvidia", "model": "nvidia/llama-3.1-nemotron-70b-instruct"},
             {"provider": "groq", "model": "openai/gpt-oss-120b"},
-            {"provider": "nvidia", "model": "deepseek-ai/deepseek-r1"},
+            {"provider": "nvidia", "model": "nvidia/nemotron-4-340b-instruct"},
+            {"provider": "openrouter", "model": "qwen3.7-max"},
+            {"provider": "gemini", "model": "gemini-2.0-flash"},
+            {"provider": "groq", "model": "llama-3.3-70b-versatile"},
             {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
-            {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
         ]
         meta_rebuild = {"core": "rebuild", "core_name": "Cortex Pro", "color": "#7C3AED"}
         rebuild_prompt = (
@@ -1379,7 +1673,7 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         )
         rebuild_messages = [
             {"role": "system", "content": rebuild_prompt},
-            {"role": "user", "content": f"CONSULTA ORIGINAL DEL USUARIO:\n{user_query_text}\n\nDiseña y entrega la síntesis arquitectónica definitiva blindada para producción."}
+            {"role": "user", "content": f"{prior_context_text}CONSULTA ORIGINAL DEL USUARIO:\n{user_query_text}\n\nDiseña y entrega la síntesis arquitectónica definitiva blindada para producción.".strip()}
         ]
 
         # Cola de eventos concurrente para transmitir los 3 flujos a la par
@@ -1474,8 +1768,8 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         if vision_cfg not in candidate_configs:
             candidate_configs.insert(0, vision_cfg)
 
-    # Sliding window: limitar el historial a los 10 turnos más recientes para optimizar latencia y tokens
-    MAX_TURNS = 10
+    # Sliding window: recortar el historial a los 6 mensajes más recientes (máx 3 turnos usuario/asistente) para optimizar latencia y tokens
+    MAX_TURNS = 6
     recent_messages = messages[-MAX_TURNS:] if len(messages) > MAX_TURNS else messages
 
     # Detectar el último mensaje que contiene imagen para enviar base64 solo en el turno activo
@@ -1527,163 +1821,15 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         elif last_text:
             oai_messages.append({"role": "user", "content": last_text})
 
-    DISCLAIMER_PATTERNS = [
-        "este código es solo un ejemplo",
-        "este codigo es solo un ejemplo",
-        "no es funcional",
-        "no te recomiendo que lo uses",
-        "no recomiendo su uso",
-        "puede ser detectado por el sistema de detección de trampas",
-        "puede ser detectado por el sistema antitrampas",
-        "puede resultar en la suspensión o prohibición",
-        "suspensión o prohibición de la cuenta",
-        "suspension o prohibicion de la cuenta",
-        "términos de servicio del juego",
-        "terminos de servicio del juego",
-        "como modelo de lenguaje",
-    ]
-
-    def is_disclaimer_text(text: str) -> bool:
-        t = text.lower().strip()
-        if not t:
-            return False
-        return any(p in t for p in DISCLAIMER_PATTERNS)
-
-    interrupted = False
-
-    for target in candidate_configs:
-        if full_response_text or interrupted:
-            break
-
-        provider = str(target.get("provider", "nvidia")).lower().strip()
-        model_name = str(target.get("model", "")).strip()
-        if not model_name:
-            continue
-
-        if provider == "groq":
-            groq_key = os.getenv("GROQ_API_KEY", "").strip()
-            # Si no hay clave real configurada en el entorno, saltamos de inmediato al fallback de NVIDIA
-            if not groq_key or groq_key == "gsk_placeholder" or "placeholder" in groq_key:
-                print(f"[GROQ] Sin GROQ_API_KEY activa. Saltando inmediatamente a fallback de NVIDIA ({model_name}).")
-                continue
-
-            if client_groq.api_key != groq_key:
-                client_groq.api_key = groq_key
-
-            try:
-                print(f"[IA Engine] Enrutando a Groq con modelo: {model_name}...")
-                stream = await client_groq.chat.completions.create(
-                    model=model_name,
-                    messages=oai_messages,
-                    temperature=temperature,
-                    max_tokens=4096,
-                    stream=True,
-                    timeout=22.0
-                )
-                try:
-                    async for chunk in stream:
-                        if chunk.choices and chunk.choices[0].delta.content:
-                            delta = chunk.choices[0].delta.content
-                            full_response_text += delta
-                            yield f"data: {json.dumps({'token': delta})}\n\n"
-                except Exception as chunk_err:
-                    print(f"Error durante streaming en Groq ({model_name}): {chunk_err}")
-                    if not full_response_text:
-                        last_err = chunk_err
-                        continue
-                    interrupted = True
-                    err_msg = str(chunk_err)
-                    if "429" in err_msg or "quota" in err_msg.lower():
-                        clean_err = "⚠️ Límite de cuota temporal alcanzado en el motor de IA. Por favor, espera unos momentos e intenta de nuevo."
-                    else:
-                        clean_err = "⚠️ Conexión interrumpida con el motor neural. Por favor, reintenta tu consulta."
-                    err_payload = {
-                        "error": f"Stream interrumpido: {str(chunk_err)}",
-                        "token": f"\n\n{clean_err}"
-                    }
-                    yield f"data: {json.dumps(err_payload)}\n\n"
-                finally:
-                    try:
-                        await stream.close()
-                    except Exception:
-                        pass
-
-                if interrupted:
-                    break
-
-                if full_response_text:
-                    last_err = None
-                    break
-
-            except Exception as err_groq:
-                last_err = err_groq
-                err_str = str(err_groq)
-                print(f"[GROQ] Falló ({model_name}): {err_str}. Saltando de inmediato a NVIDIA de forma transparente...")
-                continue
-
-        elif provider == "nvidia":
-            print(f"[IA Engine] Enrutando a NVIDIA NIM con modelo: {model_name}...")
-            for key_idx, current_key in enumerate(nvidia_keys):
-                if client_nvidia.api_key != current_key:
-                    client_nvidia.api_key = current_key
-
-                key_invalid = False
-                try:
-                    stream = await client_nvidia.chat.completions.create(
-                        model=model_name,
-                        messages=oai_messages,
-                        temperature=temperature,
-                        max_tokens=4096,
-                        stream=True,
-                        timeout=25.0
-                    )
-                    try:
-                        async for chunk in stream:
-                            if chunk.choices and chunk.choices[0].delta.content:
-                                delta = chunk.choices[0].delta.content
-                                full_response_text += delta
-                                yield f"data: {json.dumps({'token': delta})}\n\n"
-                    except Exception as chunk_err:
-                        print(f"Error durante streaming en NVIDIA ({model_name}): {chunk_err}")
-                        if not full_response_text:
-                            last_err = chunk_err
-                            break
-                        interrupted = True
-                        err_msg = str(chunk_err)
-                        if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
-                            clean_err = "⚠️ Límite de cuota temporal alcanzado en el motor de IA. Por favor, espera unos momentos e intenta de nuevo."
-                        else:
-                            clean_err = "⚠️ Conexión interrumpida con el motor neural. Por favor, reintenta tu consulta."
-                        err_payload = {
-                            "error": f"Stream interrumpido: {str(chunk_err)}",
-                            "token": f"\n\n{clean_err}"
-                        }
-                        yield f"data: {json.dumps(err_payload)}\n\n"
-                    finally:
-                        try:
-                            await stream.close()
-                        except Exception:
-                            pass
-
-                    if interrupted:
-                        break
-
-                    if full_response_text:
-                        last_err = None
-                        break
-
-                except Exception as err_nvidia:
-                    last_err = err_nvidia
-                    err_str = str(err_nvidia)
-                    if "401" in err_str or "Unauthorized" in err_str or "Authentication" in err_str:
-                        print(f"[NVIDIA] Clave #{key_idx+1} no autorizada (401). Probando siguiente clave si existe...")
-                        key_invalid = True
-                        continue
-                    print(f"[NVIDIA] Modelo {model_name} falló: {err_nvidia}. Probando siguiente fallback...")
-                    break
-
-            if interrupted or full_response_text:
-                break
+    # Generación con failover cruzado inteligente entre todos los proveedores (NVIDIA NIM ↔ Groq ↔ Gemini ↔ OpenRouter)
+    async for sse_line, delta in _stream_candidate_configs(
+        candidate_configs=candidate_configs,
+        oai_messages=oai_messages,
+        temperature=temperature,
+        nvidia_keys=nvidia_keys
+    ):
+        full_response_text += delta
+        yield sse_line
 
     # Handle final errors if generation yielded nothing
     if not full_response_text and last_err:
@@ -1741,7 +1887,7 @@ async def chat_stream_endpoint(request: Request):
         except Exception:
             temp = model_default_temp
 
-    raw_messages = body.get("messages") or []
+    raw_messages = body.get("messages") or body.get("conversationHistory") or []
     messages: List[ChatMessage] = []
 
     if isinstance(raw_messages, list):
@@ -1760,6 +1906,13 @@ async def chat_stream_endpoint(request: Request):
 
     if not messages:
         messages = [ChatMessage(role="user", content="Hola")]
+
+    triad_mode = bool(body.get("triad_mode", False))
+
+    # Recortar el historial enviado a los últimos 4-6 mensajes para proteger TPM/RPM
+    max_history = 4 if triad_mode else 6
+    if len(messages) > max_history:
+        messages = messages[-max_history:]
 
     # Asegurar que la conversación exista en conversations antes de guardar mensajes o generar stream
     if conversation_id:
@@ -1782,28 +1935,34 @@ async def chat_stream_endpoint(request: Request):
         except Exception as e_conv:
             print(f"Aviso asegurando conversación en chat_stream_endpoint: {e_conv}")
 
-    triad_mode = bool(body.get("triad_mode", False))
-
-    # --- PROTECCIÓN DE CUOTA SLIDING WINDOW: LYAXIS TRIAD™ ---
-    # Máximo 3 consultas cada ventana de 6 horas (21,600,000 ms).
+    # --- PROTECCIÓN DE CUOTA SLIDING WINDOW Y ENFRIAMIENTO (COOLDOWN): LYAXIS TRIAD™ ---
+    # Enfriamiento obligatorio de 2 minutos (120s) entre consultas TRIAD + máximo 3 consultas cada 6 horas.
     # Las consultas individuales estándar permanecen ilimitadas.
     if triad_mode:
         client_id = get_client_identifier(request, user_id)
-        allowed, remaining, retry_after_ms = await check_and_consume_triad_quota(client_id)
+        allowed, remaining, retry_after_ms, reason = await check_and_consume_triad_quota(client_id)
         if not allowed:
             retry_after_sec = max(1, math.ceil(retry_after_ms / 1000))
-            hours = retry_after_sec // 3600
-            minutes = (retry_after_sec % 3600) // 60
-            readable_time = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+            if reason == "COOLDOWN":
+                msg = f"⏳ Enfriamiento de LYAXIS TRIAD™ activo (1 uso cada 2 minutos). Disponible de nuevo en {retry_after_sec} segundos."
+                err_code = "TRIAD_COOLDOWN_ACTIVE"
+            else:
+                hours = retry_after_sec // 3600
+                minutes = (retry_after_sec % 3600) // 60
+                readable_time = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+                msg = f"⚠️ Cuota de LYAXIS TRIAD™ agotada (máximo 3 consultas cada 6 horas). Próxima recarga en {readable_time}."
+                err_code = "TRIAD_QUOTA_EXCEEDED"
 
             return JSONResponse(
                 status_code=429,
                 content={
-                    "error": "TRIAD_QUOTA_EXCEEDED",
-                    "message": f"Cuota de LYAXIS TRIAD™ excedida (máximo 3 consultas cada 6 horas). Próxima recarga en {readable_time}.",
+                    "error": err_code,
+                    "reason": reason,
+                    "message": msg,
                     "retryAfterMs": retry_after_ms,
-                    "remaining": 0,
-                    "windowMs": 21600000,
+                    "remaining": remaining,
+                    "cooldownMs": int(TRIAD_COOLDOWN_SECONDS * 1000),
+                    "windowMs": int(TRIAD_WINDOW_SECONDS * 1000),
                 },
                 headers={
                     "Retry-After": str(retry_after_sec),

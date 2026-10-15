@@ -73,21 +73,38 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
       };
 
       try {
-        // Detect the last message with an image to only transmit base64 for the active turn
-        let lastImgIdx = -1;
-        messages.forEach((m, idx) => {
-          if (m && m.image) lastImgIdx = idx;
-        });
+        // Recortar historial a los últimos 4-6 mensajes para optimizar tokens y no saturar TPM/RPM
+        // En modo TRIAD se limita a los últimos 4 mensajes (máx 2 turnos); en modo normal a los últimos 6 mensajes
+        const MAX_HISTORY_MESSAGES = options?.triad_mode ? 4 : 6;
+        const trimmedHistory = messages.length > MAX_HISTORY_MESSAGES
+          ? messages.slice(-MAX_HISTORY_MESSAGES)
+          : messages;
 
-        let sanitizedMessages = messages
+        // Detectar si hay imágenes para mantener base64 solo en el turno activo más reciente
+        const lastImgIdx = trimmedHistory.map((m) => Boolean(m.image)).lastIndexOf(true);
+
+        let sanitizedMessages = trimmedHistory
           .filter((m) => m && ((m.content && String(m.content).trim()) || m.image) && !String(m.content || '').startsWith('⚠️') && !String(m.content || '').startsWith('❌'))
-          .map((m, idx) => ({
-            id: m.id || undefined,
-            role: (m.role === 'model' || (m.role as string) === 'assistant') ? 'model' : 'user',
-            content: String(m.content || '').trim(),
-            // Strip historical base64 images from older turns to prevent massive payloads and latency
-            image: idx === lastImgIdx ? m.image : undefined,
-          }));
+          .map((m, idx) => {
+            let contentStr = String(m.content || '').trim();
+            // Si es un mensaje previo de TRIAD en el historial, sintetizarlo para no reenviar miles de tokens
+            if (contentStr.includes('[TRIAD_CORE:rebuild]')) {
+              const matchRebuild = contentStr.match(/\[TRIAD_CORE:rebuild\]([\s\S]*?)\[\/TRIAD_CORE:rebuild\]/);
+              if (matchRebuild && matchRebuild[1]) {
+                contentStr = `[Síntesis de turno previo]: ${matchRebuild[1].trim().slice(0, 350)}...`;
+              }
+            } else if (contentStr.length > 700 && idx < trimmedHistory.length - 1) {
+              contentStr = `${contentStr.slice(0, 700)}...`;
+            }
+
+            return {
+              id: m.id || undefined,
+              role: (m.role === 'model' || (m.role as string) === 'assistant') ? 'model' : 'user',
+              content: contentStr,
+              // Mantener imagen base64 solo en el turno más reciente para no inflar payloads
+              image: idx === lastImgIdx ? m.image : undefined,
+            };
+          });
 
         if (sanitizedMessages.length === 0 && messages.length > 0) {
           const last = messages[messages.length - 1];
@@ -126,6 +143,7 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
           conversation_id: conversationId || null,
           user_id: userId || null,
           messages: sanitizedMessages,
+          conversationHistory: sanitizedMessages,
           model: String(model || 'speed'),
           temperature: resolvedTemp,
           triad_mode: Boolean(options?.triad_mode),
@@ -147,8 +165,11 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
         // Handle server errors (Render cold start 502/504, 429 Rate Limit, or server 500)
         if (!response.ok) {
           let errMsg = '⚠️ El servidor tardó en responder o está iniciando. Por favor, reintenta en unos segundos.';
+          let reason: string | undefined = undefined;
+          let retryMs: number | undefined = undefined;
+
           if (response.status === 429) {
-            errMsg = '⚠️ Cuota de LYAXIS TRIAD™ excedida. Máximo 3 consultas cada 6 horas.';
+            errMsg = '⚠️ Cuota o enfriamiento de LYAXIS TRIAD™ activo.';
           } else if (response.status >= 500) {
             errMsg = '⚠️ El servidor tardó en responder o está iniciando. Por favor, reintenta en unos segundos.';
           } else {
@@ -161,6 +182,7 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
             const matchToken = errText.match(/"token"\s*:\s*"([^"]+)"/);
             const matchErr = errText.match(/"error"\s*:\s*"([^"]+)"/);
             const matchMsg = errText.match(/"message"\s*:\s*"([^"]+)"/);
+            const matchReason = errText.match(/"reason"\s*:\s*"([^"]+)"/);
             const matchRetry = errText.match(/"retryAfterMs"\s*:\s*(\d+)/);
 
             if (matchMsg) {
@@ -171,11 +193,17 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
               errMsg = matchErr[1];
             }
 
+            if (matchReason) {
+              reason = matchReason[1];
+            }
+            if (matchRetry) {
+              retryMs = parseInt(matchRetry[1], 10);
+            }
+
             if (response.status === 429 && typeof window !== 'undefined') {
-              const retryMs = matchRetry ? parseInt(matchRetry[1], 10) : undefined;
               window.dispatchEvent(
                 new CustomEvent('lyaxis_triad_server_429', {
-                  detail: { retryAfterMs: retryMs, message: errMsg },
+                  detail: { retryAfterMs: retryMs, message: errMsg, reason },
                 })
               );
             }

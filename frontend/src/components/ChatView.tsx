@@ -150,6 +150,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     syncServerQuota,
     canExecuteTriad,
     timeRemainingFormatted: triadTimeFormatted,
+    isInCooldown: isTriadCooldown,
+    cooldownFormatted: triadCooldownFormatted,
   } = useTriadQuota();
 
   const [isTriadQuotaModalOpen, setIsTriadQuotaModalOpen] = useState(false);
@@ -165,7 +167,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   });
 
-  // Conmutación automática a Speed si los usos de TRIAD llegan a 0 estando activo
+  // Conmutación automática a Speed si los usos de TRIAD llegan a 0 estando activo (cuota de 6h agotada)
   useEffect(() => {
     if (triadRemaining === 0 && isTriadActive) {
       setIsTriadActive(false);
@@ -178,17 +180,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   }, [triadRemaining, isTriadActive, currentActiveModel]);
 
-  // Capturar evento HTTP 429 de Rate Limit del backend para sincronización y apertura de modal
+  // Capturar evento HTTP 429 de Rate Limit del backend para sincronización inteligente
   useEffect(() => {
     const handleServer429 = (e: any) => {
       const retryMs = e?.detail?.retryAfterMs;
-      syncServerQuota(retryMs);
-      setIsTriadActive(false);
-      try {
-        localStorage.setItem('lyaxis_triad_active', 'false');
-      } catch {}
-      handleModelSwitch('speed');
-      setIsTriadQuotaModalOpen(true);
+      const reason = e?.detail?.reason;
+      const message = e?.detail?.message;
+      syncServerQuota(retryMs, reason);
+
+      if (reason === 'COOLDOWN') {
+        // Enfriamiento de 2 minutos: solo mostrar advertencia sin desmontar el modo TRIAD
+        setServerErrorBanner(message || '⏳ Enfriamiento de LYAXIS TRIAD™ activo (1 uso cada 2 minutos). Espera unos instantes.');
+      } else {
+        // Cuota de 6 horas agotada
+        setIsTriadActive(false);
+        try {
+          localStorage.setItem('lyaxis_triad_active', 'false');
+        } catch {}
+        handleModelSwitch('speed');
+        setIsTriadQuotaModalOpen(true);
+      }
     };
     window.addEventListener('lyaxis_triad_server_429', handleServer429);
     return () => window.removeEventListener('lyaxis_triad_server_429', handleServer429);
@@ -606,6 +617,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
     // Interceptación de cuota estricta para el motor concurrente LYAXIS TRIAD™ (3 consultas / 6h)
     if (isTriadActive) {
       const quotaCheck = canExecuteTriad();
+      if (quotaCheck.isInCooldown) {
+        setServerErrorBanner(`⏳ Enfriamiento de LYAXIS TRIAD™ activo: espera ${quotaCheck.cooldownFormatted} antes de enviar la siguiente consulta concurrente.`);
+        return; // Interceptar: no enviar, conservar texto
+      }
       if (!quotaCheck.allowed || triadRemaining === 0) {
         setIsTriadActive(false);
         try {
@@ -2402,6 +2417,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 title={
                   triadRemaining === 0
                     ? `Cuota de LYAXIS TRIAD™ agotada (0/3). ${triadTimeFormatted}. Conmutado a LYAXIS Speed.`
+                    : isTriadCooldown
+                    ? `⏳ Enfriamiento de TRIAD activo (${triadCooldownFormatted}). Espera antes de enviar la siguiente consulta.`
                     : `⚡ TRIAD [${triadRemaining}/3] · Debate concurrente a 3 núcleos: Create ➔ Break ➔ Rebuild`
                 }
                 style={{
@@ -2412,22 +2429,36 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   minHeight: isMobile ? '44px' : 'auto',
                   borderRadius: '8px',
                   backgroundColor: isTriadActive
-                    ? 'rgba(124, 58, 237, 0.18)'
+                    ? isTriadCooldown
+                      ? 'rgba(245, 158, 11, 0.15)'
+                      : 'rgba(124, 58, 237, 0.18)'
                     : triadRemaining === 0
                     ? 'rgba(239, 68, 68, 0.08)'
                     : 'rgba(255, 255, 255, 0.04)',
                   border: isTriadActive
-                    ? '1px solid rgba(124, 58, 237, 0.55)'
+                    ? isTriadCooldown
+                      ? '1px solid rgba(245, 158, 11, 0.55)'
+                      : '1px solid rgba(124, 58, 237, 0.55)'
                     : triadRemaining === 0
                     ? '1px solid rgba(239, 68, 68, 0.3)'
                     : '1px solid rgba(255, 255, 255, 0.1)',
-                  color: isTriadActive ? '#ffffff' : triadRemaining === 0 ? '#fca5a5' : '#a1a1aa',
+                  color: isTriadActive
+                    ? isTriadCooldown
+                      ? '#fef3c7'
+                      : '#ffffff'
+                    : triadRemaining === 0
+                    ? '#fca5a5'
+                    : '#a1a1aa',
                   cursor: triadRemaining === 0 && !isTriadActive ? 'not-allowed' : 'pointer',
                   fontSize: isMobile ? '12px' : '11.5px',
                   fontWeight: 700,
                   letterSpacing: '0.3px',
                   transition: 'all 0.2s ease',
-                  boxShadow: isTriadActive ? '0 0 16px rgba(124, 58, 237, 0.35)' : 'none',
+                  boxShadow: isTriadActive
+                    ? isTriadCooldown
+                      ? '0 0 16px rgba(245, 158, 11, 0.35)'
+                      : '0 0 16px rgba(124, 58, 237, 0.35)'
+                    : 'none',
                   opacity: triadRemaining === 0 && !isTriadActive ? 0.7 : 1,
                 }}
               >
@@ -2435,17 +2466,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   size={13}
                   color={
                     isTriadActive
-                      ? '#00D9FF'
+                      ? isTriadCooldown
+                        ? '#fbbf24'
+                        : '#00D9FF'
                       : triadRemaining === 0
                       ? '#ef4444'
                       : '#71717a'
                   }
                 />
-                <span>⚡ TRIAD [{triadRemaining}/3] :</span>
+                <span>
+                  {isTriadCooldown ? `⏳ TRIAD [${triadRemaining}/3] (${triadCooldownFormatted}) :` : `⚡ TRIAD [${triadRemaining}/3] :`}
+                </span>
                 <span
                   style={{
                     color: isTriadActive
-                      ? '#10B981'
+                      ? isTriadCooldown
+                        ? '#fbbf24'
+                        : '#10B981'
                       : triadRemaining === 0
                       ? '#ef4444'
                       : '#71717a',
@@ -2455,6 +2492,30 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   {isTriadActive ? 'ON' : 'OFF'}
                 </span>
               </button>
+
+              {/* Banner / Pill discreto de enfriamiento activo */}
+              {isTriadCooldown && triadRemaining > 0 && (
+                <div
+                  title={`Enfriamiento activo de 2 minutos entre consultas de LYAXIS TRIAD™. Espera ${triadCooldownFormatted}`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                    border: '1px solid rgba(245, 158, 11, 0.35)',
+                    color: '#fbbf24',
+                    fontSize: '10.5px',
+                    fontFamily: 'monospace',
+                    fontWeight: 700,
+                    animation: 'fadeIn 0.25s ease-out',
+                  }}
+                >
+                  <Clock size={11} color="#fbbf24" />
+                  <span>⏳ {triadCooldownFormatted}</span>
+                </div>
+              )}
 
               {/* Banner / Pill discreto con cuenta regresiva cuando la cuota está agotada */}
               {triadRemaining === 0 && (
