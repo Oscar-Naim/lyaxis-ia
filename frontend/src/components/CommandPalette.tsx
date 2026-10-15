@@ -26,6 +26,7 @@ import {
 import type { ModelType, Conversation } from '../types';
 import { ALL_MODELS, MODEL_META, THEMES } from '../config';
 import { playCyberClick, playCyberBeep } from '../sound';
+import { checkTriadLimit, formatResetCountdown } from '../useTriadQuota';
 
 export interface CommandPaletteProps {
   isOpen: boolean;
@@ -115,14 +116,21 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
     // 1. Orquestación TRIAD
     if (onToggleTriad) {
+      const quota = checkTriadLimit();
+      const quotaRemaining = quota.remaining;
+      const isExhausted = quotaRemaining === 0;
+      const timeFormatted = formatResetCountdown(quota.nextResetInMs);
+
       list.push({
         id: 'toggle-triad',
         category: 'triad',
-        title: `LYAXIS TRIAD™ : ${isTriadActive ? 'Desactivar Modo' : 'ACTIVAR MODO SIMULTÁNEO'}`,
-        subtitle: 'Inferencia concurrente a 3 núcleos: Create (Speed) + Break (Phantom) + Rebuild (Cortex)',
-        badge: isTriadActive ? 'ACTIVO' : 'TURBO',
-        icon: <Zap size={16} color={isTriadActive ? '#00ff66' : '#a855f7'} />,
-        color: isTriadActive ? '#00ff66' : '#a855f7',
+        title: `LYAXIS TRIAD™ [${quotaRemaining}/3] : ${isTriadActive ? 'Desactivar Modo' : isExhausted ? 'CUOTA AGOTADA' : 'ACTIVAR MODO SIMULTÁNEO'}`,
+        subtitle: isExhausted
+          ? `Límite de 3 consultas/6h alcanzado. ${timeFormatted}. Modo monomodelo activo.`
+          : 'Inferencia concurrente a 3 núcleos: Create (Speed) + Break (Phantom) + Rebuild (Cortex)',
+        badge: isExhausted ? '0/3' : isTriadActive ? 'ACTIVO' : `${quotaRemaining}/3`,
+        icon: <Zap size={16} color={isExhausted ? '#ef4444' : isTriadActive ? '#00ff66' : '#a855f7'} />,
+        color: isExhausted ? '#ef4444' : isTriadActive ? '#00ff66' : '#a855f7',
         shortcut: '/triad',
         onExecute: () => {
           onToggleTriad();

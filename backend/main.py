@@ -4,6 +4,9 @@ import sqlite3
 import asyncio
 import uuid
 import random
+import time
+import math
+import hashlib
 from datetime import datetime, timezone
 from typing import List, Literal, Optional
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -116,6 +119,13 @@ def init_sqlite():
                 cursor.execute("ALTER TABLE messages ADD COLUMN image TEXT;")
             except Exception:
                 pass
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS triad_rate_limits (
+                client_id TEXT NOT NULL,
+                timestamp REAL NOT NULL
+            )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_triad_rl ON triad_rate_limits (client_id, timestamp)")
             try:
                 cursor.execute("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id IS NULL OR user_id = '' OR user_id = 'anon')")
                 cursor.execute("DELETE FROM conversations WHERE user_id IS NULL OR user_id = '' OR user_id = 'anon'")
@@ -146,6 +156,20 @@ class Database:
                 )
                 self.use_postgres = True
                 print("PostgreSQL Supabase conectado exitosamente con Connection Pool.")
+                try:
+                    conn_init = self.pg_pool.getconn()
+                    cur_init = conn_init.cursor()
+                    cur_init.execute("""
+                    CREATE TABLE IF NOT EXISTS triad_rate_limits (
+                        client_id VARCHAR(128) NOT NULL,
+                        timestamp DOUBLE PRECISION NOT NULL
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_triad_rl ON triad_rate_limits (client_id, timestamp);
+                    """)
+                    conn_init.commit()
+                    self.pg_pool.putconn(conn_init)
+                except Exception as e_pg_init:
+                    print(f"Aviso inicializando tabla triad en PostgreSQL: {e_pg_init}")
             except Exception as e:
                 print(f"Aviso Supabase: {e}. Operando en SQLite local.")
                 self.use_postgres = False
@@ -697,7 +721,83 @@ class VerifyOtpPayload(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     code: str
-    auth_type: Optional[str] = "email"
+# ==============================================================================
+# LYAXIS TRIAD™ Sliding Window Rate Limiter
+# Regla de negocio: Máximo 3 consultas cada 6 horas (21,600,000 ms).
+# Las consultas con modelos individuales estándar permanecen ilimitadas.
+# ==============================================================================
+TRIAD_WINDOW_SECONDS: float = 6.0 * 3600.0  # 6 horas = 21,600 segundos
+TRIAD_MAX_REQUESTS: int = 3
+_in_memory_triad_history: dict = {}
+_triad_lock = asyncio.Lock()
+
+def get_client_identifier(request: Request, user_id: Optional[str] = None) -> str:
+    """
+    Extrae el identificador del cliente: token/user_id de sesión o IP anonimizada con hash SHA-256.
+    """
+    clean_uid = str(user_id or "").strip()
+    if clean_uid and clean_uid not in ("anon", "null", "undefined", "None") and not clean_uid.startswith("guest-"):
+        return f"user:{clean_uid}"
+
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        raw_ip = forwarded.split(",")[0].strip()
+    else:
+        raw_ip = request.headers.get("x-real-ip") or (request.client.host if request.client else "127.0.0.1")
+
+    # Hash SHA-256 anonimizado de la IP para respetar la privacidad del usuario
+    ip_hash = hashlib.sha256(raw_ip.encode("utf-8")).hexdigest()[:16]
+    return f"ip:{ip_hash}"
+
+async def check_and_consume_triad_quota(client_id: str) -> tuple[bool, int, int]:
+    """
+    Verifica si el cliente tiene solicitudes restantes en la ventana deslizante de 6h.
+    Retorna (allowed, remaining, retry_after_ms).
+    """
+    now = time.time()
+    cutoff = now - TRIAD_WINDOW_SECONDS
+
+    # 1. Intentar persistencia mediante Base de Datos (SQLite / PostgreSQL)
+    try:
+        db.execute("DELETE FROM triad_rate_limits WHERE timestamp < ?", (cutoff,))
+        rows = db.fetchall(
+            "SELECT timestamp FROM triad_rate_limits WHERE client_id = ? ORDER BY timestamp ASC",
+            (client_id,)
+        )
+        active_count = len(rows) if rows else 0
+
+        if active_count >= TRIAD_MAX_REQUESTS:
+            oldest_val = rows[0]["timestamp"] if isinstance(rows[0], dict) else rows[0][0]
+            oldest = float(oldest_val)
+            retry_after_sec = max(0.0, (oldest + TRIAD_WINDOW_SECONDS) - now)
+            retry_after_ms = int(retry_after_sec * 1000)
+            return False, 0, retry_after_ms
+
+        db.execute(
+            "INSERT INTO triad_rate_limits (client_id, timestamp) VALUES (?, ?)",
+            (client_id, now)
+        )
+        remaining = max(0, TRIAD_MAX_REQUESTS - (active_count + 1))
+        return True, remaining, 0
+    except Exception as e_db_rl:
+        print(f"Aviso en rate limiter DB ({e_db_rl}), usando fallback en memoria.")
+
+    # 2. Respaldo en memoria thread-safe
+    async with _triad_lock:
+        history = _in_memory_triad_history.get(client_id, [])
+        active = [ts for ts in history if ts > cutoff]
+
+        if len(active) >= TRIAD_MAX_REQUESTS:
+            oldest = active[0]
+            retry_after_sec = max(0.0, (oldest + TRIAD_WINDOW_SECONDS) - now)
+            retry_after_ms = int(retry_after_sec * 1000)
+            _in_memory_triad_history[client_id] = active
+            return False, 0, retry_after_ms
+
+        active.append(now)
+        _in_memory_triad_history[client_id] = active
+        remaining = max(0, TRIAD_MAX_REQUESTS - len(active))
+        return True, remaining, 0
 
 @app.get("/")
 def root():
@@ -1684,6 +1784,35 @@ async def chat_stream_endpoint(request: Request):
 
     triad_mode = bool(body.get("triad_mode", False))
 
+    # --- PROTECCIÓN DE CUOTA SLIDING WINDOW: LYAXIS TRIAD™ ---
+    # Máximo 3 consultas cada ventana de 6 horas (21,600,000 ms).
+    # Las consultas individuales estándar permanecen ilimitadas.
+    if triad_mode:
+        client_id = get_client_identifier(request, user_id)
+        allowed, remaining, retry_after_ms = await check_and_consume_triad_quota(client_id)
+        if not allowed:
+            retry_after_sec = max(1, math.ceil(retry_after_ms / 1000))
+            hours = retry_after_sec // 3600
+            minutes = (retry_after_sec % 3600) // 60
+            readable_time = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "error": "TRIAD_QUOTA_EXCEEDED",
+                    "message": f"Cuota de LYAXIS TRIAD™ excedida (máximo 3 consultas cada 6 horas). Próxima recarga en {readable_time}.",
+                    "retryAfterMs": retry_after_ms,
+                    "remaining": 0,
+                    "windowMs": 21600000,
+                },
+                headers={
+                    "Retry-After": str(retry_after_sec),
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "*",
+                    "Access-Control-Allow-Headers": "*",
+                },
+            )
+
     generator = generate_ai_stream(
         conversation_id=conversation_id,
         user_id=user_id,
@@ -1705,6 +1834,12 @@ async def chat_stream_endpoint(request: Request):
             "Access-Control-Allow-Headers": "*",
         },
     )
+
+# Alias de compatibilidad solicitados para endpoints de chat
+@app.post("/api/chat")
+@app.post("/api/triad")
+async def chat_alias_endpoint(request: Request):
+    return await chat_stream_endpoint(request)
 
 # --- Tool Calling Clarification Endpoint (Zenith Human-in-the-Loop) ---
 ZENITH_CLARIFICATION_TOOLS = [

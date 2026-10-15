@@ -144,10 +144,12 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
         // Clear timeout once connection is established and headers received
         clearTimeout(timeoutTimer);
 
-        // Handle server errors (Render cold start 502/504 or server 500)
+        // Handle server errors (Render cold start 502/504, 429 Rate Limit, or server 500)
         if (!response.ok) {
           let errMsg = '⚠️ El servidor tardó en responder o está iniciando. Por favor, reintenta en unos segundos.';
-          if (response.status >= 500) {
+          if (response.status === 429) {
+            errMsg = '⚠️ Cuota de LYAXIS TRIAD™ excedida. Máximo 3 consultas cada 6 horas.';
+          } else if (response.status >= 500) {
             errMsg = '⚠️ El servidor tardó en responder o está iniciando. Por favor, reintenta en unos segundos.';
           } else {
             errMsg = `⚠️ Error del servidor (${response.status}). Intenta de nuevo.`;
@@ -155,13 +157,27 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
 
           try {
             const errText = await response.text();
-            // Try to extract a token or error from SSE body if JSON
+            // Try to extract a token, error or message from SSE body if JSON
             const matchToken = errText.match(/"token"\s*:\s*"([^"]+)"/);
             const matchErr = errText.match(/"error"\s*:\s*"([^"]+)"/);
-            if (matchToken) {
+            const matchMsg = errText.match(/"message"\s*:\s*"([^"]+)"/);
+            const matchRetry = errText.match(/"retryAfterMs"\s*:\s*(\d+)/);
+
+            if (matchMsg) {
+              errMsg = matchMsg[1];
+            } else if (matchToken) {
               errMsg = matchToken[1];
             } else if (matchErr) {
               errMsg = matchErr[1];
+            }
+
+            if (response.status === 429 && typeof window !== 'undefined') {
+              const retryMs = matchRetry ? parseInt(matchRetry[1], 10) : undefined;
+              window.dispatchEvent(
+                new CustomEvent('lyaxis_triad_server_429', {
+                  detail: { retryAfterMs: retryMs, message: errMsg },
+                })
+              );
             }
           } catch {
             // ignore JSON parse errors on HTML 502/504 pages

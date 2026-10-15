@@ -35,9 +35,11 @@ import {
   MicOff,
   Wand2,
   Command,
+  Clock,
 } from 'lucide-react';
 import type { Message, ModelType, User } from '../types';
 import { useSSEStream } from '../useSSEStream';
+import { useTriadQuota } from '../useTriadQuota';
 import { MessageBubble } from './MessageBubble';
 import { ClarificationModal } from './ClarificationModal';
 import type { ClarificationData, ClarificationSubmitPayload } from './ClarificationModal';
@@ -139,14 +141,58 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [serverErrorBanner, setServerErrorBanner] = useState<string | null>(null);
   const [lastFailedUserText, setLastFailedUserText] = useState<string | null>(null);
 
+  // LYAXIS TRIAD™ Quota Rate Limiting (3 consultas / ventana 6h)
+  const {
+    allowed: isTriadAllowed,
+    remaining: triadRemaining,
+    nextResetInMs: triadNextResetInMs,
+    consumeTriadSlot,
+    syncServerQuota,
+    canExecuteTriad,
+    timeRemainingFormatted: triadTimeFormatted,
+  } = useTriadQuota();
+
+  const [isTriadQuotaModalOpen, setIsTriadQuotaModalOpen] = useState(false);
+
   // LYAXIS TRIAD™ Mode State
   const [isTriadActive, setIsTriadActive] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('lyaxis_triad_active') === 'true';
+      const active = localStorage.getItem('lyaxis_triad_active') === 'true';
+      const quota = canExecuteTriad();
+      return active && quota.allowed;
     } catch {
       return false;
     }
   });
+
+  // Conmutación automática a Speed si los usos de TRIAD llegan a 0 estando activo
+  useEffect(() => {
+    if (triadRemaining === 0 && isTriadActive) {
+      setIsTriadActive(false);
+      try {
+        localStorage.setItem('lyaxis_triad_active', 'false');
+      } catch {}
+      if (currentActiveModel !== 'speed') {
+        handleModelSwitch('speed');
+      }
+    }
+  }, [triadRemaining, isTriadActive, currentActiveModel]);
+
+  // Capturar evento HTTP 429 de Rate Limit del backend para sincronización y apertura de modal
+  useEffect(() => {
+    const handleServer429 = (e: any) => {
+      const retryMs = e?.detail?.retryAfterMs;
+      syncServerQuota(retryMs);
+      setIsTriadActive(false);
+      try {
+        localStorage.setItem('lyaxis_triad_active', 'false');
+      } catch {}
+      handleModelSwitch('speed');
+      setIsTriadQuotaModalOpen(true);
+    };
+    window.addEventListener('lyaxis_triad_server_429', handleServer429);
+    return () => window.removeEventListener('lyaxis_triad_server_429', handleServer429);
+  }, [syncServerQuota]);
 
   // Streaming Telemetry & Velocity Stats
   const [streamingTelemetry, setStreamingTelemetry] = useState<{ tps: number; durationMs: number; tokenCount: number } | null>(null);
@@ -167,6 +213,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const pendingPlaceholderIdRef = useRef<string>('');
 
   const toggleTriad = () => {
+    // Si la cuota llegó a 0 y no está activo, bloquear e invocar modal Dark Void
+    if (!isTriadActive && triadRemaining === 0) {
+      setIsTriadQuotaModalOpen(true);
+      triggerSound();
+      return;
+    }
+
     triggerSound();
     setIsTriadActive((prev) => {
       const next = !prev;
@@ -549,6 +602,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const textToSend = customText || inputValue;
     if ((!textToSend || !textToSend.trim()) && !selectedImage) return;
     if (isStreaming) return;
+
+    // Interceptación de cuota estricta para el motor concurrente LYAXIS TRIAD™ (3 consultas / 6h)
+    if (isTriadActive) {
+      const quotaCheck = canExecuteTriad();
+      if (!quotaCheck.allowed || triadRemaining === 0) {
+        setIsTriadActive(false);
+        try {
+          localStorage.setItem('lyaxis_triad_active', 'false');
+        } catch {}
+        handleModelSwitch('speed');
+        setIsTriadQuotaModalOpen(true);
+        return; // Interceptar: no enviar ni borrar texto
+      }
+      consumeTriadSlot();
+    }
 
     const userText = textToSend ? textToSend.trim() : '';
     const imgToSend = selectedImage;
@@ -2326,69 +2394,122 @@ export const ChatView: React.FC<ChatViewProps> = ({
               gap: '8px',
             }}
           >
-            <button
-              type="button"
-              onClick={toggleTriad}
-              title="Activar o desactivar el debate triádico en tiempo real: Create ➔ Break ➔ Rebuild"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: isMobile ? '10px 16px' : '5px 12px',
-                minHeight: isMobile ? '44px' : 'auto',
-                borderRadius: '8px',
-                backgroundColor: isTriadActive ? 'rgba(124, 58, 237, 0.18)' : 'rgba(255, 255, 255, 0.04)',
-                border: isTriadActive ? '1px solid rgba(124, 58, 237, 0.55)' : '1px solid rgba(255, 255, 255, 0.1)',
-                color: isTriadActive ? '#ffffff' : '#a1a1aa',
-                cursor: 'pointer',
-                fontSize: isMobile ? '12px' : '11.5px',
-                fontWeight: 700,
-                letterSpacing: '0.3px',
-                transition: 'all 0.2s ease',
-                boxShadow: isTriadActive ? '0 0 16px rgba(124, 58, 237, 0.35)' : 'none',
-              }}
-            >
-              <Zap size={13} color={isTriadActive ? '#00D9FF' : '#71717a'} />
-              <span>⚡ LYAXIS TRIAD™ :</span>
-              <span
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={toggleTriad}
+                disabled={triadRemaining === 0 && !isTriadActive}
+                title={
+                  triadRemaining === 0
+                    ? `Cuota de LYAXIS TRIAD™ agotada (0/3). ${triadTimeFormatted}. Conmutado a LYAXIS Speed.`
+                    : `⚡ TRIAD [${triadRemaining}/3] · Debate concurrente a 3 núcleos: Create ➔ Break ➔ Rebuild`
+                }
                 style={{
-                  color: isTriadActive ? '#10B981' : '#71717a',
-                  fontWeight: 800,
-                }}
-              >
-                {isTriadActive ? 'ON' : 'OFF'}
-              </span>
-            </button>
-
-            {isTriadActive && (
-              <div
-                style={{
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '10.5px',
-                  fontFamily: 'monospace',
-                  color: '#d8b4fe',
-                  backgroundColor: 'rgba(124, 58, 237, 0.14)',
-                  border: '1px solid rgba(124, 58, 237, 0.35)',
-                  padding: '3px 10px',
-                  borderRadius: '12px',
-                  animation: 'fadeIn 0.25s ease-out',
+                  gap: '8px',
+                  padding: isMobile ? '10px 16px' : '5px 12px',
+                  minHeight: isMobile ? '44px' : 'auto',
+                  borderRadius: '8px',
+                  backgroundColor: isTriadActive
+                    ? 'rgba(124, 58, 237, 0.18)'
+                    : triadRemaining === 0
+                    ? 'rgba(239, 68, 68, 0.08)'
+                    : 'rgba(255, 255, 255, 0.04)',
+                  border: isTriadActive
+                    ? '1px solid rgba(124, 58, 237, 0.55)'
+                    : triadRemaining === 0
+                    ? '1px solid rgba(239, 68, 68, 0.3)'
+                    : '1px solid rgba(255, 255, 255, 0.1)',
+                  color: isTriadActive ? '#ffffff' : triadRemaining === 0 ? '#fca5a5' : '#a1a1aa',
+                  cursor: triadRemaining === 0 && !isTriadActive ? 'not-allowed' : 'pointer',
+                  fontSize: isMobile ? '12px' : '11.5px',
+                  fontWeight: 700,
+                  letterSpacing: '0.3px',
+                  transition: 'all 0.2s ease',
+                  boxShadow: isTriadActive ? '0 0 16px rgba(124, 58, 237, 0.35)' : 'none',
+                  opacity: triadRemaining === 0 && !isTriadActive ? 0.7 : 1,
                 }}
               >
+                <Zap
+                  size={13}
+                  color={
+                    isTriadActive
+                      ? '#00D9FF'
+                      : triadRemaining === 0
+                      ? '#ef4444'
+                      : '#71717a'
+                  }
+                />
+                <span>⚡ TRIAD [{triadRemaining}/3] :</span>
                 <span
                   style={{
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '50%',
-                    backgroundColor: '#10B981',
-                    boxShadow: '0 0 8px #10B981',
-                    display: 'inline-block',
+                    color: isTriadActive
+                      ? '#10B981'
+                      : triadRemaining === 0
+                      ? '#ef4444'
+                      : '#71717a',
+                    fontWeight: 800,
                   }}
-                />
-                <span>TRIAD ENGAGED // 3 CORES SYNCED</span>
-              </div>
-            )}
+                >
+                  {isTriadActive ? 'ON' : 'OFF'}
+                </span>
+              </button>
+
+              {/* Banner / Pill discreto con cuenta regresiva cuando la cuota está agotada */}
+              {triadRemaining === 0 && (
+                <div
+                  title={`Cuota de 6h agotada. ${triadTimeFormatted}`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    color: '#f87171',
+                    fontSize: '10.5px',
+                    fontFamily: 'monospace',
+                    fontWeight: 700,
+                    animation: 'fadeIn 0.25s ease-out',
+                  }}
+                >
+                  <Clock size={11} color="#f87171" />
+                  <span>{triadTimeFormatted}</span>
+                </div>
+              )}
+
+              {isTriadActive && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '10.5px',
+                    fontFamily: 'monospace',
+                    color: '#d8b4fe',
+                    backgroundColor: 'rgba(124, 58, 237, 0.14)',
+                    border: '1px solid rgba(124, 58, 237, 0.35)',
+                    padding: '3px 10px',
+                    borderRadius: '12px',
+                    animation: 'fadeIn 0.25s ease-out',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      backgroundColor: '#10B981',
+                      boxShadow: '0 0 8px #10B981',
+                      display: 'inline-block',
+                    }}
+                  />
+                  <span>TRIAD ENGAGED // 3 CORES SYNCED</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Floating Slash Commands Palette */}
@@ -2729,6 +2850,260 @@ export const ChatView: React.FC<ChatViewProps> = ({
             setMessages((prev) => prev.filter((m) => m.role === 'user' || m.content.trim()));
           }}
         />
+      )}
+
+      {/* Modal Glassmorphic Dark Void (#050505) — Alerta de Cuota LYAXIS TRIAD™ */}
+      {isTriadQuotaModalOpen && (
+        <div
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(5, 5, 5, 0.88)',
+            backdropFilter: 'blur(16px)',
+            padding: '16px',
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+          onClick={() => setIsTriadQuotaModalOpen(false)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '460px',
+              backgroundColor: '#050505',
+              border: '1px solid rgba(124, 58, 237, 0.45)',
+              borderRadius: '16px',
+              padding: '26px',
+              position: 'relative',
+              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.95), 0 0 35px rgba(124, 58, 237, 0.2)',
+              overflow: 'hidden',
+              fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Tira neón tricolor superior */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '3px',
+                background: 'linear-gradient(90deg, #7C3AED, #00D9FF, #FF007F)',
+              }}
+            />
+
+            {/* Botón cerrar */}
+            <button
+              type="button"
+              onClick={() => setIsTriadQuotaModalOpen(false)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'transparent',
+                border: 'none',
+                color: '#71717a',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '6px',
+                transition: 'color 0.15s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#ffffff')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#71717a')}
+            >
+              <X size={18} />
+            </button>
+
+            {/* Encabezado con Icono Táctico */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '12px',
+                  backgroundColor: 'rgba(124, 58, 237, 0.15)',
+                  border: '1px solid rgba(124, 58, 237, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 0 16px rgba(124, 58, 237, 0.25)',
+                  flexShrink: 0,
+                }}
+              >
+                <Zap size={22} color="#00D9FF" />
+              </div>
+              <div>
+                <div
+                  style={{
+                    fontSize: '10.5px',
+                    fontFamily: 'monospace',
+                    fontWeight: 800,
+                    color: '#d8b4fe',
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  LÍMITE DE CONCURRENCIA // SLIDING WINDOW
+                </div>
+                <h3
+                  style={{
+                    margin: '2px 0 0 0',
+                    fontSize: '18px',
+                    fontWeight: 800,
+                    color: '#ffffff',
+                    letterSpacing: '-0.3px',
+                  }}
+                >
+                  Cuota de LYAXIS TRIAD™ Agotada
+                </h3>
+              </div>
+            </div>
+
+            {/* Explicación técnica */}
+            <p
+              style={{
+                fontSize: '13px',
+                lineHeight: 1.6,
+                color: '#94a3b8',
+                margin: '0 0 18px 0',
+              }}
+            >
+              El motor concurrente <strong style={{ color: '#ffffff' }}>LYAXIS TRIAD™</strong> orquesta
+              3 núcleos a la par (<span style={{ color: '#38bdf8' }}>Speed</span>,{' '}
+              <span style={{ color: '#ef4444' }}>Phantom</span> y{' '}
+              <span style={{ color: '#c084fc' }}>Cortex Pro</span>), consumiendo un volumen elevado de tokens.
+              Para garantizar la disponibilidad de la red, está limitado a{' '}
+              <strong style={{ color: '#00d9ff' }}>3 consultas cada 6 horas</strong>.
+            </p>
+
+            {/* Recuadro de Estado y Cuenta Regresiva */}
+            <div
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '12px',
+                padding: '14px 16px',
+                marginBottom: '18px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span style={{ fontSize: '11px', color: '#71717a', textTransform: 'uppercase', fontWeight: 700, fontFamily: 'monospace' }}>
+                  Usos Disponibles
+                </span>
+                <span style={{ fontSize: '15px', fontWeight: 800, color: '#f87171', fontFamily: 'monospace' }}>
+                  0 / 3 consultas
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                <span style={{ fontSize: '11px', color: '#71717a', textTransform: 'uppercase', fontWeight: 700, fontFamily: 'monospace' }}>
+                  Próxima Recarga
+                </span>
+                <span
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    color: '#00d9ff',
+                    fontFamily: 'monospace',
+                    backgroundColor: 'rgba(0, 217, 255, 0.1)',
+                    border: '1px solid rgba(0, 217, 255, 0.25)',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                  }}
+                >
+                  {triadTimeFormatted}
+                </span>
+              </div>
+            </div>
+
+            {/* Nota de modelos estándar ilimitados */}
+            <div
+              style={{
+                fontSize: '12px',
+                color: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                padding: '10px 14px',
+                borderRadius: '10px',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <Sparkles size={16} color="#10b981" style={{ flexShrink: 0 }} />
+              <span>
+                Las consultas con núcleos individuales estándar (como <strong>Speed</strong>,{' '}
+                <strong>Classic</strong> o <strong>Cortex</strong>) son <strong>100% ilimitadas</strong>.
+              </span>
+            </div>
+
+            {/* Botones de Acción */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  handleModelSwitch('speed');
+                  setIsTriadActive(false);
+                  setIsTriadQuotaModalOpen(false);
+                  triggerSound();
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px 18px',
+                  borderRadius: '10px',
+                  backgroundColor: '#ffffff',
+                  color: '#050505',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  fontFamily: 'monospace',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 16px rgba(255, 255, 255, 0.15)',
+                  transition: 'all 0.15s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                }}
+              >
+                <Zap size={15} color="#050505" />
+                <span>Continuar con LYAXIS Speed (Ilimitado)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsTriadQuotaModalOpen(false)}
+                style={{
+                  width: '100%',
+                  padding: '10px 18px',
+                  borderRadius: '10px',
+                  backgroundColor: 'transparent',
+                  color: '#a1a1aa',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
