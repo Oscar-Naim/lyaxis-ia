@@ -62,7 +62,7 @@ async def add_cors_headers(request: Request, call_next):
         response = await call_next(request)
     
     response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "*"
     response.headers["Access-Control-Expose-Headers"] = "*"
     return response
@@ -181,7 +181,7 @@ class Database:
                 except Exception as e_pg_init:
                     print(f"Aviso inicializando tabla triad en PostgreSQL: {e_pg_init}")
             except Exception as e:
-                print(f"Aviso Supabase: {e}. Operando en SQLite local.")
+                print(f"[DB] Supabase en pausa o no accesible ({' '.join(str(e).splitlines())}) -> Operando con respaldo SQLite local.")
                 self.use_postgres = False
                 self.pg_pool = None
 
@@ -850,7 +850,7 @@ async def check_and_consume_triad_quota(client_id: str) -> tuple[bool, int, int,
         remaining = max(0, TRIAD_MAX_REQUESTS - len(active))
         return True, remaining, 0, "OK"
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def root():
     return {"status": "ok", "service": "LYAXIS IA Production API", "version": "1.0.0"}
 
