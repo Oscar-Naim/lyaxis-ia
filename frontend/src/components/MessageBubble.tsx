@@ -6,9 +6,10 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
 import { 
-  Copy, Check, FileDown, ChevronDown, ChevronRight, Sparkles, BookOpen, 
+  Copy, Check, FileDown, ChevronDown, ChevronRight, ChevronUp, Sparkles, BookOpen, 
   Zap, Crosshair, Brain, Compass, MessageCircle, Waypoints, Hammer, 
-  GraduationCap, Terminal, User as UserIcon, ShieldAlert, Cpu, Pencil, Save, X
+  GraduationCap, Terminal, User as UserIcon, ShieldAlert, Cpu, Pencil, Save, X,
+  Volume2, Square, GitFork, ArrowUpRight
 } from 'lucide-react';
 import type { Message, ModelType } from '../types';
 import { CodeBlock } from '../CodeBlock';
@@ -107,6 +108,8 @@ export interface MessageBubbleProps {
   onOpenInNotebook?: (content: string, model: ModelType) => void;
   renderPresentation?: (content: string) => React.ReactNode;
   onEditMessage?: (newContent: string) => void;
+  onForkMessage?: () => void;
+  onAdoptTriadCore?: (coreName: string, coreContent: string) => void;
 }
 
 export interface ParsedTriad {
@@ -331,7 +334,7 @@ const AiEnrichedImage: React.FC<{ src?: string; alt?: string; title?: string }> 
 
 
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({
+const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   message,
   activeModel = 'speed',
   isMobile = false,
@@ -339,11 +342,49 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onOpenInNotebook,
   renderPresentation,
   onEditMessage,
+  onForkMessage,
+  onAdoptTriadCore,
 }) => {
   const [copied, setCopied] = useState(false);
   const [copiedVerdict, setCopiedVerdict] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.content || '');
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isPromptExpanded, setIsPromptExpanded] = useState(false);
+
+  React.useEffect(() => {
+    return () => {
+      if (isSpeaking && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [isSpeaking]);
+
+  const handleToggleSpeech = () => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const cleanSpeechText = (message.content || '')
+      .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
+      .replace(/\[TRIAD_CORE:\w+\]/gi, '')
+      .replace(/\[\/TRIAD_CORE:\w+\]/gi, '')
+      .replace(/```[\s\S]*?```/g, ' [Bloque de código omitido en lectura] ')
+      .replace(/[#*_`>|~-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!cleanSpeechText) return;
+    const utterance = new SpeechSynthesisUtterance(cleanSpeechText);
+    utterance.lang = 'es-MX';
+    utterance.rate = 1.05;
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  };
 
   const parsedTriad = parseTriadContent(message.content || '');
   const isTriad = parsedTriad.isTriad;
@@ -549,6 +590,45 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </div>
           )}
         </div>
+
+        {/* Adopt This Core Action Bar */}
+        {hasContent && !isStreamingActive && onAdoptTriadCore && (
+          <div
+            style={{
+              marginTop: '12px',
+              paddingTop: '10px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                const cleanBody = body.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
+                onAdoptTriadCore(modelTag, cleanBody);
+              }}
+              title={`Continuar conversación a partir de la versión de ${modelTag}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                backgroundColor: `${color}18`,
+                border: `1px solid ${color}55`,
+                color: color,
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <span>Continuar con {modelTag.replace('LYAXIS ', '')}</span>
+              <ArrowUpRight size={12} />
+            </button>
+          </div>
+        )}
       </div>
     );
   };
@@ -1193,7 +1273,44 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
 
         {!isUser && message.content && !message.isStreaming && !isTriad && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            {/* TTS Neural Voice Button */}
+            <button
+              type="button"
+              title={isSpeaking ? 'Detener lectura por voz' : 'Escuchar respuesta en voz alta (TTS)'}
+              onClick={handleToggleSpeech}
+              style={{
+                background: isSpeaking ? 'rgba(0, 217, 255, 0.16)' : 'rgba(255, 255, 255, 0.04)',
+                border: isSpeaking ? '1px solid rgba(0, 217, 255, 0.5)' : '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '6px',
+                padding: '3px 8px',
+                color: isSpeaking ? '#00D9FF' : '#a1a1aa',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                fontSize: '11px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {isSpeaking ? (
+                <>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', height: '12px' }}>
+                    <span className="lyaxis-tts-bar" />
+                    <span className="lyaxis-tts-bar" />
+                    <span className="lyaxis-tts-bar" />
+                  </span>
+                  <Square size={10} fill="#00D9FF" />
+                  <span>Detener</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 size={12} />
+                  <span>Voz</span>
+                </>
+              )}
+            </button>
+
             <button
               type="button"
               title="Copiar texto"
@@ -1215,6 +1332,30 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               {copied ? <Check size={12} color="#10B981" /> : <Copy size={12} />}
               <span>{copied ? 'Copiado' : 'Copiar'}</span>
             </button>
+
+            {onForkMessage && (
+              <button
+                type="button"
+                title="Ramificar conversación desde este punto"
+                onClick={onForkMessage}
+                style={{
+                  background: 'rgba(168, 85, 247, 0.08)',
+                  border: '1px solid rgba(168, 85, 247, 0.28)',
+                  borderRadius: '6px',
+                  padding: '3px 8px',
+                  color: '#c084fc',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  fontSize: '11px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <GitFork size={12} />
+                <span>Ramificar</span>
+              </button>
+            )}
 
             {onOpenInNotebook && (
               <button
@@ -1381,9 +1522,68 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         ) : !message.content && !message.isStreaming ? (
           <span style={{ color: '#71717a', fontStyle: 'italic' }}>⚠️ Conectando con la IA...</span>
+        ) : isUser && !isPromptExpanded && ((message.content || '').split('\n').length > 10 || (message.content || '').length > 700) ? (
+          <div style={{ position: 'relative' }}>
+            <div style={{ maxHeight: '150px', overflow: 'hidden' }}>
+              {renderContent(message.content)}
+            </div>
+            <div
+              onClick={() => setIsPromptExpanded(true)}
+              style={{
+                marginTop: '6px',
+                paddingTop: '18px',
+                background: 'linear-gradient(to bottom, transparent, #07070a 60%)',
+                display: 'flex',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: '#00D9FF',
+                  backgroundColor: 'rgba(0, 217, 255, 0.1)',
+                  border: '1px solid rgba(0, 217, 255, 0.3)',
+                  padding: '3px 10px',
+                  borderRadius: '12px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                }}
+              >
+                <ChevronDown size={12} />
+                Expandir prompt completo ({(message.content || '').split('\n').length} líneas)
+              </span>
+            </div>
+          </div>
         ) : (
           <>
             {renderContent(message.content)}
+            {isUser && isPromptExpanded && ((message.content || '').split('\n').length > 10 || (message.content || '').length > 700) && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsPromptExpanded(false)}
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: '#94a3b8',
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    padding: '3px 10px',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                  }}
+                >
+                  <ChevronUp size={12} />
+                  Colapsar prompt
+                </button>
+              </div>
+            )}
             {message.isStreaming && !isTriad && <span className="lyaxis-cursor" />}
           </>
         )}
@@ -1505,5 +1705,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     </div>
   );
 };
+
+export const MessageBubble = React.memo(MessageBubbleComponent, (prev, next) => {
+  return (
+    prev.message.id === next.message.id &&
+    prev.message.content === next.message.content &&
+    prev.message.isStreaming === next.message.isStreaming &&
+    prev.message.image === next.message.image &&
+    prev.activeModel === next.activeModel &&
+    prev.isMobile === next.isMobile
+  );
+});
 
 export default MessageBubble;

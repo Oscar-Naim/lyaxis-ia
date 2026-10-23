@@ -1449,3 +1449,95 @@ pre {
   }
 }
 
+/* ==========================================================================
+   V3.0 AESTHETIC & FUNCTIONAL UPGRADES — Contrast Modes, Floating Pills & TTS
+   ========================================================================== */
+
+/* 1. Contrast Modes (OLED Abyss vs Cyber Midnight vs High-Contrast Slate) */
+.lyaxis-app-container.theme-oled {
+  background-color: #000000 !important;
+}
+.lyaxis-app-container.theme-oled .lyaxis-sidebar {
+  background-color: #020204 !important;
+}
+.lyaxis-app-container.theme-oled .lyaxis-header-bar,
+.lyaxis-app-container.theme-oled .lyaxis-bottom-bar {
+  background-color: rgba(0, 0, 0, 0.94) !important;
+}
+
+.lyaxis-app-container.theme-daylight {
+  background-color: #0b1120 !important;
+}
+.lyaxis-app-container.theme-daylight .lyaxis-sidebar {
+  background-color: #0f172a !important;
+  border-right-color: #1e293b !important;
+}
+.lyaxis-app-container.theme-daylight .lyaxis-msg-bubble {
+  background-color: rgba(15, 23, 42, 0.9) !important;
+  border-color: rgba(148, 163, 184, 0.18) !important;
+}
+
+/* 2. Reactive Streaming Ambient Glow Pulse */
+@keyframes streamingAuraPulse {
+  0%, 100% {
+    opacity: 0.85;
+    transform: scaleY(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1.12);
+    filter: brightness(1.25);
+  }
+}
+
+.lyaxis-reactive-glow.is-streaming {
+  animation: streamingAuraPulse 2s ease-in-out infinite;
+}
+
+/* 3. Sticky Glassmorphism Floating Action Pill on Message Hover */
+.lyaxis-floating-action-pill {
+  position: sticky;
+  top: 10px;
+  align-self: flex-end;
+  z-index: 15;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 10px;
+  background: rgba(8, 10, 18, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 0 12px rgba(0, 217, 255, 0.12);
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  margin-bottom: -28px;
+}
+
+.lyaxis-msg-bubble:hover .lyaxis-floating-action-pill,
+.lyaxis-floating-action-pill.force-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* 4. TTS Audio Equalizer Wave Animation */
+@keyframes ttsBarWave {
+  0%, 100% { height: 4px; }
+  50% { height: 13px; }
+}
+
+.lyaxis-tts-bar {
+  display: inline-block;
+  width: 2.5px;
+  background-color: #00D9FF;
+  border-radius: 2px;
+  animation: ttsBarWave 0.7s ease-in-out infinite;
+}
+.lyaxis-tts-bar:nth-child(2) { animation-delay: 0.15s; }
+.lyaxis-tts-bar:nth-child(3) { animation-delay: 0.3s; }
+
+

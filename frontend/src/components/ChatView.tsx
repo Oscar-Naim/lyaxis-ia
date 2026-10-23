@@ -41,6 +41,8 @@ import {
   Sliders,
   FileCode,
   Check,
+  Bookmark,
+  Columns,
 } from 'lucide-react';
 import type { Message, ModelType, User } from '../types';
 import { useSSEStream } from '../useSSEStream';
@@ -49,6 +51,9 @@ import { MessageBubble } from './MessageBubble';
 import { ClarificationModal } from './ClarificationModal';
 import type { ClarificationData, ClarificationSubmitPayload } from './ClarificationModal';
 import { NotebookStudio } from './NotebookStudio';
+import { LiveCanvasWorkspace } from './LiveCanvasWorkspace';
+import { PromptVaultModal } from './PromptVaultModal';
+import { TriadQuotaModal } from './TriadQuotaModal';
 import { isSoundMuted, setSoundMuted, playCyberClick as globalPlayCyberClick } from '../sound';
 import { API_BASE, ALL_MODELS, CORE_MODELS, MODEL_META, MODEL_QUICK_ACTIONS, THEMES } from '../config';
 import { exportChatToPDF } from '../pdfExporter';
@@ -83,6 +88,7 @@ export interface ChatViewProps {
   isChromaticActive?: boolean;
   onOpenCommandPalette?: () => void;
   userTier?: string | null;
+  onForkConversation?: (messagesUpToHere: Message[]) => void;
 }
 
 const MODEL_ICONS: Record<ModelType, (size: number, color?: string) => React.ReactNode> = {
@@ -124,6 +130,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   isChromaticActive = false,
   onOpenCommandPalette,
   userTier = null,
+  onForkConversation,
 }) => {
   const [currentActiveModel, setCurrentActiveModel] = useState<ModelType>(selectedModel || 'speed');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
@@ -131,6 +138,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [showZenithNotice, setShowZenithNotice] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isDirectivesModalOpen, setIsDirectivesModalOpen] = useState(false);
+  const [isPromptVaultOpen, setIsPromptVaultOpen] = useState(false);
+  const [splitCanvasData, setSplitCanvasData] = useState<{ code: string; language: string; title?: string } | null>(null);
   const [isAutoRouterActive, setIsAutoRouterActive] = useState<boolean>(() => {
     try {
       return localStorage.getItem('lyaxis_auto_router') === 'true';
@@ -139,8 +148,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   });
   const [routerNotice, setRouterNotice] = useState<string | null>(null);
-  const [attachedFile, setAttachedFile] = useState<{ name: string; content: string; size: string } | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<{ name: string; content: string; size: string }[]>([]);
   const [chatCopied, setChatCopied] = useState(false);
+
+  // Listen for Split Canvas custom event dispatched from CodeBlock Pro
+  useEffect(() => {
+    const handleOpenSplitCanvas = (e: Event) => {
+      const customEvent = e as CustomEvent<{ code: string; language: string; title?: string }>;
+      if (customEvent.detail?.code) {
+        setSplitCanvasData({
+          code: customEvent.detail.code,
+          language: customEvent.detail.language || 'html',
+          title: customEvent.detail.title || 'LYAXIS Live Canvas Studio',
+        });
+      }
+    };
+    window.addEventListener('lyaxis_open_split_canvas', handleOpenSplitCanvas);
+    return () => window.removeEventListener('lyaxis_open_split_canvas', handleOpenSplitCanvas);
+  }, []);
 
   const [isNotebookOpen, setIsNotebookOpen] = useState(false);
   const [notebookContent, setNotebookContent] = useState('');
@@ -428,6 +453,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     { cmd: '/root', label: 'LYAXIS Root', desc: 'Kernel de gobernanza, código de bajo nivel y ejecución total', action: () => handleModelSwitch('root') },
     { cmd: '/triad', label: 'LYAXIS TRIAD™', desc: 'Activa o desactiva la inferencia simultánea Create || Break || Rebuild', action: () => toggleTriad() },
     { cmd: '/cmd', label: 'Paleta de Comandos (Ctrl+K)', desc: 'Abre el HUD de búsqueda y atajos rápidos', action: () => onOpenCommandPalette?.() },
+    { cmd: '/vault', label: 'Bóveda de Prompts', desc: 'Abre la librería táctica de prompts reutilizables', action: () => setIsPromptVaultOpen(true) },
     { cmd: '/clear', label: 'Limpiar Chat', desc: 'Vacía la vista de mensajes de la conversación actual', action: () => setMessages([]) },
     { cmd: '/canvas', label: 'Abrir Cuaderno', desc: 'Abre el estudio visual de notas y diapositivas', action: () => setIsNotebookOpen(true) },
   ];
@@ -606,16 +632,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
     });
   };
 
-  // File Upload handler: supports images (with auto-switch to Zenith) AND code/document files
+  // File Upload handler: supports images (with auto-switch to Zenith) AND multiple code/document files (up to 5)
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
     try {
-      if (file.type.startsWith('image/')) {
-        const processedImage = await compressImage(file);
+      const firstFile = files[0];
+      if (firstFile.type.startsWith('image/')) {
+        const processedImage = await compressImage(firstFile);
         setSelectedImage(processedImage);
-        setAttachedFile(null);
+        setAttachedFiles([]);
 
         // Auto-switch to Zenith for vision analysis
         if (currentActiveModel !== 'zenith') {
@@ -625,32 +652,39 @@ export const ChatView: React.FC<ChatViewProps> = ({
         }
         triggerSound();
       } else {
-        // Text / Code file upload
-        if (file.size > 2 * 1024 * 1024) {
-          alert('El archivo supera el límite de 2 MB.');
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const textContent = String(event.target?.result || '');
-          const sizeKb = (file.size / 1024).toFixed(1) + ' KB';
-          setAttachedFile({
-            name: file.name,
-            content: textContent,
-            size: sizeKb,
-          });
-          setSelectedImage(null);
+        // Multi-file Text / Code upload (max 5 files)
+        const filesToProcess = files.slice(0, 5);
+        const loadedItems: { name: string; content: string; size: string }[] = [];
+        let hasCodeExt = false;
 
-          // Auto-switch to Architect or Root if it's code
+        for (const file of filesToProcess) {
+          if (file.size > 2 * 1024 * 1024) {
+            alert(`El archivo "${file.name}" supera el límite de 2 MB.`);
+            continue;
+          }
+          const textContent = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => resolve(String(ev.target?.result || ''));
+            reader.onerror = () => reject(new Error(`Error al leer ${file.name}`));
+            reader.readAsText(file);
+          });
+          const sizeKb = (file.size / 1024).toFixed(1) + ' KB';
+          loadedItems.push({ name: file.name, content: textContent, size: sizeKb });
+
           const ext = file.name.split('.').pop()?.toLowerCase();
           if (['py', 'js', 'ts', 'tsx', 'sql', 'cpp', 'c', 'cs', 'go', 'rs', 'html', 'css', 'json', 'sh'].includes(ext || '')) {
-            if (currentActiveModel !== 'architect' && currentActiveModel !== 'root') {
-              handleModelSwitch('architect');
-            }
+            hasCodeExt = true;
+          }
+        }
+
+        if (loadedItems.length > 0) {
+          setAttachedFiles((prev) => [...prev, ...loadedItems].slice(0, 5));
+          setSelectedImage(null);
+          if (hasCodeExt && currentActiveModel !== 'architect' && currentActiveModel !== 'root') {
+            handleModelSwitch('architect');
           }
           triggerSound();
-        };
-        reader.readAsText(file);
+        }
       }
     } catch (err: any) {
       alert(err.message || 'Error al validar el archivo.');
@@ -661,7 +695,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const handleSend = async (customText?: string) => {
     const textToSend = customText || inputValue;
-    if ((!textToSend || !textToSend.trim()) && !selectedImage) return;
+    if ((!textToSend || !textToSend.trim()) && !selectedImage && attachedFiles.length === 0) return;
     if (isStreaming) return;
 
     // Interceptación de cuota estricta para el motor concurrente LYAXIS TRIAD™ (3 consultas / 6h)
@@ -695,12 +729,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
       }
     }
 
-    // 2. Adjuntos de Código o Documentos
+    // 2. Adjuntos de Código o Documentos (Multi-archivo)
     let userText = textToSend ? textToSend.trim() : '';
-    if (attachedFile) {
-      const ext = attachedFile.name.split('.').pop() || 'text';
-      userText = `[Archivo adjunto: ${attachedFile.name} (${attachedFile.size})]\n\`\`\`${ext}\n${attachedFile.content}\n\`\`\`\n\n${userText}`;
-      setAttachedFile(null);
+    if (attachedFiles.length > 0) {
+      const attachmentsBlock = attachedFiles
+        .map((af) => {
+          const ext = af.name.split('.').pop() || 'text';
+          return `[Archivo adjunto: ${af.name} (${af.size})]\n\`\`\`${ext}\n${af.content}\n\`\`\``;
+        })
+        .join('\n\n');
+      userText = `${attachmentsBlock}\n\n${userText}`;
+      setAttachedFiles([]);
     }
 
     // 3. Directivas de Memoria Personal
@@ -1036,7 +1075,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     >
       {/* 2. RESPLANDOR AMBIENTAL SUPERIOR REACTIVO (Haz de luz superior dinámico por modelo) */}
       <div
-        className="lyaxis-reactive-glow"
+        className={`lyaxis-reactive-glow${isStreaming ? ' is-streaming' : ''}`}
         style={{
           position: 'absolute',
           top: 0,
@@ -2314,6 +2353,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </div>
       )}
 
+      {/* Split-View Workspace Container: Chat Column + Optional Docked LiveCanvas */}
+      <div style={{ display: 'flex', flex: '1 1 0%', minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
       {/* Main Messages List or Cyberpunk Empty State */}
       <div
         ref={messagesScrollRef}
@@ -2541,6 +2583,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 }}
                 onOpenInNotebook={handleOpenInNotebook}
                 onEditMessage={msg.role === 'user' ? (newContent) => handleEditMessage(idx, newContent) : undefined}
+                onForkMessage={
+                  onForkConversation
+                    ? () => {
+                        triggerSound();
+                        onForkConversation(messages.slice(0, idx + 1));
+                      }
+                    : undefined
+                }
+                onAdoptTriadCore={(coreModel, coreText) => {
+                  triggerSound();
+                  setIsTriadActive(false);
+                  try {
+                    localStorage.setItem('lyaxis_triad_active', 'false');
+                  } catch {}
+                  handleModelSwitch(coreModel);
+                  setMessages((prev) =>
+                    prev.map((m, i) => (i === idx ? { ...m, content: coreText, model: coreModel } : m))
+                  );
+                  setRouterNotice(`⚡ Adoptado núcleo LYAXIS ${MODEL_META[coreModel]?.label || coreModel}`);
+                  setTimeout(() => setRouterNotice(null), 4000);
+                }}
               />
             ))
           )}
@@ -2667,45 +2730,49 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
           )}
 
-          {/* Attached Code/Text File Chip */}
-          {attachedFile && (
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginBottom: '10px',
-                padding: '6px 12px',
-                borderRadius: '10px',
-                backgroundColor: 'rgba(0, 217, 255, 0.1)',
-                border: '1px solid rgba(0, 217, 255, 0.4)',
-                boxShadow: '0 4px 18px rgba(0,0,0,0.7), 0 0 12px rgba(0, 217, 255, 0.15)',
-                animation: 'fadeIn 0.2s ease-out',
-                color: '#00d9ff',
-                fontSize: '12px',
-                fontWeight: 600,
-              }}
-            >
-              <FileCode size={15} color="#00D9FF" />
-              <span>{attachedFile.name}</span>
-              <span style={{ fontSize: '10px', color: '#94a3b8' }}>({attachedFile.size})</span>
-              <button
-                type="button"
-                onClick={() => setAttachedFile(null)}
-                title="Eliminar archivo adjunto"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#94a3b8',
-                  cursor: 'pointer',
-                  padding: '2px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginLeft: '4px',
-                }}
-              >
-                <X size={13} />
-              </button>
+          {/* Attached Code/Text Files Chips (Multi-file up to 5) */}
+          {attachedFiles.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+              {attachedFiles.map((fileItem, fIdx) => (
+                <div
+                  key={`${fileItem.name}-${fIdx}`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '6px 12px',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(0, 217, 255, 0.1)',
+                    border: '1px solid rgba(0, 217, 255, 0.4)',
+                    boxShadow: '0 4px 18px rgba(0,0,0,0.7), 0 0 12px rgba(0, 217, 255, 0.15)',
+                    animation: 'fadeIn 0.2s ease-out',
+                    color: '#00d9ff',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                  }}
+                >
+                  <FileCode size={15} color="#00D9FF" />
+                  <span>{fileItem.name}</span>
+                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>({fileItem.size})</span>
+                  <button
+                    type="button"
+                    onClick={() => setAttachedFiles((prev) => prev.filter((_, i) => i !== fIdx))}
+                    title="Eliminar archivo adjunto"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                      padding: '2px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      marginLeft: '4px',
+                    }}
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
 
@@ -3058,38 +3125,66 @@ export const ChatView: React.FC<ChatViewProps> = ({
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
           >
-            {/* Hidden File Input */}
+            {/* Hidden File Input (supports multiple files up to 5) */}
             <input
               type="file"
+              multiple
               ref={fileInputRef}
               onChange={handleFileChange}
               accept="image/*,.txt,.py,.js,.ts,.tsx,.json,.md,.html,.css,.csv,.sql,.sh,.c,.cpp"
               style={{ display: 'none' }}
             />
 
-            {/* Paperclip Button for Multimodal Image & Document Attachment */}
+            {/* Paperclip Button for Multimodal Image & Multi-Document Attachment */}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              title="Adjuntar imagen, código o documento (.py, .ts, .json, .md, .png, etc.)"
+              title="Adjuntar imagen o hasta 5 documentos (.py, .ts, .json, .md, .png, etc.)"
               style={{
                 width: isMobile ? '44px' : '36px',
                 height: isMobile ? '44px' : '36px',
                 minWidth: isMobile ? '44px' : '36px',
                 borderRadius: '10px',
-                backgroundColor: selectedImage || attachedFile ? 'rgba(0, 217, 255, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                border: selectedImage || attachedFile ? '1px solid #00D9FF' : '1px solid rgba(255, 255, 255, 0.1)',
-                color: selectedImage || attachedFile ? '#00D9FF' : '#a1a1aa',
+                backgroundColor: selectedImage || attachedFiles.length > 0 ? 'rgba(0, 217, 255, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                border: selectedImage || attachedFiles.length > 0 ? '1px solid #00D9FF' : '1px solid rgba(255, 255, 255, 0.1)',
+                color: selectedImage || attachedFiles.length > 0 ? '#00D9FF' : '#a1a1aa',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
                 flexShrink: 0,
                 transition: 'all 0.2s ease',
-                boxShadow: selectedImage || attachedFile ? '0 0 12px rgba(0, 217, 255, 0.3)' : 'none',
+                boxShadow: selectedImage || attachedFiles.length > 0 ? '0 0 12px rgba(0, 217, 255, 0.3)' : 'none',
               }}
             >
               <Paperclip size={18} />
+            </button>
+
+            {/* Prompt Vault Button */}
+            <button
+              type="button"
+              onClick={() => {
+                triggerSound();
+                setIsPromptVaultOpen(true);
+              }}
+              title="Bóveda de Prompts Reutilizables (/vault)"
+              style={{
+                width: isMobile ? '44px' : '36px',
+                height: isMobile ? '44px' : '36px',
+                minWidth: isMobile ? '44px' : '36px',
+                borderRadius: '10px',
+                backgroundColor: isPromptVaultOpen ? 'rgba(0, 217, 255, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                border: isPromptVaultOpen ? '1px solid #00D9FF' : '1px solid rgba(255, 255, 255, 0.1)',
+                color: isPromptVaultOpen ? '#00D9FF' : '#a1a1aa',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <Bookmark size={16} />
             </button>
 
             <textarea
@@ -3205,7 +3300,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             ) : (
               <button
                 type="submit"
-                disabled={!inputValue.trim() && !selectedImage}
+                disabled={!inputValue.trim() && !selectedImage && attachedFiles.length === 0}
                 title="Enviar mensaje"
                 style={{
                   width: isMobile ? '44px' : '36px',
@@ -3213,16 +3308,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   minWidth: isMobile ? '44px' : '36px',
                   borderRadius: '10px',
                   backgroundColor: isTriadActive
-                    ? ((inputValue.trim() || selectedImage) ? '#7C3AED' : '#1c1c24')
-                    : ((inputValue.trim() || selectedImage) ? currentTheme.primary : '#1c1c24'),
+                    ? ((inputValue.trim() || selectedImage || attachedFiles.length > 0) ? '#7C3AED' : '#1c1c24')
+                    : ((inputValue.trim() || selectedImage || attachedFiles.length > 0) ? currentTheme.primary : '#1c1c24'),
                   border: 'none',
                   color: '#ffffff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  cursor: (inputValue.trim() || selectedImage) ? 'pointer' : 'default',
+                  cursor: (inputValue.trim() || selectedImage || attachedFiles.length > 0) ? 'pointer' : 'default',
                   flexShrink: 0,
-                  boxShadow: (inputValue.trim() || selectedImage) 
+                  boxShadow: (inputValue.trim() || selectedImage || attachedFiles.length > 0) 
                     ? (isTriadActive ? '0 0 16px rgba(124, 58, 237, 0.5)' : `0 0 16px ${currentTheme.primary}55`) 
                     : 'none',
                   transition: 'all 0.25s ease',
@@ -3233,6 +3328,32 @@ export const ChatView: React.FC<ChatViewProps> = ({
             )}
           </div>
         </form>
+      </div>
+        </div>
+
+        {/* Docked Right-Hand Split Canvas Workspace (Desktop) */}
+        {splitCanvasData && !isMobile && (
+          <div
+            style={{
+              width: '45%',
+              minWidth: '380px',
+              maxWidth: '720px',
+              height: '100%',
+              flexShrink: 0,
+              borderLeft: '1px solid rgba(0, 217, 255, 0.22)',
+              animation: 'fadeIn 0.2s ease-out',
+            }}
+          >
+            <LiveCanvasWorkspace
+              isOpen={true}
+              onClose={() => setSplitCanvasData(null)}
+              code={splitCanvasData.code}
+              language={splitCanvasData.language}
+              title={splitCanvasData.title}
+              accentColor={meta.color}
+            />
+          </div>
+        )}
       </div>
 
       {/* LYAXIS NOTEBOOK STUDIO VISOR / DRAWER */}
@@ -3259,258 +3380,29 @@ export const ChatView: React.FC<ChatViewProps> = ({
       )}
 
       {/* Modal Glassmorphic Dark Void (#050505) — Alerta de Cuota LYAXIS TRIAD™ */}
-      {isTriadQuotaModalOpen && (
-        <div
-          className="fixed inset-0 z-[99999] flex items-center justify-center p-4"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 99999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'rgba(5, 5, 5, 0.88)',
-            backdropFilter: 'blur(16px)',
-            padding: '16px',
-            animation: 'fadeIn 0.2s ease-out',
-          }}
-          onClick={() => setIsTriadQuotaModalOpen(false)}
-        >
-          <div
-            style={{
-              width: '100%',
-              maxWidth: '460px',
-              backgroundColor: '#050505',
-              border: '1px solid rgba(124, 58, 237, 0.45)',
-              borderRadius: '16px',
-              padding: '26px',
-              position: 'relative',
-              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.95), 0 0 35px rgba(124, 58, 237, 0.2)',
-              overflow: 'hidden',
-              fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Tira neón tricolor superior */}
-            <div
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                height: '3px',
-                background: 'linear-gradient(90deg, #7C3AED, #00D9FF, #FF007F)',
-              }}
-            />
+      <TriadQuotaModal
+        isOpen={isTriadQuotaModalOpen}
+        onClose={() => setIsTriadQuotaModalOpen(false)}
+        timeRemainingFormatted={triadTimeFormatted}
+        onSwitchToSpeed={() => {
+          handleModelSwitch('speed');
+          setIsTriadActive(false);
+          setIsTriadQuotaModalOpen(false);
+          triggerSound();
+        }}
+      />
 
-            {/* Botón cerrar */}
-            <button
-              type="button"
-              onClick={() => setIsTriadQuotaModalOpen(false)}
-              style={{
-                position: 'absolute',
-                top: '16px',
-                right: '16px',
-                background: 'transparent',
-                border: 'none',
-                color: '#71717a',
-                cursor: 'pointer',
-                padding: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '6px',
-                transition: 'color 0.15s ease',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = '#ffffff')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = '#71717a')}
-            >
-              <X size={18} />
-            </button>
-
-            {/* Encabezado con Icono Táctico */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              <div
-                style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '12px',
-                  backgroundColor: 'rgba(124, 58, 237, 0.15)',
-                  border: '1px solid rgba(124, 58, 237, 0.4)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 0 16px rgba(124, 58, 237, 0.25)',
-                  flexShrink: 0,
-                }}
-              >
-                <Zap size={22} color="#00D9FF" />
-              </div>
-              <div>
-                <div
-                  style={{
-                    fontSize: '10.5px',
-                    fontFamily: 'monospace',
-                    fontWeight: 800,
-                    color: '#d8b4fe',
-                    letterSpacing: '1px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  LÍMITE DE CONCURRENCIA // SLIDING WINDOW
-                </div>
-                <h3
-                  style={{
-                    margin: '2px 0 0 0',
-                    fontSize: '18px',
-                    fontWeight: 800,
-                    color: '#ffffff',
-                    letterSpacing: '-0.3px',
-                  }}
-                >
-                  Cuota de LYAXIS TRIAD™ Agotada
-                </h3>
-              </div>
-            </div>
-
-            {/* Explicación técnica */}
-            <p
-              style={{
-                fontSize: '13px',
-                lineHeight: 1.6,
-                color: '#94a3b8',
-                margin: '0 0 18px 0',
-              }}
-            >
-              El motor concurrente <strong style={{ color: '#ffffff' }}>LYAXIS TRIAD™</strong> orquesta
-              3 núcleos a la par (<span style={{ color: '#38bdf8' }}>Speed</span>,{' '}
-              <span style={{ color: '#ef4444' }}>Phantom</span> y{' '}
-              <span style={{ color: '#c084fc' }}>Cortex Pro</span>), consumiendo un volumen elevado de tokens.
-              Para garantizar la disponibilidad de la red, está limitado a{' '}
-              <strong style={{ color: '#00d9ff' }}>3 consultas cada 6 horas</strong>.
-            </p>
-
-            {/* Recuadro de Estado y Cuenta Regresiva */}
-            <div
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '12px',
-                padding: '14px 16px',
-                marginBottom: '18px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '12px',
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <span style={{ fontSize: '11px', color: '#71717a', textTransform: 'uppercase', fontWeight: 700, fontFamily: 'monospace' }}>
-                  Usos Disponibles
-                </span>
-                <span style={{ fontSize: '15px', fontWeight: 800, color: '#f87171', fontFamily: 'monospace' }}>
-                  0 / 3 consultas
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
-                <span style={{ fontSize: '11px', color: '#71717a', textTransform: 'uppercase', fontWeight: 700, fontFamily: 'monospace' }}>
-                  Próxima Recarga
-                </span>
-                <span
-                  style={{
-                    fontSize: '13px',
-                    fontWeight: 800,
-                    color: '#00d9ff',
-                    fontFamily: 'monospace',
-                    backgroundColor: 'rgba(0, 217, 255, 0.1)',
-                    border: '1px solid rgba(0, 217, 255, 0.25)',
-                    padding: '2px 8px',
-                    borderRadius: '6px',
-                  }}
-                >
-                  {triadTimeFormatted}
-                </span>
-              </div>
-            </div>
-
-            {/* Nota de modelos estándar ilimitados */}
-            <div
-              style={{
-                fontSize: '12px',
-                color: '#10b981',
-                backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                border: '1px solid rgba(16, 185, 129, 0.25)',
-                padding: '10px 14px',
-                borderRadius: '10px',
-                marginBottom: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}
-            >
-              <Sparkles size={16} color="#10b981" style={{ flexShrink: 0 }} />
-              <span>
-                Las consultas con núcleos individuales estándar (como <strong>Speed</strong>,{' '}
-                <strong>Classic</strong> o <strong>Cortex</strong>) son <strong>100% ilimitadas</strong>.
-              </span>
-            </div>
-
-            {/* Botones de Acción */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  handleModelSwitch('speed');
-                  setIsTriadActive(false);
-                  setIsTriadQuotaModalOpen(false);
-                  triggerSound();
-                }}
-                style={{
-                  width: '100%',
-                  padding: '12px 18px',
-                  borderRadius: '10px',
-                  backgroundColor: '#ffffff',
-                  color: '#050505',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: 800,
-                  fontFamily: 'monospace',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 16px rgba(255, 255, 255, 0.15)',
-                  transition: 'all 0.15s ease',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                }}
-              >
-                <Zap size={15} color="#050505" />
-                <span>Continuar con LYAXIS Speed (Ilimitado)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsTriadQuotaModalOpen(false)}
-                style={{
-                  width: '100%',
-                  padding: '10px 18px',
-                  borderRadius: '10px',
-                  backgroundColor: 'transparent',
-                  color: '#a1a1aa',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                Entendido
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Bóveda de Prompts Reutilizables */}
+      <PromptVaultModal
+        isOpen={isPromptVaultOpen}
+        onClose={() => setIsPromptVaultOpen(false)}
+        accentColor={meta.color}
+        onSelectPrompt={(promptText) => {
+          setInputValue(promptText);
+          triggerSound();
+          setTimeout(() => textareaRef.current?.focus(), 60);
+        }}
+      />
 
       {/* Directivas y Memoria Personal Modal */}
       <CustomInstructionsModal

@@ -23,6 +23,9 @@ import {
   X,
   Command,
   Sliders,
+  Pin,
+  Pencil,
+  Check,
 } from 'lucide-react';
 import type { Conversation, User, ModelType } from '../types';
 import { MODEL_META } from '../config';
@@ -43,6 +46,8 @@ export interface SidebarProps {
   onSelectConversation: (chat: Conversation) => void;
   onDeleteConversation: (chatId: string, e: React.MouseEvent) => void;
   onDeleteAllConversations: () => void;
+  onTogglePinConversation?: (chatId: string, e: React.MouseEvent) => void;
+  onRenameConversation?: (chatId: string, newTitle: string) => void;
   selectedModel?: ModelType;
   onSelectModel?: (model: ModelType) => void;
   soundMuted?: boolean;
@@ -81,6 +86,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectConversation,
   onDeleteConversation,
   onDeleteAllConversations,
+  onTogglePinConversation,
+  onRenameConversation,
   selectedModel,
   onSelectModel,
   soundMuted: soundMutedProp,
@@ -93,14 +100,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [internalMuted, setInternalMuted] = useState<boolean>(() => isSoundMuted());
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilterModel, setSelectedFilterModel] = useState<string>('all');
+  const [editingChatId, setEditingChatId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState<string>('');
 
-  const filteredConversations = conversations.filter((c) => {
-    if (selectedFilterModel !== 'all' && c.model !== selectedFilterModel) {
+  const sortedConversations = [...conversations].sort((a, b) => {
+    if (Boolean(a.pinned) !== Boolean(b.pinned)) {
+      return a.pinned ? -1 : 1;
+    }
+    return 0;
+  });
+
+  const filteredConversations = sortedConversations.filter((c) => {
+    if (selectedFilterModel === 'pinned' && !c.pinned) {
+      return false;
+    }
+    if (selectedFilterModel !== 'all' && selectedFilterModel !== 'pinned' && c.model !== selectedFilterModel) {
       return false;
     }
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
-    return (c.title || '').toLowerCase().includes(q) || (c.model || '').toLowerCase().includes(q);
+    if ((c.title || '').toLowerCase().includes(q) || (c.model || '').toLowerCase().includes(q)) {
+      return true;
+    }
+    // Búsqueda full-text en mensajes cacheados de la conversación
+    try {
+      const cachedMsgs = localStorage.getItem(`lyaxis_msgs_${c.id}`);
+      if (cachedMsgs && cachedMsgs.toLowerCase().includes(q)) {
+        return true;
+      }
+    } catch {}
+    return false;
   });
 
   useEffect(() => {
@@ -661,6 +690,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 >
                   Todos
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedFilterModel(selectedFilterModel === 'pinned' ? 'all' : 'pinned')}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: '12px',
+                    fontSize: '10.5px',
+                    fontWeight: 600,
+                    border: selectedFilterModel === 'pinned' ? '1px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.06)',
+                    backgroundColor: selectedFilterModel === 'pinned' ? 'rgba(245, 158, 11, 0.22)' : 'rgba(255, 255, 255, 0.03)',
+                    color: selectedFilterModel === 'pinned' ? '#fbbf24' : '#94a3b8',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Pin size={10} />
+                  Fijados
+                </button>
                 {(['speed', 'cortex', 'architect', 'root', 'forge', 'magister', 'phantom'] as const).map((m) => {
                   const isSel = selectedFilterModel === m;
                   const mMeta = MODEL_META[m];
@@ -712,63 +763,186 @@ export const Sidebar: React.FC<SidebarProps> = ({
               filteredConversations.map((chat) => {
             const isSelected = currentChatId === chat.id;
             const modelColor = getModelColor(chat.model);
+            const isEditingThis = editingChatId === chat.id;
             return (
               <div
                 key={chat.id}
                 onClick={() => {
+                  if (isEditingThis) return;
                   onSelectConversation(chat);
                   if (isMobile) onClose();
                 }}
                 style={{
                   minHeight: '46px',
-                  padding: '10px 14px',
+                  padding: '8px 10px 8px 12px',
                   borderRadius: '10px',
                   fontSize: '14px',
                   cursor: 'pointer',
-                  backgroundColor: isSelected ? `${modelColor}22` : 'transparent',
-                  border: isSelected ? `1px solid ${modelColor}55` : '1px solid transparent',
+                  backgroundColor: isSelected ? `${modelColor}22` : (chat.pinned ? 'rgba(245, 158, 11, 0.05)' : 'transparent'),
+                  border: isSelected
+                    ? `1px solid ${modelColor}55`
+                    : (chat.pinned ? '1px solid rgba(245, 158, 11, 0.22)' : '1px solid transparent'),
                   color: isSelected ? '#ffffff' : '#cbd5e1',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   transition: 'all 0.2s ease',
                   boxShadow: isSelected ? `0 0 14px ${modelColor}22` : 'none',
+                  gap: '6px',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden', flex: 1, minWidth: 0 }}>
-                  <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '9px', overflow: 'hidden', flex: 1, minWidth: 0 }}>
+                  <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', position: 'relative' }}>
                     {MODEL_ICONS[chat.model]?.(16, modelColor) || <Sparkles size={16} color={modelColor} />}
+                    {chat.pinned && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: '-4px',
+                          right: '-4px',
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '50%',
+                          backgroundColor: '#f59e0b',
+                          boxShadow: '0 0 6px #f59e0b',
+                        }}
+                      />
+                    )}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, flex: 1 }}>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '13.5px', fontWeight: 600 }}>
-                      {chat.title}
-                    </span>
-                    <span style={{ fontSize: '12px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
-                      {MODEL_META[chat.model]?.label || 'Speed'} • {MODEL_META[chat.model]?.tagline || ''}
+                    {isEditingThis ? (
+                      <input
+                        type="text"
+                        value={editingTitle}
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => setEditingTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === 'Enter') {
+                            if (editingTitle.trim() && onRenameConversation) {
+                              onRenameConversation(chat.id, editingTitle.trim());
+                            }
+                            setEditingChatId(null);
+                          } else if (e.key === 'Escape') {
+                            setEditingChatId(null);
+                          }
+                        }}
+                        onBlur={() => {
+                          if (editingTitle.trim() && onRenameConversation) {
+                            onRenameConversation(chat.id, editingTitle.trim());
+                          }
+                          setEditingChatId(null);
+                        }}
+                        style={{
+                          width: '100%',
+                          backgroundColor: '#050811',
+                          border: `1px solid ${modelColor}`,
+                          borderRadius: '5px',
+                          color: '#ffffff',
+                          fontSize: '12.5px',
+                          padding: '2px 6px',
+                          outline: 'none',
+                        }}
+                      />
+                    ) : (
+                      <span
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          setEditingChatId(chat.id);
+                          setEditingTitle(chat.title);
+                        }}
+                        title="Doble clic para renombrar"
+                        style={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {chat.title}
+                      </span>
+                    )}
+                    <span style={{ fontSize: '11px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
+                      {MODEL_META[chat.model]?.label || 'Speed'} {chat.pinned ? '• 📌 Fijado' : ''}
                     </span>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  title="Eliminar conversación"
-                  onClick={(e) => onDeleteConversation(chat.id, e)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#71717a',
-                    cursor: 'pointer',
-                    minWidth: '34px',
-                    minHeight: '34px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: '6px',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = '#71717a'; }}
-                >
-                  <Trash2 size={14} />
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+                  {onTogglePinConversation && (
+                    <button
+                      type="button"
+                      title={chat.pinned ? 'Desfijar conversación' : 'Fijar conversación arriba'}
+                      onClick={(e) => onTogglePinConversation(chat.id, e)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: chat.pinned ? '#f59e0b' : '#52525b',
+                        cursor: 'pointer',
+                        width: '26px',
+                        height: '26px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '5px',
+                      }}
+                    >
+                      <Pin size={12} />
+                    </button>
+                  )}
+                  {onRenameConversation && (
+                    <button
+                      type="button"
+                      title="Renombrar conversación"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isEditingThis) {
+                          if (editingTitle.trim()) onRenameConversation(chat.id, editingTitle.trim());
+                          setEditingChatId(null);
+                        } else {
+                          setEditingChatId(chat.id);
+                          setEditingTitle(chat.title);
+                        }
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: isEditingThis ? '#10b981' : '#52525b',
+                        cursor: 'pointer',
+                        width: '26px',
+                        height: '26px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '5px',
+                      }}
+                    >
+                      {isEditingThis ? <Check size={12} /> : <Pencil size={12} />}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    title="Eliminar conversación"
+                    onClick={(e) => onDeleteConversation(chat.id, e)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#71717a',
+                      cursor: 'pointer',
+                      width: '26px',
+                      height: '26px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '5px',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = '#71717a'; }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </div>
             );
           })

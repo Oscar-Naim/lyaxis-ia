@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import type { ModelType, ModelId, Message, Conversation, User } from './types';
+import type { ModelType, ModelId, Message, Conversation, User, ContrastTheme } from './types';
 import { ALL_MODELS, API_BASE, GOOGLE_CLIENT_ID, THEMES, MODEL_META } from './config';
 import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/ChatView';
@@ -74,6 +74,22 @@ export default function App() {
 
   const [isScanlineActive, setIsScanlineActive] = useState(false);
   const [isChromaticActive, setIsChromaticActive] = useState(false);
+  const [contrastTheme, setContrastTheme] = useState<ContrastTheme>(() => {
+    try {
+      const saved = localStorage.getItem('lyaxis_contrast_theme') as ContrastTheme;
+      return saved === 'oled' || saved === 'cyber' || saved === 'daylight' ? saved : 'cyber';
+    } catch {
+      return 'cyber';
+    }
+  });
+
+  const handleChangeContrastTheme = (nextTheme: ContrastTheme) => {
+    setContrastTheme(nextTheme);
+    try {
+      localStorage.setItem('lyaxis_contrast_theme', nextTheme);
+    } catch {}
+    if (soundEnabled) playCyberClick();
+  };
 
   const [user, setUser] = useState<User | null>(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('lyaxis_user') : null;
@@ -213,6 +229,8 @@ export default function App() {
               title: c.title || 'Nueva conversación',
               createdAt: c.created_at || new Date().toISOString(),
               model: c.model || 'speed',
+              pinned: Boolean(c.pinned),
+              folder: c.folder || undefined,
             }));
           setConversations(loaded);
           setCurrentChatId((curr) => {
@@ -358,6 +376,88 @@ export default function App() {
     }
   };
 
+  const handleTogglePinConversation = async (chatId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const target = conversations.find((c) => c.id === chatId);
+    if (!target) return;
+    const nextPinned = !target.pinned;
+    if (soundEnabled) playCyberClick();
+
+    setConversations((prev) =>
+      prev
+        .map((c) => (c.id === chatId ? { ...c, pinned: nextPinned } : c))
+        .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)))
+    );
+
+    try {
+      await fetch(`${API_BASE}/api/v1/conversations/${chatId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinned: nextPinned }),
+      });
+    } catch (err) {
+      console.warn('Aviso actualizando pin en backend:', err);
+    }
+  };
+
+  const handleRenameConversation = async (chatId: string, newTitle: string) => {
+    const clean = newTitle.trim();
+    if (!clean) return;
+    if (soundEnabled) playCyberClick();
+
+    setConversations((prev) =>
+      prev.map((c) => (c.id === chatId ? { ...c, title: clean } : c))
+    );
+
+    try {
+      await fetch(`${API_BASE}/api/v1/conversations/${chatId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: clean }),
+      });
+    } catch (err) {
+      console.warn('Aviso renombrando conversación en backend:', err);
+    }
+  };
+
+  const handleForkConversation = async (messagesUpToHere: Message[]) => {
+    if (!messagesUpToHere || messagesUpToHere.length === 0) return;
+    const cid = `chat-fork-${Date.now()}`;
+    const currentConv = conversations.find((c) => c.id === currentChatId);
+    const forkTitle = `Rama: ${(currentConv?.title || 'Conversación').slice(0, 36)}`;
+    const uid = activeUserId;
+
+    const forkedChat: Conversation = {
+      id: cid,
+      userId: uid,
+      title: forkTitle,
+      createdAt: new Date().toISOString(),
+      model: selectedModel,
+    };
+
+    setConversations((prev) => [forkedChat, ...prev]);
+    setCurrentChatId(cid);
+    setMessages(messagesUpToHere);
+    try {
+      localStorage.setItem(`lyaxis_msgs_${cid}`, JSON.stringify(messagesUpToHere));
+    } catch {}
+
+    try {
+      await fetch(`${API_BASE}/api/v1/conversations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: cid,
+          user_id: uid,
+          title: forkTitle,
+          model: selectedModel,
+        }),
+      });
+    } catch (err) {
+      console.warn('Aviso creando conversación bifurcada en backend:', err);
+    }
+  };
+
   const currentTheme = THEMES[selectedModel] || THEMES.speed;
 
   useEffect(() => {
@@ -369,7 +469,7 @@ export default function App() {
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       {showBoot && <BootSplash onFinish={() => setShowBoot(false)} onComplete={() => setShowBoot(false)} />}
       <div
-        className={`lyaxis-app-container ${isScanlineActive ? 'scanline-active' : ''}`}
+        className={`lyaxis-app-container theme-${contrastTheme} ${isScanlineActive ? 'scanline-active' : ''}`}
         style={{
           '--current-glow': currentTheme.glow,
           '--current-primary': currentTheme.primary,
@@ -390,6 +490,8 @@ export default function App() {
           onSelectConversation={selectConversation}
           onDeleteConversation={handleDeleteConversation}
           onDeleteAllConversations={deleteAllConversations}
+          onTogglePinConversation={handleTogglePinConversation}
+          onRenameConversation={handleRenameConversation}
           selectedModel={selectedModel}
           onSelectModel={(m) => switchModel(m)}
           soundMuted={!soundEnabled}
@@ -423,6 +525,7 @@ export default function App() {
           isChromaticActive={isChromaticActive}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
           userTier={userTier}
+          onForkConversation={handleForkConversation}
         />
 
         <CommandPalette
@@ -491,6 +594,9 @@ export default function App() {
           onToggleSound={toggleSound}
           messageCount={messages.length}
           conversationCount={conversations.length}
+          activeUserId={activeUserId}
+          contrastTheme={contrastTheme}
+          onChangeContrastTheme={handleChangeContrastTheme}
         />
 
         <LyaxisInfoDrawer

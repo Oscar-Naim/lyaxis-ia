@@ -101,10 +101,20 @@ def init_sqlite():
                 user_id TEXT,
                 title TEXT NOT NULL,
                 model TEXT NOT NULL DEFAULT 'speed',
+                pinned INTEGER NOT NULL DEFAULT 0,
+                folder TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
             """)
+            try:
+                cursor.execute("ALTER TABLE conversations ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE conversations ADD COLUMN folder TEXT;")
+            except Exception:
+                pass
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS messages (
                 id TEXT PRIMARY KEY,
@@ -281,10 +291,17 @@ if db.use_postgres:
             user_id TEXT,
             title TEXT NOT NULL,
             model TEXT NOT NULL DEFAULT 'speed',
+            pinned INTEGER NOT NULL DEFAULT 0,
+            folder TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         )
         """)
+        try:
+            db.execute("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pinned INTEGER NOT NULL DEFAULT 0;")
+            db.execute("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS folder TEXT;")
+        except Exception:
+            pass
         db.execute("""
         CREATE TABLE IF NOT EXISTS messages (
             id TEXT PRIMARY KEY,
@@ -956,12 +973,20 @@ def list_conversations(user_id: Optional[str] = None):
     uid = (user_id or "").strip()
     if not uid or uid == "anon":
         return []
-    return db.fetchall(
-        "SELECT c.id, c.user_id, c.title, c.model, c.created_at, c.updated_at "
-        "FROM conversations c WHERE c.user_id = ? "
-        "ORDER BY c.updated_at DESC",
-        (uid,)
-    )
+    try:
+        return db.fetchall(
+            "SELECT c.id, c.user_id, c.title, c.model, COALESCE(c.pinned, 0) as pinned, c.folder, c.created_at, c.updated_at "
+            "FROM conversations c WHERE c.user_id = ? "
+            "ORDER BY COALESCE(c.pinned, 0) DESC, c.updated_at DESC",
+            (uid,)
+        )
+    except Exception:
+        return db.fetchall(
+            "SELECT c.id, c.user_id, c.title, c.model, c.created_at, c.updated_at "
+            "FROM conversations c WHERE c.user_id = ? "
+            "ORDER BY c.updated_at DESC",
+            (uid,)
+        )
 
 @app.delete("/api/v1/conversations/all")
 def delete_all_conversations(user_id: Optional[str] = None):
@@ -985,32 +1010,62 @@ async def create_conversation(request: Request):
     user_id = raw_uid if (raw_uid and raw_uid != "anon") else f"guest-{int(datetime.now(timezone.utc).timestamp()*1000)}"
     title = str(body.get("title") or "Nueva conversación")
     model = str(body.get("model") or "speed")
+    pinned = 1 if body.get("pinned") else 0
+    folder = body.get("folder")
     now = datetime.now(timezone.utc).isoformat()
-    existing = db.fetchone("SELECT id FROM conversations WHERE id = ?", (cid,))
+    existing = db.fetchone("SELECT id, title, pinned, folder FROM conversations WHERE id = ?", (cid,))
     if not existing:
-        db.execute(
-            "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (cid, user_id, title, model, now, now)
-        )
+        try:
+            db.execute(
+                "INSERT INTO conversations (id, user_id, title, model, pinned, folder, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (cid, user_id, title, model, pinned, folder, now, now)
+            )
+        except Exception:
+            db.execute(
+                "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (cid, user_id, title, model, now, now)
+            )
     else:
-        db.execute(
-            "UPDATE conversations SET title = ?, model = COALESCE(?, model), updated_at = ? WHERE id = ?",
-            (title, model, now, cid)
-        )
-    return {"id": cid, "user_id": user_id, "title": title, "model": model, "created_at": now, "updated_at": now}
+        final_title = title if (title and title != "Nueva conversación") else (existing.get("title") or "Nueva conversación")
+        final_pinned = (1 if body.get("pinned") else 0) if "pinned" in body else existing.get("pinned", 0)
+        final_folder = body.get("folder") if "folder" in body else existing.get("folder")
+        try:
+            db.execute(
+                "UPDATE conversations SET title = ?, model = COALESCE(?, model), pinned = ?, folder = ?, updated_at = ? WHERE id = ?",
+                (final_title, model, final_pinned, final_folder, now, cid)
+            )
+        except Exception:
+            db.execute(
+                "UPDATE conversations SET title = ?, model = COALESCE(?, model), updated_at = ? WHERE id = ?",
+                (final_title, model, now, cid)
+            )
+    return {"id": cid, "user_id": user_id, "title": title, "model": model, "pinned": bool(pinned), "folder": folder, "created_at": now, "updated_at": now}
 
 @app.post("/api/v1/conversations/{cid}")
 @app.put("/api/v1/conversations/{cid}")
+@app.patch("/api/v1/conversations/{cid}")
 async def update_conversation(cid: str, request: Request):
     try:
         body = await request.json()
     except Exception:
         body = {}
     title = body.get("title")
+    pinned = body.get("pinned")
+    folder = body.get("folder")
     now = datetime.now(timezone.utc).isoformat()
-    if title:
+    if title is not None:
         db.execute("UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?", (str(title), now, cid))
-    return {"status": "ok", "id": cid, "title": title}
+    if pinned is not None:
+        try:
+            db.execute("UPDATE conversations SET pinned = ?, updated_at = ? WHERE id = ?", (1 if pinned else 0, now, cid))
+        except Exception:
+            pass
+    if "folder" in body:
+        try:
+            db.execute("UPDATE conversations SET folder = ?, updated_at = ? WHERE id = ?", (folder, now, cid))
+        except Exception:
+            pass
+    return {"status": "ok", "id": cid, "title": title, "pinned": pinned, "folder": folder}
 
 @app.get("/api/v1/conversations/{cid}/messages")
 def get_conversation_messages(cid: str):
@@ -1918,19 +1973,34 @@ async def chat_stream_endpoint(request: Request):
     if conversation_id:
         try:
             now_ts = datetime.now(timezone.utc).isoformat()
-            existing_c = db.fetchone("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
+            existing_c = db.fetchone("SELECT id, title FROM conversations WHERE id = ?", (conversation_id,))
+            first_title = "Nueva conversación"
+            if messages:
+                u_first = next((m for m in messages if m.role == "user"), None)
+                if u_first and u_first.content:
+                    # Limpiar prefijos de directivas o archivos adjuntos para el título
+                    clean_txt = u_first.content
+                    if clean_txt.startswith("[Directivas de Usuario:"):
+                        parts = clean_txt.split("]\n", 1)
+                        clean_txt = parts[1] if len(parts) > 1 else clean_txt
+                    if clean_txt.startswith("[Archivo"):
+                        lines = [l for l in clean_txt.splitlines() if not l.startswith("[Archivo") and not l.startswith("```")]
+                        clean_txt = " ".join(lines).strip() or "Análisis de archivo"
+                    clean_txt = " ".join(clean_txt.strip().split())
+                    if clean_txt:
+                        first_title = clean_txt[:46] + ("…" if len(clean_txt) > 46 else "")
             if not existing_c:
-                first_title = "Nueva conversación"
-                if messages:
-                    u_first = next((m for m in messages if m.role == "user"), None)
-                    if u_first and u_first.content:
-                        first_title = u_first.content[:30]
                 db_uid = (user_id or "").strip()
                 if not db_uid or db_uid == "anon":
                     db_uid = f"guest-{int(datetime.now(timezone.utc).timestamp()*1000)}"
                 db.execute(
                     "INSERT INTO conversations (id, user_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
                     (conversation_id, db_uid, first_title, model_type, now_ts, now_ts)
+                )
+            elif existing_c.get("title") in (None, "", "Nueva conversación") and first_title != "Nueva conversación":
+                db.execute(
+                    "UPDATE conversations SET title = ?, model = ?, updated_at = ? WHERE id = ?",
+                    (first_title, model_type, now_ts, conversation_id)
                 )
         except Exception as e_conv:
             print(f"Aviso asegurando conversación en chat_stream_endpoint: {e_conv}")
@@ -2141,6 +2211,65 @@ async def chat_clarify_endpoint(request: Request):
             status_code=200,
             content={"type": "SKIP", "reason": str(e)}
         )
+
+
+@app.get("/api/v1/telemetry")
+def get_system_telemetry(request: Request, user_id: Optional[str] = None):
+    """Retorna telemetría en tiempo real de los núcleos neuronales, base de datos y cuota TRIAD™."""
+    now = time.time()
+    providers_status = {}
+    for prov in ("groq", "gemini", "nvidia", "openrouter"):
+        cooldown_left = max(0.0, _provider_rate_limit_until.get(prov, 0.0) - now)
+        providers_status[prov] = {
+            "online": cooldown_left == 0.0,
+            "cooldownSeconds": round(cooldown_left, 1)
+        }
+
+    uid = (user_id or "").strip()
+    conv_count = 0
+    msg_count = 0
+    model_distribution = {}
+    if uid and uid != "anon":
+        try:
+            convs = db.fetchall("SELECT id, model FROM conversations WHERE user_id = ?", (uid,))
+            conv_count = len(convs) if convs else 0
+            for c in (convs or []):
+                m = c.get("model") or "speed"
+                model_distribution[m] = model_distribution.get(m, 0) + 1
+            msgs = db.fetchone(
+                "SELECT COUNT(*) as cnt FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)",
+                (uid,)
+            )
+            if msgs:
+                msg_count = int(msgs.get("cnt") or 0)
+        except Exception:
+            pass
+
+    client_id = get_client_identifier(request, user_id)
+    cutoff = now - TRIAD_WINDOW_SECONDS
+    triad_used = 0
+    try:
+        rows = db.fetchall(
+            "SELECT timestamp FROM triad_rate_limits WHERE client_id = ? AND timestamp > ?",
+            (client_id, cutoff)
+        )
+        triad_used = len(rows) if rows else 0
+    except Exception:
+        pass
+
+    return {
+        "status": "ok",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "database": "PostgreSQL (Supabase Pool)" if db.use_postgres else "SQLite WAL Engine",
+        "providers": providers_status,
+        "userStats": {
+            "conversations": conv_count,
+            "messages": msg_count,
+            "modelDistribution": model_distribution,
+            "triadRemaining": max(0, TRIAD_MAX_REQUESTS - triad_used),
+            "triadMax": TRIAD_MAX_REQUESTS,
+        },
+    }
 
 
 @app.get("/health")

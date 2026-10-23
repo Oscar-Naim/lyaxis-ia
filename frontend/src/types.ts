@@ -19,10 +19,14 @@ export interface Message {
   image?: string;
 }
 
+export type ContrastTheme = 'oled' | 'cyber' | 'daylight';
+
 export interface Conversation {
   id: string;
   userId?: string;
   title: string;
   createdAt: string;
   model: ModelType;
+  pinned?: boolean;
+  folder?: string;
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Activity, Cpu, ShieldCheck, Zap, Radio, BarChart3, Sliders, RefreshCw, CheckCircle2 } from 'lucide-react';
-
-import type { ModelType } from './types';
+import { X, Activity, Cpu, ShieldCheck, Zap, Radio, BarChart3, Sliders, RefreshCw, CheckCircle2, Database } from 'lucide-react';
+import { API_BASE } from './config';
+import type { ModelType, ContrastTheme } from './types';
 
 interface FuturisticDashboardModalProps {
   isOpen: boolean;
@@ -12,6 +12,9 @@ interface FuturisticDashboardModalProps {
   onToggleSound: () => void;
   messageCount: number;
   conversationCount: number;
+  activeUserId?: string;
+  contrastTheme?: ContrastTheme;
+  onChangeContrastTheme?: (theme: ContrastTheme) => void;
 }
 
 export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> = ({
@@ -23,20 +26,37 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
   onToggleSound,
   messageCount,
   conversationCount,
+  activeUserId,
+  contrastTheme = 'cyber',
+  onChangeContrastTheme,
 }) => {
   const [latency, setLatency] = useState<number>(14);
   const [tokensPerSec, setTokensPerSec] = useState<number>(128);
   const [activeTab, setActiveTab] = useState<'telemetry' | 'engine' | 'settings'>('telemetry');
+  const [liveTelemetry, setLiveTelemetry] = useState<any>(null);
 
-  // Simulate subtle real-time telemetry fluctuations
+  // Fetch real backend telemetry + simulate subtle real-time ping fluctuations
   useEffect(() => {
     if (!isOpen) return;
+    const fetchTelemetry = async () => {
+      try {
+        const t0 = performance.now();
+        const res = await fetch(`${API_BASE}/api/v1/telemetry?user_id=${encodeURIComponent(activeUserId || '')}`);
+        if (res.ok) {
+          const data = await res.json();
+          const rtt = Math.max(8, Math.min(95, Math.round((performance.now() - t0) / 4)));
+          setLatency(rtt);
+          setLiveTelemetry(data);
+        }
+      } catch {}
+    };
+    fetchTelemetry();
     const interval = setInterval(() => {
-      setLatency(Math.floor(11 + Math.random() * 6));
+      setLatency((prev) => Math.max(9, Math.min(45, prev + Math.floor(Math.random() * 5 - 2))));
       setTokensPerSec(Math.floor(120 + Math.random() * 25));
     }, 1500);
     return () => clearInterval(interval);
-  }, [isOpen]);
+  }, [isOpen, activeUserId]);
 
   if (!isOpen) return null;
 
@@ -281,9 +301,33 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
                     <span style={{ fontSize: '24px', fontWeight: 800, color: '#34d399' }}>{messageCount}</span>
                     <span style={{ fontSize: '11px', color: '#71717a' }}>mensajes / {conversationCount} chats</span>
                   </div>
-                  <span style={{ fontSize: '10px', color: '#34d399' }}>Persistencia OK</span>
+                  <span style={{ fontSize: '10px', color: '#34d399', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Database size={10} /> {liveTelemetry?.database || 'Persistencia Activa'}
+                  </span>
                 </div>
               </div>
+
+              {liveTelemetry?.userStats && (
+                <div
+                  style={{
+                    backgroundColor: 'rgba(124, 58, 237, 0.06)',
+                    border: '1px solid rgba(124, 58, 237, 0.25)',
+                    borderRadius: '12px',
+                    padding: '12px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '12px',
+                  }}
+                >
+                  <span style={{ color: '#cbd5e1', fontWeight: 600 }}>
+                    ⚡ Estado de Cuota Concurrente LYAXIS TRIAD™ (6h):
+                  </span>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#00D9FF' }}>
+                    {liveTelemetry.userStats.triadRemaining} / {liveTelemetry.userStats.triadMax} disponibles
+                  </span>
+                </div>
+              )}
 
               {/* Holographic Signal Pulse Visualizer */}
               <div
@@ -407,6 +451,57 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
                   {soundEnabled ? 'ACTIVADO' : 'DESACTIVADO'}
                 </button>
               </div>
+
+              {onChangeContrastTheme && (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    padding: '14px 16px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#ffffff' }}>Densidad y Contraste Visual</div>
+                    <div style={{ fontSize: '11px', color: '#a1a1aa' }}>Personaliza el fondo de trabajo para sesiones prolongadas</div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                    {(
+                      [
+                        { id: 'oled', label: 'OLED Abyss (#000)', desc: 'Negro puro' },
+                        { id: 'cyber', label: 'Cyber Midnight', desc: 'Estándar LYAXIS' },
+                        { id: 'daylight', label: 'Slate Contrast', desc: 'Suave diurno' },
+                      ] as const
+                    ).map((opt) => {
+                      const active = contrastTheme === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => onChangeContrastTheme(opt.id)}
+                          style={{
+                            padding: '10px',
+                            borderRadius: '8px',
+                            border: active ? '1px solid #00D9FF' : '1px solid rgba(255, 255, 255, 0.08)',
+                            backgroundColor: active ? 'rgba(0, 217, 255, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                            color: active ? '#ffffff' : '#94a3b8',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                          }}
+                        >
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: active ? '#00D9FF' : '#e2e8f0' }}>
+                            {opt.label}
+                          </div>
+                          <div style={{ fontSize: '10px', color: '#71717a' }}>{opt.desc}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
