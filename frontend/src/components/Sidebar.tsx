@@ -26,6 +26,8 @@ import {
   Pin,
   Pencil,
   Check,
+  Globe,
+  ArrowUpRight,
 } from 'lucide-react';
 import type { Conversation, User, ModelType } from '../types';
 import { MODEL_META } from '../config';
@@ -339,7 +341,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           borderRadius: '10px',
           backgroundColor: '#07070a',
           border: '1px solid #181822',
-          marginBottom: '14px',
+          marginBottom: '10px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -412,6 +414,58 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         )}
       </div>
+
+      {/* LYAXIS WebForge Quick Access Link */}
+      <a
+        href="https://lyaxis-webforge.vercel.app"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Abrir LYAXIS WebForge — Creador autónomo de sitios web"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '8px 12px',
+          borderRadius: '10px',
+          backgroundColor: 'rgba(6, 182, 212, 0.08)',
+          border: '1px solid rgba(6, 182, 212, 0.28)',
+          color: '#e2e8f0',
+          textDecoration: 'none',
+          fontSize: '12px',
+          fontWeight: 600,
+          marginBottom: '12px',
+          transition: 'all 0.2s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = 'rgba(6, 182, 212, 0.16)';
+          e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.5)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'rgba(6, 182, 212, 0.08)';
+          e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.28)';
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+          <div
+            style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '6px',
+              backgroundColor: 'rgba(6, 182, 212, 0.15)',
+              border: '1px solid rgba(6, 182, 212, 0.4)',
+              display: 'grid',
+              placeItems: 'center',
+            }}
+          >
+            <Globe size={13} color="#06b6d4" />
+          </div>
+          <div>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#ffffff' }}>LYAXIS WebForge</span>
+            <small style={{ display: 'block', fontSize: '9.5px', color: '#06b6d4' }}>Estudio Web en Vivo</small>
+          </div>
+        </div>
+        <ArrowUpRight size={13} color="#06b6d4" />
+      </a>
 
       {/* New Chat Button */}
       <button

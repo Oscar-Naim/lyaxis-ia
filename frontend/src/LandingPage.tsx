@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Terminal, Sparkles, Brain, Compass, ArrowRight, Crosshair, Waypoints, Hammer, GraduationCap, Send } from 'lucide-react';
+import { Terminal, Sparkles, Brain, Compass, ArrowRight, Crosshair, Waypoints, Hammer, GraduationCap, Send, Globe, ArrowUpRight } from 'lucide-react';
 import type { ModelType } from './types';
 
 interface LandingPageProps {
@@ -218,6 +218,33 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <a
+            href="https://lyaxis-webforge.vercel.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Abrir LYAXIS WebForge — Creador autónomo de sitios web en vivo"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: 'rgba(6, 182, 212, 0.12)',
+              border: '1px solid rgba(6, 182, 212, 0.4)',
+              color: '#06b6d4',
+              padding: '7px 14px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              fontWeight: 700,
+              textDecoration: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 0 14px rgba(6, 182, 212, 0.2)',
+            }}
+          >
+            <Globe size={14} color="#06b6d4" />
+            <span>WebForge</span>
+            <ArrowUpRight size={12} style={{ opacity: 0.8 }} />
+          </a>
+
           {onOpenInfo && (
             <button
               type="button"

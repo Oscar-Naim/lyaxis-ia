@@ -42,6 +42,8 @@ import {
   FileCode,
   Bookmark,
   ArrowDown,
+  Globe,
+  ArrowUpRight,
 } from 'lucide-react';
 import type { Message, ModelType, User } from '../types';
 import { useSSEStream } from '../useSSEStream';
@@ -1747,6 +1749,34 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       Herramientas LYAXIS
                     </div>
 
+                    {/* WebForge Mobile */}
+                    <a
+                      href="https://lyaxis-webforge.vercel.app"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setIsMobileActionsOpen(false)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(6, 182, 212, 0.25)',
+                        backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                        color: '#06b6d4',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        marginBottom: '4px',
+                      }}
+                    >
+                      <Globe size={16} color="#06b6d4" />
+                      <span>LYAXIS WebForge</span>
+                      <ArrowUpRight size={13} style={{ marginLeft: 'auto', opacity: 0.8 }} />
+                    </a>
+
                     {/* Auto-Router Mobile */}
                     <button
                       type="button"
@@ -2112,6 +2142,37 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   border: '1px solid rgba(255, 255, 255, 0.08)',
                 }}
               >
+              {/* LYAXIS WebForge Button */}
+              <a
+                href="https://lyaxis-webforge.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Abrir LYAXIS WebForge — Creador autónomo de sitios web en vivo"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '5px',
+                  backgroundColor: 'rgba(6, 182, 212, 0.12)',
+                  border: '1px solid rgba(6, 182, 212, 0.35)',
+                  borderRadius: '8px',
+                  padding: '6px 9px',
+                  minHeight: '32px',
+                  color: '#06B6D4',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 0 10px rgba(6, 182, 212, 0.18)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <Globe size={14} color="#06B6D4" />
+                <span className="lyaxis-btn-label">WebForge</span>
+                <ArrowUpRight size={11} style={{ opacity: 0.8 }} />
+              </a>
+
               {/* Auto-Router Inteligente */}
               <button
                 type="button"
