@@ -125,13 +125,24 @@ def init_sqlite():
                 role TEXT NOT NULL,
                 content TEXT NOT NULL,
                 image TEXT,
+                prompt_tokens INTEGER DEFAULT 0,
+                completion_tokens INTEGER DEFAULT 0,
+                total_tokens INTEGER DEFAULT 0,
+                model_used TEXT,
                 created_at TEXT NOT NULL
             )
             """)
-            try:
-                cursor.execute("ALTER TABLE messages ADD COLUMN image TEXT;")
-            except Exception:
-                pass
+            for _col_stmt in (
+                "ALTER TABLE messages ADD COLUMN image TEXT;",
+                "ALTER TABLE messages ADD COLUMN prompt_tokens INTEGER DEFAULT 0;",
+                "ALTER TABLE messages ADD COLUMN completion_tokens INTEGER DEFAULT 0;",
+                "ALTER TABLE messages ADD COLUMN total_tokens INTEGER DEFAULT 0;",
+                "ALTER TABLE messages ADD COLUMN model_used TEXT;",
+            ):
+                try:
+                    cursor.execute(_col_stmt)
+                except Exception:
+                    pass
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS triad_rate_limits (
                 client_id TEXT NOT NULL,
@@ -326,13 +337,24 @@ if db.use_postgres:
             role TEXT NOT NULL,
             content TEXT NOT NULL,
             image TEXT,
+            prompt_tokens INTEGER DEFAULT 0,
+            completion_tokens INTEGER DEFAULT 0,
+            total_tokens INTEGER DEFAULT 0,
+            model_used TEXT,
             created_at TEXT NOT NULL
         )
         """)
-        try:
-            db.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS image TEXT;")
-        except Exception:
-            pass
+        for _pg_col_stmt in (
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS image TEXT;",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS prompt_tokens INTEGER DEFAULT 0;",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS completion_tokens INTEGER DEFAULT 0;",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS total_tokens INTEGER DEFAULT 0;",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS model_used TEXT;",
+        ):
+            try:
+                db.execute(_pg_col_stmt)
+            except Exception:
+                pass
         try:
             db.execute("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id IS NULL OR user_id = '' OR user_id = 'anon')")
             db.execute("DELETE FROM conversations WHERE user_id IS NULL OR user_id = '' OR user_id = 'anon'")
@@ -412,7 +434,7 @@ def _get_prompt_cache(model_key: str, prompt_text: str) -> Optional[str]:
     norm = " ".join((prompt_text or "").strip().lower().split())
     if len(norm) < 8 or len(norm) > 600:
         return None
-    ck = hashlib.sha256(f"v2:{model_key}:{norm}".encode("utf-8")).hexdigest()[:32]
+    ck = hashlib.sha256(f"v3:{model_key}:{norm}".encode("utf-8")).hexdigest()[:32]
     now = time.time()
     mem_hit = _mem_prompt_cache.get(ck)
     if mem_hit and (now - mem_hit[1]) < PROMPT_CACHE_TTL_SECONDS:
@@ -436,7 +458,9 @@ def _set_prompt_cache(model_key: str, prompt_text: str, response_text: str):
         return
     if resp.startswith("⚠️") or resp.startswith("❌"):
         return
-    ck = hashlib.sha256(f"v2:{model_key}:{norm}".encode("utf-8")).hexdigest()[:32]
+    if "<thought>" in resp.lower() and "</thought>" not in resp.lower():
+        return
+    ck = hashlib.sha256(f"v3:{model_key}:{norm}".encode("utf-8")).hexdigest()[:32]
     now = time.time()
     if len(_mem_prompt_cache) > 300:
         _mem_prompt_cache.clear()
@@ -462,6 +486,11 @@ Propósito: respuestas rápidas, asistencia versátil y código limpio, modular 
 3. NUNCA inicies con saludos o cortesías de relleno ("¡Hola!", "Con gusto", "¡Por supuesto!"). Ve DIRECTO a la respuesta o al código ejecutable.
 4. Ajusta la extensión a la complejidad: conciso en dudas puntuales, completo en implementaciones.
 </capabilities_and_scope>
+
+<anti_overgeneration_rules>
+1. DETECCIÓN DE DATOS FALTANTES: Si el usuario solicita analizar, optimizar o depurar código pero deja marcadores ([pega aquí...], <código>) o no incluye el fragmento, NO inventes casos de ejemplo ni implementaciones hipotéticas. Responde en máximo 2 líneas solicitando el fragmento concreto.
+2. CONCISIÓN ÁGIL: Speed es un motor de latencia mínima. Entrega una única solución óptima con explicaciones breves en comentarios de código; evita introducciones, despedidas, tablas redundantes y múltiples alternativas no solicitadas.
+</anti_overgeneration_rules>
 """
 
 CORTEX_SYSTEM_PROMPT = """
@@ -477,6 +506,11 @@ Para toda consulta analítica, técnica, algorítmica o matemática, inicia OBLI
 3. Plan lógico paso a paso.
 Tras cerrar </thought>, entrega la solución definitiva estructurada y exacta.
 </deep_thinking_protocol>
+
+<anti_overgeneration_rules>
+1. RAZONAMIENTO SINTÉTICO: Mantén el bloque <thought> denso y directo a las premisas matemáticas/algorítmicas sin divagaciones literarias.
+2. INSUMOS FALTANTES: Si el usuario pide optimizar o depurar sin adjuntar el código o deja marcadores vacíos, cierra <thought> de inmediato y solicita el insumo concreto en máximo 2 líneas sin inventar casos hipotéticos.
+</anti_overgeneration_rules>
 """
 
 ZENITH_SYSTEM_PROMPT = """
@@ -491,6 +525,7 @@ Especialidad: arquitectura de sistemas en producción, visión multimodal (UI/di
 3. ARQUITECTURA & DIAGRAMAS: Diseña sistemas resilientes (Clean Architecture, DDD, Event-Driven). En todo diagrama Mermaid/flowchart conecta TODOS los nodos con flechas etiquetadas (ej. `A -->|Éxito| B`), cero nodos huérfanos.
 4. AUDITORÍA BREAK + REBUILD: Detecta vulnerabilidades, memory leaks, cuellos de botella y race conditions, y entrega SIEMPRE la versión corregida y funcional.
 5. ESTILO: Autoridad senior, precisión clínica, cero rodeos corporativos.
+6. CERO SOBREGENERACIÓN: Entrega código y arquitectura directa sin introducciones, cierres o variantes innecesarias; ante plantillas incompletas, solicita el insumo en máximo 2 líneas.
 </veracidad_y_capacidades>
 """
 
@@ -507,6 +542,7 @@ Eres LYAXIS Architect — especialista en arquitectura de software, ingeniería 
 1. INGENIERÍA DE PROMPTS: Si piden diseñar/refinar un prompt, estructúralo con `<identity>`, `<context_and_mission>`, `<rules_and_constraints>`, `<output_format>` y `<few_shot_examples>` dentro de un bloque copiable.
 2. ARQUITECTURA & MENTORÍA: Diseña arquitecturas escalables (APIs, bases de datos, microservicios, patrones de diseño) y explica conceptos complejos con analogía clara, código ejecutable y análisis *Break & Rebuild*.
 3. Si el usuario solicita código de implementación además del diseño, entrégalo limpio y funcional sin derivarlo a otro motor.
+4. CONCISIÓN ESTRUCTURAL: Entrega especificaciones modulares y diagramas Mermaid limpios; no repitas en prosa extensa lo que el diagrama ya muestra. Si hay marcadores vacíos o falta el insumo base, solicítalo en máximo 2 líneas.
 </mission_and_specialties>
 """
 
@@ -522,6 +558,11 @@ Inicia SIEMPRE en la PRIMERA LÍNEA con una etiqueta exacta de veredicto:
 - `[ESTADO: VÁLIDO | SEVERIDAD: NINGUNA]`
 Después desglosa: FALLAS CRÍTICAS → RIESGOS MODERADOS → SOLUCIÓN BLINDADA (incluyendo el código o arquitectura corregida lista para usar).
 </phantom_mandatory_protocol>
+
+<anti_overgeneration_rules>
+1. Reporta vulnerabilidades y cuellos de botella concretos sin relleno teórico; corrige de forma focalizada sin reescribir código irrelevante salvo solicitud explícita.
+2. Si el usuario olvidó adjuntar el código o arquitectura a auditar, pídelo directamente en máximo 2 líneas sin inventar ejemplos ficticios.
+</anti_overgeneration_rules>
 """
 
 NEXUS_SYSTEM_PROMPT = """
@@ -532,6 +573,7 @@ Eres LYAXIS Nexus — sintetizador creativo e interdisciplinario de LYAXIS labs�
 <mission>
 1. Conecta el problema del usuario con perspectivas genuinas de 2–3 disciplinas distintas (biología, física, diseño, música, sistemas, estrategia) y aterriza esas conexiones en soluciones prácticas, naming, UX o código creativo.
 2. Sé original, agudo y sustancioso: evita clichés y aterriza siempre las ideas a propuestas ejecutables.
+3. DENSIDAD Y PRECISIÓN: Cero preámbulos ni despedidas de relleno; si la consulta contiene plantillas vacías sin el problema real, solicita el contexto en máximo 2 líneas.
 </mission>
 """
 
@@ -543,6 +585,7 @@ Eres LYAXIS Forge — constructor pragmático de productos, negocios y MVPs de L
 <mission>
 1. Transforma ideas en planes accionables: Propuesta de Valor → Alcance MVP → Arquitectura/Operación → Validación y Monetización.
 2. Directo a la ejecución real sin teoría vacía; si el usuario requiere prototipos técnicos o código base para su MVP, proporciónalo directamente.
+3. CONCISIÓN EJECUTIVA: Sintetiza en puntos accionables y código limpio sin introducciones redundantes; ante plantillas sin completar, pide el dato faltante en máximo 2 líneas.
 </mission>
 """
 
@@ -561,6 +604,7 @@ Eres LYAXIS Magister — copiloto pedagógico senior y diseñador de planeacione
    - D. Secuencia Didáctica sesión por sesión (Inicio, Desarrollo, Cierre con tiempos, recursos y producto parcial).
    - E. Evaluación Formativa con RÚBRICA ANALÍTICA en tabla Markdown estándar (una fila por línea) con 4 niveles: `Sobresaliente (10)`, `Satisfactorio (8-9)`, `En Desarrollo (6-7)`, `Requiere Apoyo (5)`.
    - F. Ajustes Razonables e Inclusión (atención a BAP).
+4. DENSIDAD PEDAGÓGICA: Presenta secuencias y rúbricas en tablas condensadas de alta claridad, evitando párrafos repetitivos de justificación teórica. Si el usuario deja marcadores vacíos sin tema/grado, solicítalos en máximo 2 líneas.
 </mission_and_pedagogy>
 """
 
@@ -572,6 +616,7 @@ Eres LYAXIS Root — motor de ingeniería profunda, sistemas y código 100% comp
 <mandatory_operational_rules>
 1. CERO PLACEHOLDERS NI RELLENO: Prohibido usar `// TODO`, `// agrega el resto aquí` o ejemplos incompletos. Entrega implementaciones completas con todos los imports, tipos, manejo de errores y estructuras listas para ejecutar.
 2. ESTILO DIRECTO: Sin preámbulos morales ni advertencias innecesarias; ve directo a la arquitectura técnica y al código limpio de nivel sistemas/producción (UI/UX avanzada, concurrencia, compiladores, redes, bajo nivel y APIs).
+3. CONTROL DE TOKENS: Mantén cualquier razonamiento interno (<thought>) enfocado estrictamente en decisiones de ingeniería y evita prosa redundante tras el código. Si el usuario envía una plantilla vacía sin el código a optimizar/analizar, solicita el insumo en máximo 2 líneas sin inventar casos genéricos.
 </mandatory_operational_rules>
 """
 
@@ -1004,9 +1049,15 @@ async def update_conversation(cid: str, request: Request):
 def get_conversation_messages(cid: str, request: Request, user_id: Optional[str] = None):
     _assert_conversation_access(cid, request, user_id)
     try:
-        return db.fetchall("SELECT id, role, content, image, created_at as timestamp FROM messages WHERE conversation_id = ? ORDER BY created_at ASC", (cid,))
+        return db.fetchall(
+            "SELECT id, role, content, image, prompt_tokens, completion_tokens, total_tokens, model_used, created_at as timestamp FROM messages WHERE conversation_id = ? ORDER BY created_at ASC",
+            (cid,)
+        )
     except Exception:
-        return db.fetchall("SELECT id, role, content, created_at as timestamp FROM messages WHERE conversation_id = ? ORDER BY created_at ASC", (cid,))
+        try:
+            return db.fetchall("SELECT id, role, content, image, created_at as timestamp FROM messages WHERE conversation_id = ? ORDER BY created_at ASC", (cid,))
+        except Exception:
+            return db.fetchall("SELECT id, role, content, created_at as timestamp FROM messages WHERE conversation_id = ? ORDER BY created_at ASC", (cid,))
 
 @app.delete("/api/v1/conversations/{cid}")
 def delete_conversation(cid: str, request: Request, user_id: Optional[str] = None):
@@ -1091,75 +1142,74 @@ def _is_rate_limit_error(err: Exception) -> bool:
     return any(p in msg for p in ("429", "rate limit", "ratelimit", "resource_exhausted", "quota", "too many requests"))
 
 MODELS = {
-    # zenith: Cerebro Superior & Multimodal (NVIDIA Vision ↔ Gemini Flash ↔ Groq ↔ Llama 70B)
+    # zenith: Cerebro Superior & Multimodal (NVIDIA Nemotron Ultra / Super VL ↔ Gemini Flash ↔ Groq)
     "zenith": [
-        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+        {"provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b"},
         {"provider": "gemini", "model": "gemini-2.5-flash"},
         {"provider": "groq", "model": "llama-3.3-70b-versatile"},
-        {"provider": "nvidia", "model": "meta/llama-3.2-90b-vision-instruct"},
+        {"provider": "nvidia", "model": "nvidia/nemotron-3.5-super-vl-120b-a12b"},
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
     ],
-    # speed y classic: Groq (llama-3.1-8b-instant) ↔ Gemini Flash ↔ NVIDIA NIM
+    # speed y classic: Groq (llama-3.1-8b-instant) ↔ Gemini Flash ↔ NVIDIA Nemotron Bolt
     "speed": [
         {"provider": "groq", "model": "llama-3.1-8b-instant"},
         {"provider": "gemini", "model": "gemini-2.5-flash"},
-        {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
+        {"provider": "nvidia", "model": "nvidia/nemotron-3.5-bolt-e4b"},
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
-        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+        {"provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b"},
     ],
     "classic": [
         {"provider": "groq", "model": "llama-3.1-8b-instant"},
         {"provider": "gemini", "model": "gemini-2.5-flash"},
-        {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
+        {"provider": "nvidia", "model": "nvidia/nemotron-3.5-bolt-e4b"},
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
     ],
-    # cortex: Gemini Flash ↔ NVIDIA Nemotron ↔ Groq GPT-OSS
+    # cortex: Gemini Flash ↔ NVIDIA Nemotron Ultra 550B ↔ Groq GPT-OSS
     "cortex": [
         {"provider": "gemini", "model": "gemini-2.5-flash"},
-        {"provider": "nvidia", "model": "nvidia/llama-3.1-nemotron-70b-instruct"},
+        {"provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b"},
         {"provider": "groq", "model": "openai/gpt-oss-120b"},
-        {"provider": "nvidia", "model": "deepseek-ai/deepseek-r1"},
+        {"provider": "nvidia", "model": "nvidia/nemotron-3.5-lightning-30b-a3b"},
         {"provider": "groq", "model": "llama-3.3-70b-versatile"},
     ],
-    # phantom: NVIDIA 70B ↔ Groq 70B ↔ Gemini Flash
+    # phantom: NVIDIA Nemotron Ultra ↔ Groq 70B ↔ Gemini Flash
     "phantom": [
-        {"provider": "nvidia", "model": "meta/llama-3.1-70b-instruct"},
+        {"provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b"},
         {"provider": "groq", "model": "llama-3.3-70b-versatile"},
         {"provider": "gemini", "model": "gemini-2.5-flash"},
-        {"provider": "nvidia", "model": "nvidia/llama-3.1-nemotron-70b-instruct"},
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
     ],
-    # architect: NVIDIA 70B ↔ Groq 70B ↔ Gemini Flash
+    # architect: NVIDIA Nemotron Ultra ↔ Groq 70B ↔ Gemini Flash
     "architect": [
-        {"provider": "nvidia", "model": "meta/llama-3.1-70b-instruct"},
+        {"provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b"},
         {"provider": "groq", "model": "llama-3.3-70b-versatile"},
         {"provider": "gemini", "model": "gemini-2.5-flash"},
     ],
     # nexus: Gemini Flash ↔ NVIDIA NIM ↔ Groq
     "nexus": [
         {"provider": "gemini", "model": "gemini-2.5-flash"},
-        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+        {"provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b"},
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
     ],
     # forge: NVIDIA NIM ↔ Groq ↔ Gemini Flash
     "forge": [
-        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+        {"provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b"},
         {"provider": "groq", "model": "llama-3.3-70b-versatile"},
         {"provider": "gemini", "model": "gemini-2.5-flash"},
-        {"provider": "nvidia", "model": "nvidia/llama-3.1-nemotron-70b-instruct"},
+        {"provider": "nvidia", "model": "nvidia/nemotron-3.5-bolt-e4b"},
     ],
     # magister: Copiloto pedagógico SEP (Gemini Flash ↔ Groq ↔ NVIDIA NIM)
     "magister": [
         {"provider": "gemini", "model": "gemini-2.5-flash"},
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
-        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+        {"provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b"},
     ],
-    # root: NVIDIA NIM ↔ Gemini Flash ↔ Groq
+    # root: NVIDIA Nemotron Ultra 550B ↔ Gemini Flash ↔ Groq ↔ Reasoning
     "root": [
-        {"provider": "nvidia", "model": "deepseek-ai/deepseek-r1"},
+        {"provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b"},
         {"provider": "gemini", "model": "gemini-2.5-flash"},
         {"provider": "groq", "model": "qwen/qwen3.8-27b"},
-        {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+        {"provider": "nvidia", "model": "nvidia/nemotron-3.5-lightning-30b-a3b"},
     ],
 }
 
@@ -1197,14 +1247,196 @@ Responde SIEMPRE 100% en ESPAÑOL neutro y profesional (incluyendo títulos, exp
 """
 
 _THOUGHT_RE = re.compile(r"<thought>[\s\S]*?</thought>", re.IGNORECASE)
+_CODE_FENCE_RE = re.compile(r"```[\s\S]*?```")
 
-def _clean_history_text(raw_text: str, max_chars: int = 0) -> str:
+REASONING_MODELS = {"cortex", "root"}
+
+PLACEHOLDER_REGEX = re.compile(
+    r"[\[<\{]\s*(?:"
+    r"(?:pega|inserta|introduce|adjunta|coloca|ingresa|escribe|describe)\s+(?:aquí|aqui|acá|aca|tu|su|el|la|un|una)\b"
+    r"|(?:tu|su)\s+(?:código|codigo|función|funcion|script|texto|consulta|problema|archivo|implementación|implementacion)\b"
+    r"|(?:código|codigo|función|funcion|texto|problema)\s+(?:aquí|aqui|acá|aca|faltante)\b"
+    r"|(?:aquí|aqui)\s+(?:tu|va\s+tu|va\s+el)\s+(?:código|codigo|texto|función|funcion)\b"
+    r"|(?:paste\s+(?:your\s+)?code|insert\s+(?:your\s+)?code|your\s+code\s+here)"
+    r")[^\]>\}]*[\]>\}]",
+    re.IGNORECASE,
+)
+
+_TRAILING_COLON_CODE_REQ_RE = re.compile(
+    r"(?:optimiza|corrige|depura|analiza|refactoriza|revisa|explica)\s+"
+    r"(?:la\s+siguiente\s+(?:función|funcion|clase|implementación|implementacion)|el\s+siguiente\s+(?:código|codigo|script|fragmento|algoritmo)|este\s+(?:código|codigo|script|fragmento))"
+    r"[^:\n]*:\s*\.?\s*$",
+    re.IGNORECASE,
+)
+
+def _strip_user_directives_prefix(text: str) -> str:
+    txt = (text or "").strip()
+    if txt.startswith("[Directivas de Usuario:"):
+        parts = txt.split("]\n", 1)
+        if len(parts) > 1:
+            txt = parts[1].strip()
+    return txt
+
+def detect_incomplete_query(query_text: str, has_image: bool = False) -> bool:
+    """
+    Capa 1 (Pre-Vuelo): Detecta plantillas sin rellenar ([Pega aquí tu código...])
+    o solicitudes de optimización/depuración sin código ni imagen adjunta.
+    """
+    if has_image:
+        return False
+    text = _strip_user_directives_prefix(query_text)
+    if not text:
+        return False
+
+    if PLACEHOLDER_REGEX.search(text):
+        cleaned = PLACEHOLDER_REGEX.sub("", text).strip()
+        # Si además del placeholder el usuario sí pegó un bloque real de código, no bloquear
+        if "```" not in cleaned and not re.search(r"(?:^|\n)\s*(?:def |class |function |const |let |public |private |import |#include )", cleaned):
+            return True
+
+    if "```" not in text and "\n" not in text and _TRAILING_COLON_CODE_REQ_RE.search(text):
+        return True
+
+    return False
+
+def get_dynamic_token_budget(model_key: str, user_query: str, has_image: bool = False) -> tuple[int, Optional[float], bool]:
+    """
+    Capa 4: Retorna (max_tokens, temperature_override, is_brief) calibrados según Matriz Maestra.
+    Contempla margen obligatorio de reasoning (<thought>) en Cortex y Root.
+    """
+    if detect_incomplete_query(user_query, has_image=has_image):
+        return (120, 0.0, False)
+
+    raw_q = _strip_user_directives_prefix(user_query)
+    q_lower = raw_q.lower()
+
+    is_short = (
+        0 < len(raw_q) < 90
+        and "\n" not in raw_q
+        and "```" not in raw_q
+        and not any(
+            kw in q_lower
+            for kw in (
+                "crea", "escribe", "implementa", "diseña", "script",
+                "código", "codigo", "completo", "planeación", "planeacion",
+                "guía", "tutorial", "optimiza", "analiza", "corrige", "refactoriza",
+            )
+        )
+    )
+
+    if is_short and not has_image:
+        if model_key in REASONING_MODELS:
+            # Margen crítico: ~700-900 tokens para <thought> interno + ~300 para respuesta final
+            return (1000 if model_key == "cortex" else 1200, None, True)
+
+        short_limits = {
+            "speed": 180,
+            "classic": 180,
+            "zenith": 350,
+            "phantom": 200,
+            "architect": 250,
+            "nexus": 200,
+            "forge": 200,
+            "magister": 250,
+        }
+        return (short_limits.get(model_key, 200), None, True)
+
+    standard_limits = {
+        "speed": 1200,
+        "classic": 1200,
+        "cortex": 2400,
+        "zenith": 3200,
+        "phantom": 1600,
+        "architect": 2200,
+        "nexus": 1500,
+        "forge": 1800,
+        "magister": 2200,
+        "root": 3500,
+    }
+    return (standard_limits.get(model_key, 1500), None, False)
+
+def _estimate_tokens(text: str) -> int:
+    txt = (text or "").strip()
+    if not txt:
+        return 0
+    return max(1, math.ceil(len(txt) / 3.8))
+
+def _estimate_messages_tokens(oai_messages: List[dict]) -> int:
+    total = 0
+    for m in oai_messages:
+        total += 4
+        content = m.get("content")
+        if isinstance(content, str):
+            total += _estimate_tokens(content)
+        elif isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict):
+                    if part.get("type") == "text":
+                        total += _estimate_tokens(part.get("text") or "")
+                    elif part.get("type") == "image_url":
+                        total += 765
+    return total
+
+def _extract_chunk_usage(chunk) -> Optional[dict]:
+    usage_obj = getattr(chunk, "usage", None)
+    if not usage_obj:
+        x_groq = getattr(chunk, "x_groq", None)
+        if x_groq:
+            usage_obj = getattr(x_groq, "usage", None)
+    if not usage_obj:
+        return None
+    try:
+        p_tok = int(getattr(usage_obj, "prompt_tokens", 0) or 0)
+        c_tok = int(getattr(usage_obj, "completion_tokens", 0) or 0)
+        t_tok = int(getattr(usage_obj, "total_tokens", 0) or (p_tok + c_tok))
+        if t_tok > 0 or c_tok > 0:
+            return {
+                "prompt_tokens": p_tok,
+                "completion_tokens": c_tok,
+                "total_tokens": t_tok,
+            }
+    except Exception:
+        pass
+    return None
+
+def _insert_assistant_message(
+    conversation_id: str,
+    content: str,
+    created_at: str,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+    total_tokens: int = 0,
+    model_used: Optional[str] = None,
+):
+    mid = str(uuid.uuid4())
+    try:
+        db.execute(
+            "INSERT INTO messages (id, conversation_id, role, content, prompt_tokens, completion_tokens, total_tokens, model_used, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (mid, conversation_id, "model", content, int(prompt_tokens), int(completion_tokens), int(total_tokens), model_used, created_at),
+        )
+    except Exception:
+        db.execute(
+            "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+            (mid, conversation_id, "model", content, created_at),
+        )
+
+def _condense_code_block(match: re.Match) -> str:
+    block = match.group(0)
+    if len(block) <= 260:
+        return block
+    lines = block.splitlines()
+    head = "\n".join(lines[:4])
+    return f"{head}\n# ... [bloque previo condensado]\n```"
+
+def _clean_history_text(raw_text: str, max_chars: int = 0, condense_code: bool = False) -> str:
     txt = (raw_text or "").strip()
     if not txt:
         return ""
     if "[TRIAD_CORE:rebuild]" in txt:
         txt = txt.split("[TRIAD_CORE:rebuild]")[-1].split("[/TRIAD_CORE:rebuild]")[0].strip()
     txt = _THOUGHT_RE.sub("", txt).strip()
+    if condense_code and "```" in txt:
+        txt = _CODE_FENCE_RE.sub(_condense_code_block, txt).strip()
     if max_chars > 0 and len(txt) > max_chars:
         txt = txt[:max_chars] + "..."
     return txt
@@ -1215,11 +1447,14 @@ async def _stream_candidate_configs(
     temperature: float,
     nvidia_keys: List[str],
     metadata: Optional[dict] = None,
-    max_tokens: int = 4096
+    max_tokens: int = 4096,
+    usage_tracker: Optional[dict] = None,
 ):
     full_text = ""
     last_err = None
     interrupted = False
+    provider_usage: Optional[dict] = None
+    used_model_id: Optional[str] = None
 
     # Filtramos y ordenamos para priorizar proveedores que NO estén en rate limit (429)
     active_candidates = list(candidate_configs)
@@ -1268,13 +1503,18 @@ async def _stream_candidate_configs(
                     temperature=temperature,
                     max_tokens=max_tokens,
                     stream=True,
+                    stream_options={"include_usage": True},
                     timeout=25.0
                 )
                 try:
                     async for chunk in stream:
+                        u_chunk = _extract_chunk_usage(chunk)
+                        if u_chunk:
+                            provider_usage = u_chunk
                         if chunk.choices and chunk.choices[0].delta.content:
                             delta = chunk.choices[0].delta.content
                             full_text += delta
+                            used_model_id = cand_id
                             payload = {"token": delta}
                             if metadata:
                                 payload.update(metadata)
@@ -1329,9 +1569,13 @@ async def _stream_candidate_configs(
                 )
                 try:
                     async for chunk in stream:
+                        u_chunk = _extract_chunk_usage(chunk)
+                        if u_chunk:
+                            provider_usage = u_chunk
                         if chunk.choices and chunk.choices[0].delta.content:
                             delta = chunk.choices[0].delta.content
                             full_text += delta
+                            used_model_id = cand_id
                             payload = {"token": delta}
                             if metadata:
                                 payload.update(metadata)
@@ -1382,13 +1626,18 @@ async def _stream_candidate_configs(
                         temperature=temperature,
                         max_tokens=max_tokens,
                         stream=True,
+                        stream_options={"include_usage": True},
                         timeout=28.0
                     )
                     try:
                         async for chunk in stream:
+                            u_chunk = _extract_chunk_usage(chunk)
+                            if u_chunk:
+                                provider_usage = u_chunk
                             if chunk.choices and chunk.choices[0].delta.content:
                                 delta = chunk.choices[0].delta.content
                                 full_text += delta
+                                used_model_id = cand_id
                                 payload = {"token": delta}
                                 if metadata:
                                     payload.update(metadata)
@@ -1458,9 +1707,13 @@ async def _stream_candidate_configs(
                 )
                 try:
                     async for chunk in stream:
+                        u_chunk = _extract_chunk_usage(chunk)
+                        if u_chunk:
+                            provider_usage = u_chunk
                         if chunk.choices and chunk.choices[0].delta.content:
                             delta = chunk.choices[0].delta.content
                             full_text += delta
+                            used_model_id = cand_id
                             payload = {"token": delta}
                             if metadata:
                                 payload.update(metadata)
@@ -1491,6 +1744,17 @@ async def _stream_candidate_configs(
                 print(f"[OPENROUTER] Error ({model_name}): {err_openrouter}. Saltando de inmediato a proveedor alternativo...")
                 continue
 
+    if usage_tracker is not None and full_text:
+        est_p = _estimate_messages_tokens(oai_messages)
+        est_c = _estimate_tokens(full_text)
+        p_tok = int((provider_usage or {}).get("prompt_tokens") or est_p)
+        c_tok = int((provider_usage or {}).get("completion_tokens") or est_c)
+        t_tok = int((provider_usage or {}).get("total_tokens") or (p_tok + c_tok))
+        usage_tracker["prompt_tokens"] = p_tok
+        usage_tracker["completion_tokens"] = c_tok
+        usage_tracker["total_tokens"] = t_tok
+        usage_tracker["model_used"] = used_model_id
+
     if not full_text and last_err:
         err_msg = "⚠️ Error temporal al generar este bloque neural."
         payload = {"token": f"\n\n{err_msg}"}
@@ -1506,16 +1770,26 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         return
 
     last_user_msg = next((m for m in reversed(messages) if m.role == "user"), None)
-    has_image = any(bool(m.image or m.image_url) for m in messages) or bool(last_user_msg and (last_user_msg.image or last_user_msg.image_url))
+    # Capa 2: Considerar imagen activa SOLO si pertenece al turno actual del usuario (evita reenviar Base64 viejo)
+    active_has_image = bool(last_user_msg and (last_user_msg.image or last_user_msg.image_url))
+    raw_user_query = (last_user_msg.content or "").strip() if last_user_msg else ""
+    is_incomplete_preflight = detect_incomplete_query(raw_user_query, has_image=active_has_image)
 
     model_key = str(model_type or "speed").lower().strip()
 
-    # Auto-switch to zenith for multimodal vision if an image is attached
-    if has_image and model_key != "zenith":
-        print(f"[IA Router] Imagen adjunta detectada ({model_key} -> zenith). Enrutando automáticamente a Zenith para análisis multimodal.")
+    # Auto-switch to zenith for multimodal vision ONLY if an image is attached in the active turn
+    if active_has_image and model_key != "zenith":
+        print(f"[IA Router] Imagen adjunta en turno activo ({model_key} -> zenith). Enrutando automáticamente a Zenith para análisis multimodal.")
         model_key = "zenith"
     elif model_key not in MODELS:
         model_key = "speed"
+
+    # Capa 1 + Matriz Maestra: Desactivar TRIAD en plantillas incompletas o preguntas breves puntuales
+    if triad_mode and not active_has_image:
+        _, _, is_brief_for_triad = get_dynamic_token_budget(model_key, raw_user_query, has_image=False)
+        if is_incomplete_preflight or is_brief_for_triad:
+            print("[LYAXIS TRIAD -> Pre-Vuelo] Consulta breve o plantilla incompleta detectada; redirigiendo a modo directo económico.")
+            triad_mode = False
 
     prompt_map = {
         "zenith": ZENITH_SYSTEM_PROMPT,
@@ -1559,16 +1833,23 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
             existing_msg = db.fetchone("SELECT id FROM messages WHERE id = ?", (mid,))
             if not existing_msg:
                 img_to_store = last_user_msg.image or last_user_msg.image_url
+                user_est_tokens = _estimate_tokens(last_user_msg.content or "") + (765 if img_to_store else 0)
                 try:
                     db.execute(
-                        "INSERT INTO messages (id, conversation_id, role, content, image, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                        (mid, conversation_id, "user", last_user_msg.content or "", img_to_store, now)
+                        "INSERT INTO messages (id, conversation_id, role, content, image, prompt_tokens, total_tokens, model_used, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (mid, conversation_id, "user", last_user_msg.content or "", img_to_store, user_est_tokens, user_est_tokens, model_key, now)
                     )
                 except Exception:
-                    db.execute(
-                        "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                        (mid, conversation_id, "user", last_user_msg.content or "", now)
-                    )
+                    try:
+                        db.execute(
+                            "INSERT INTO messages (id, conversation_id, role, content, image, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                            (mid, conversation_id, "user", last_user_msg.content or "", img_to_store, now)
+                        )
+                    except Exception:
+                        db.execute(
+                            "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                            (mid, conversation_id, "user", last_user_msg.content or "", now)
+                        )
             db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
         except Exception as err_db:
             print(f"Aviso DB mensaje: {err_db}")
@@ -1576,7 +1857,7 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
     # --- ORQUESTACION LYAXIS TRIAD CONCURRENTE (CREATE || BREAK || REBUILD A LA PAR) ---
     if triad_mode:
         print("[LYAXIS TRIAD] Activando orquestacion simultanea a la par (Speed || Phantom || Cortex Pro)...")
-        user_query_text = (last_user_msg.content or "").strip() if last_user_msg else "Consulta técnica"
+        user_query_text = raw_user_query if raw_user_query else "Consulta técnica"
 
         # Contexto conversacional previo ultra-conciso (máximo 2 turnos previos sintetizados para ahorrar tokens)
         prior_context_text = ""
@@ -1584,7 +1865,7 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         if prior_turns:
             context_snippets = []
             for pm in prior_turns:
-                c = _clean_history_text(pm.content or "", max_chars=200)
+                c = _clean_history_text(pm.content or "", max_chars=200, condense_code=True)
                 if not c:
                     continue
                 role_label = "Usuario" if pm.role == "user" else "Asistente"
@@ -1592,15 +1873,15 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
             if context_snippets:
                 prior_context_text = "CONTEXTO PREVIO CONCISO:\n" + "\n".join(context_snippets) + "\n\n"
 
-        # NÚCLEO I · CREATE (Speed - #2563FF) -> Groq (llama-3.1-8b-instant) / Gemini Flash / OpenRouter
+        # NÚCLEO I · CREATE (Speed - #2563FF) -> Groq (llama-3.1-8b-instant) / Gemini Flash / NVIDIA Bolt
         candidate_create = [
             {"provider": "groq", "model": "llama-3.1-8b-instant"},
             {"provider": "gemini", "model": "gemini-2.5-flash"},
             {"provider": "openrouter", "model": "deepseek-v4-flash"},
-            {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"},
+            {"provider": "nvidia", "model": "nvidia/nemotron-3.5-bolt-e4b"},
             {"provider": "openrouter", "model": "qwen3.6-plus"},
             {"provider": "groq", "model": "qwen/qwen3.8-27b"},
-            {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+            {"provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b"},
         ]
         meta_create = {"core": "create", "core_name": "Speed", "color": "#2563FF"}
         create_prompt = (
@@ -1613,16 +1894,15 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
             {"role": "user", "content": f"{prior_context_text}CONSULTA DEL USUARIO:\n{user_query_text}".strip()}
         ]
 
-        # NÚCLEO II · BREAK (Phantom - #EF4444) -> NVIDIA NIM (llama-3.1-70b-instruct) / Groq / OpenRouter
+        # NÚCLEO II · BREAK (Phantom - #EF4444) -> NVIDIA Nemotron Ultra / Groq / OpenRouter
         candidate_break = [
-            {"provider": "nvidia", "model": "meta/llama-3.1-70b-instruct"},
+            {"provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b"},
             {"provider": "groq", "model": "llama-3.3-70b-versatile"},
             {"provider": "openrouter", "model": "deepseek-v4-pro"},
             {"provider": "gemini", "model": "gemini-2.5-flash"},
-            {"provider": "nvidia", "model": "nvidia/llama-3.1-nemotron-70b-instruct"},
             {"provider": "openrouter", "model": "claude-haiku-4-5-20251001"},
             {"provider": "groq", "model": "qwen/qwen3.8-27b"},
-            {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+            {"provider": "nvidia", "model": "nvidia/nemotron-3.5-bolt-e4b"},
         ]
         meta_break = {"core": "break", "core_name": "Phantom", "color": "#EF4444"}
         break_prompt = (
@@ -1635,17 +1915,16 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
             {"role": "user", "content": f"{prior_context_text}CONSULTA TÉCNICA DEL USUARIO:\n{user_query_text}\n\nAudita de forma implacable señalando vulnerabilidades, riesgos y fallas potenciales en viñetas claras.".strip()}
         ]
 
-        # NÚCLEO III · REBUILD (Cortex Pro - #7C3AED) -> OpenRouter / Gemini Flash / NVIDIA Nemotron / Groq
+        # NÚCLEO III · REBUILD (Cortex Pro - #7C3AED) -> OpenRouter / Gemini Flash / NVIDIA Nemotron Ultra / Groq
         candidate_rebuild = [
             {"provider": "openrouter", "model": "deepseek-v4-pro"},
             {"provider": "gemini", "model": "gemini-2.5-flash"},
-            {"provider": "nvidia", "model": "nvidia/llama-3.1-nemotron-70b-instruct"},
+            {"provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b"},
             {"provider": "groq", "model": "openai/gpt-oss-120b"},
-            {"provider": "nvidia", "model": "nvidia/nemotron-4-340b-instruct"},
             {"provider": "openrouter", "model": "qwen3.7-max"},
             {"provider": "gemini", "model": "gemini-2.0-flash"},
             {"provider": "groq", "model": "llama-3.3-70b-versatile"},
-            {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"},
+            {"provider": "nvidia", "model": "nvidia/nemotron-3.5-lightning-30b-a3b"},
         ]
         meta_rebuild = {"core": "rebuild", "core_name": "Cortex Pro", "color": "#7C3AED"}
         rebuild_prompt = (
@@ -1656,13 +1935,15 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         )
 
         # Fase 1 Concurrente: transmitir CREATE y BREAK en paralelo; Fase 2 Conectada: sintetizar en REBUILD con contexto real
+        # Presupuesto Matriz Maestra TRIAD: Create (800) | Break (800) | Rebuild (1,600) -> Total Máx: 3,200 tokens
         triad_queue = asyncio.Queue()
+        triad_usages = {"create": {}, "break": {}, "rebuild": {}}
 
         async def _core_worker(core_id: str, cfgs: list, msgs: list, temp: float, meta: dict, core_max_tokens: int):
             accumulated = ""
             try:
                 async for sse_line, delta in _stream_candidate_configs(
-                    cfgs, msgs, temp, nvidia_keys, metadata=meta, max_tokens=core_max_tokens
+                    cfgs, msgs, temp, nvidia_keys, metadata=meta, max_tokens=core_max_tokens, usage_tracker=triad_usages[core_id]
                 ):
                     accumulated += delta
                     await triad_queue.put((sse_line, delta, core_id))
@@ -1672,8 +1953,8 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
                 await triad_queue.put((None, accumulated, core_id))
 
         phase1_tasks = [
-            asyncio.create_task(_core_worker("create", candidate_create, create_messages, 0.5, meta_create, 550)),
-            asyncio.create_task(_core_worker("break", candidate_break, break_messages, 0.3, meta_break, 500)),
+            asyncio.create_task(_core_worker("create", candidate_create, create_messages, 0.5, meta_create, 800)),
+            asyncio.create_task(_core_worker("break", candidate_break, break_messages, 0.3, meta_break, 800)),
         ]
 
         active_workers = len(phase1_tasks)
@@ -1709,27 +1990,36 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         ]
 
         async for sse_line, delta in _stream_candidate_configs(
-            candidate_rebuild, rebuild_messages, 0.2, nvidia_keys, metadata=meta_rebuild, max_tokens=3400
+            candidate_rebuild, rebuild_messages, 0.2, nvidia_keys, metadata=meta_rebuild, max_tokens=1600, usage_tracker=triad_usages["rebuild"]
         ):
             cortex_text += delta
             yield sse_line
 
-        # Señal de finalización triádica
-        yield f"data: {json.dumps({'done': True})}\n\n"
+        triad_p_tok = sum(int(u.get("prompt_tokens") or 0) for u in triad_usages.values())
+        triad_c_tok = sum(int(u.get("completion_tokens") or 0) for u in triad_usages.values())
+        triad_t_tok = sum(int(u.get("total_tokens") or 0) for u in triad_usages.values())
+        triad_models_used = "+".join(filter(None, [triad_usages[k].get("model_used") for k in ("create", "break", "rebuild")])) or "triad"
 
-        # Guardar en base de datos el mensaje combinado estructurado
+        # Señal de finalización triádica con telemetría agregada
+        yield f"data: {json.dumps({'done': True, 'usage': {'prompt_tokens': triad_p_tok, 'completion_tokens': triad_c_tok, 'total_tokens': triad_t_tok, 'model_used': triad_models_used}})}\n\n"
+
+        # Guardar en base de datos el mensaje combinado estructurado + telemetría
         if conversation_id and (speed_text or phantom_text or cortex_text):
             try:
-                mid = str(uuid.uuid4())
                 now = datetime.now(timezone.utc).isoformat()
                 triad_combined = (
                     f"[TRIAD_CORE:create]\n{speed_text.strip()}\n[/TRIAD_CORE:create]\n\n"
                     f"[TRIAD_CORE:break]\n{phantom_text.strip()}\n[/TRIAD_CORE:break]\n\n"
                     f"[TRIAD_CORE:rebuild]\n{cortex_text.strip()}\n[/TRIAD_CORE:rebuild]"
                 )
-                db.execute(
-                    "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (mid, conversation_id, "model", triad_combined, now)
+                _insert_assistant_message(
+                    conversation_id=conversation_id,
+                    content=triad_combined,
+                    created_at=now,
+                    prompt_tokens=triad_p_tok,
+                    completion_tokens=triad_c_tok,
+                    total_tokens=triad_t_tok,
+                    model_used=triad_models_used,
                 )
                 db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
             except Exception as err_db_triad:
@@ -1740,24 +2030,30 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
     # --- 1.5 Caché Exacto para Consultas Iniciales / Quick Actions (0 tokens consumidos) ---
     is_cacheable_single_turn = (
         not triad_mode
-        and not has_image
+        and not active_has_image
+        and not is_incomplete_preflight
         and len(messages) == 1
         and last_user_msg is not None
         and temperature <= 0.5
     )
-    single_turn_query = (last_user_msg.content or "").strip() if last_user_msg else ""
+    single_turn_query = raw_user_query
     if is_cacheable_single_turn and single_turn_query:
         cached_answer = _get_prompt_cache(model_key, single_turn_query)
         if cached_answer:
             print(f"[PROMPT CACHE HIT] Sirviendo respuesta instantánea para '{model_key}' (0 tokens de API).")
             yield f"data: {json.dumps({'token': cached_answer})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'usage': {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0, 'model_used': f'cache:{model_key}'}})}\n\n"
             if conversation_id:
                 try:
-                    mid = str(uuid.uuid4())
                     now = datetime.now(timezone.utc).isoformat()
-                    db.execute(
-                        "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                        (mid, conversation_id, "model", cached_answer, now)
+                    _insert_assistant_message(
+                        conversation_id=conversation_id,
+                        content=cached_answer,
+                        created_at=now,
+                        prompt_tokens=0,
+                        completion_tokens=0,
+                        total_tokens=0,
+                        model_used=f"cache:{model_key}",
                     )
                     db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
                 except Exception as err_cache_db:
@@ -1767,7 +2063,7 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
     full_response_text = ""
     last_err = None
 
-    # --- 2. Enrutamiento y Fallback Inteligente (Groq + NVIDIA NIM) ---
+    # --- 2. Enrutamiento y Fallback Inteligente (Groq + NVIDIA NIM + Gemini) ---
     target_entries = MODELS.get(model_key, MODELS.get("speed", []))
     if isinstance(target_entries, dict):
         candidate_configs = [target_entries]
@@ -1776,25 +2072,21 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
     else:
         candidate_configs = [
             {"provider": "groq", "model": "qwen/qwen3.8-27b"},
-            {"provider": "nvidia", "model": "meta/llama-3.1-8b-instruct"}
+            {"provider": "nvidia", "model": "nvidia/nemotron-3.5-bolt-e4b"}
         ]
 
-    # Si hay una imagen en los mensajes, asegurar que el modelo de visión multimodal tenga prioridad
-    has_image = any(bool(m.image or m.image_url) for m in messages)
-    if has_image:
-        vision_cfg = {"provider": "nvidia", "model": "meta/llama-3.2-11b-vision-instruct"}
+    # Si hay una imagen en el turno activo, asegurar que el modelo de visión multimodal tenga prioridad
+    if active_has_image:
+        vision_cfg = {"provider": "nvidia", "model": "nvidia/nemotron-3.5-super-vl-120b-a12b"}
         if vision_cfg not in candidate_configs:
             candidate_configs.insert(0, vision_cfg)
 
-    # Sliding window: recortar el historial a los 6 mensajes más recientes (máx 3 turnos usuario/asistente) para optimizar latencia y tokens
-    MAX_TURNS = 6
+    # Capa 2: Sliding window diferenciada por motor (4 mensajes para motores ágiles, 6 para analíticos)
+    MAX_TURNS = 4 if model_key in ("speed", "classic", "nexus") else 6
     recent_messages = messages[-MAX_TURNS:] if len(messages) > MAX_TURNS else messages
 
-    # Detectar el último mensaje que contiene imagen para enviar base64 solo en el turno activo
-    last_img_msg_idx = -1
-    for idx, msg in enumerate(recent_messages):
-        if msg.image or msg.image_url:
-            last_img_msg_idx = idx
+    # Enviar Base64 de imagen ÚNICAMENTE si está en el último mensaje (turno activo)
+    active_img_msg_idx = len(recent_messages) - 1 if (recent_messages and (recent_messages[-1].image or recent_messages[-1].image_url)) else -1
 
     # Format messages for OpenAI standard API (with multimodal image support)
     oai_messages = [{"role": "system", "content": active_prompt}]
@@ -1807,14 +2099,15 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
             continue
         role = "assistant" if str(msg.role).lower() in ("model", "assistant") else "user"
         if role == "assistant":
-            # Mantener contexto amplio en el turno inmediato anterior y condensar turnos más antiguos
-            cap = 2400 if idx >= len(recent_messages) - 2 else 1100
-            content_str = _clean_history_text(content_str, max_chars=cap)
+            # Mantener contexto reciente y condensar bloques de código antiguos en turnos previos
+            is_older_turn = idx < len(recent_messages) - 2
+            cap = 1800 if not is_older_turn else 900
+            content_str = _clean_history_text(content_str, max_chars=cap, condense_code=is_older_turn)
             if not content_str:
                 continue
 
         if role == "user" and msg_img:
-            if idx == last_img_msg_idx:
+            if idx == active_img_msg_idx:
                 user_content = []
                 if content_str:
                     user_content.append({"type": "text", "text": content_str})
@@ -1845,20 +2138,44 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         elif last_text:
             oai_messages.append({"role": "user", "content": last_text})
 
-    # Presupuesto dinámico de salida + detector de brevedad para preguntas puntuales
-    model_max_tokens = 2500 if model_key in ("speed", "classic") else 4096
-    raw_q = (last_user_msg.content or "").strip() if last_user_msg else ""
-    q_lower = raw_q.lower()
-    if (
-        not has_image
-        and model_key in ("speed", "classic")
-        and 0 < len(raw_q) < 85
-        and "\n" not in raw_q
-        and "```" not in raw_q
-        and not any(kw in q_lower for kw in ("crea", "escribe", "implementa", "diseña", "script", "código", "codigo", "completo", "planeación", "planeacion", "guía", "tutorial"))
-    ):
-        model_max_tokens = 850
-        oai_messages[0]["content"] += "\nResponde de forma directa y concisa (máximo 160 palabras) salvo que la precisión técnica exija más."
+    # --- Capas 1 y 4: Filtro Pre-Vuelo + Presupuesto Dinámico de Salida ---
+    model_max_tokens, temp_override, is_brief = get_dynamic_token_budget(
+        model_key=model_key,
+        user_query=raw_user_query,
+        has_image=active_has_image,
+    )
+    if temp_override is not None:
+        temperature = temp_override
+
+    if is_incomplete_preflight:
+        # En pre-vuelo con plantilla incompleta: priorizar motores instantáneos sin reasoning oculto para garantizar <60 tokens
+        fast_clarify_candidates = [
+            {"provider": "groq", "model": "llama-3.1-8b-instant"},
+            {"provider": "nvidia", "model": "nvidia/nemotron-3.5-bolt-e4b"},
+            {"provider": "groq", "model": "llama-3.3-70b-versatile"},
+        ]
+        candidate_configs = fast_clarify_candidates + [c for c in candidate_configs if c not in fast_clarify_candidates]
+        oai_messages[0]["content"] = (
+            GROUNDING_AND_IDENTITY_RULE.strip()
+            + "\n\n"
+            + GLOBAL_SPANISH_RULE.strip()
+            + "\n\n"
+            + "INSTRUCCIÓN PRIORITARIA DE PRE-VUELO: El usuario dejó un marcador de posición sin rellenar (ej. [Pega aquí...]) "
+            "o solicitó optimizar/depurar/analizar sin incluir el código ni los datos necesarios. "
+            "PROHIBIDO inventar ejemplos, casos hipotéticos, bloques de código o tutoriales. "
+            "PROHIBIDO usar bloques <thought>, saludos o disculpas. "
+            "Responde ÚNICAMENTE en 1 o 2 oraciones directas solicitando el código o información específica que falta."
+        )
+    elif is_brief:
+        if model_key == "cortex":
+            oai_messages[0]["content"] += (
+                "\nMantén tu razonamiento interno <thought> breve y puntual (máximo 80 palabras), "
+                "ciérralo con </thought> y entrega una respuesta final directa y concisa (máximo 140 palabras)."
+            )
+        else:
+            oai_messages[0]["content"] += "\nResponde de forma directa y concisa (máximo 140 palabras) salvo que la precisión técnica exija más."
+
+    usage_tracker: dict = {}
 
     # Generación con failover cruzado inteligente entre todos los proveedores (NVIDIA NIM ↔ Groq ↔ Gemini ↔ OpenRouter)
     async for sse_line, delta in _stream_candidate_configs(
@@ -1866,7 +2183,8 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         oai_messages=oai_messages,
         temperature=temperature,
         nvidia_keys=nvidia_keys,
-        max_tokens=model_max_tokens
+        max_tokens=model_max_tokens,
+        usage_tracker=usage_tracker,
     ):
         full_response_text += delta
         yield sse_line
@@ -1885,18 +2203,25 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         yield f"data: {json.dumps({'token': friendly_err})}\n\n"
         return
 
+    if full_response_text:
+        yield f"data: {json.dumps({'done': True, 'usage': usage_tracker})}\n\n"
+
     # Almacenar en caché si fue consulta limpia de un solo turno
     if is_cacheable_single_turn and single_turn_query and full_response_text:
         _set_prompt_cache(model_key, single_turn_query, full_response_text)
 
-    # Save final assistant response to DB
+    # Capa 5: Guardar respuesta del asistente y telemetría real de tokens en DB
     if conversation_id and full_response_text:
         try:
-            mid = str(uuid.uuid4())
             now = datetime.now(timezone.utc).isoformat()
-            db.execute(
-                "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                (mid, conversation_id, "model", full_response_text, now)
+            _insert_assistant_message(
+                conversation_id=conversation_id,
+                content=full_response_text,
+                created_at=now,
+                prompt_tokens=int(usage_tracker.get("prompt_tokens") or 0),
+                completion_tokens=int(usage_tracker.get("completion_tokens") or 0),
+                total_tokens=int(usage_tracker.get("total_tokens") or 0),
+                model_used=usage_tracker.get("model_used") or model_key,
             )
             db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
         except Exception as err_db2:
@@ -1927,9 +2252,9 @@ async def chat_stream_endpoint(request: Request):
     else:
         try:
             temp = float(req_temp)
-            # Para modelos informativos y de propósito general, asegurar temperatura en rango controlado (0.2 - 0.5)
+            # Permitir temp = 0.0 determinista y acotar el techo (0.0 - 0.5) en motores técnicos
             if model_type in ("speed", "classic", "cortex", "magister", "phantom", "architect", "root"):
-                if temp > 0.5 or temp < 0.1:
+                if temp > 0.5 or temp < 0.0:
                     temp = model_default_temp
         except Exception:
             temp = model_default_temp
@@ -1956,8 +2281,17 @@ async def chat_stream_endpoint(request: Request):
 
     triad_mode = bool(body.get("triad_mode", False))
 
-    # Recortar el historial enviado a los últimos 4-6 mensajes para proteger TPM/RPM
-    max_history = 4 if triad_mode else 6
+    # No consumir cuota TRIAD si la consulta es una plantilla vacía o pregunta trivial puntual
+    if triad_mode:
+        last_u = next((m for m in reversed(messages) if m.role == "user"), None)
+        last_u_img = bool(last_u and (last_u.image or last_u.image_url))
+        last_u_txt = (last_u.content or "").strip() if last_u else ""
+        _, _, is_brief_q = get_dynamic_token_budget(model_type, last_u_txt, has_image=last_u_img)
+        if detect_incomplete_query(last_u_txt, has_image=last_u_img) or (is_brief_q and not last_u_img):
+            triad_mode = False
+
+    # Recortar el historial enviado: 4 mensajes para TRIAD / motores rápidos, 6 para analíticos
+    max_history = 4 if (triad_mode or model_type in ("speed", "classic", "nexus")) else 6
     if len(messages) > max_history:
         messages = messages[-max_history:]
 
@@ -2084,6 +2418,9 @@ def get_system_telemetry(request: Request, user_id: Optional[str] = None):
     uid = (resolved_uid or user_id or "").strip()
     conv_count = 0
     msg_count = 0
+    prompt_tokens_sum = 0
+    completion_tokens_sum = 0
+    total_tokens_sum = 0
     model_distribution = {}
     if uid and uid != "anon":
         try:
@@ -2093,11 +2430,14 @@ def get_system_telemetry(request: Request, user_id: Optional[str] = None):
                 m = c.get("model") or "speed"
                 model_distribution[m] = model_distribution.get(m, 0) + 1
             msgs = db.fetchone(
-                "SELECT COUNT(*) as cnt FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)",
+                "SELECT COUNT(*) as cnt, COALESCE(SUM(prompt_tokens), 0) as p_tok, COALESCE(SUM(completion_tokens), 0) as c_tok, COALESCE(SUM(total_tokens), 0) as t_tok FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)",
                 (uid,)
             )
             if msgs:
                 msg_count = int(msgs.get("cnt") or 0)
+                prompt_tokens_sum = int(msgs.get("p_tok") or 0)
+                completion_tokens_sum = int(msgs.get("c_tok") or 0)
+                total_tokens_sum = int(msgs.get("t_tok") or 0)
         except Exception:
             pass
 
@@ -2121,6 +2461,9 @@ def get_system_telemetry(request: Request, user_id: Optional[str] = None):
         "userStats": {
             "conversations": conv_count,
             "messages": msg_count,
+            "promptTokens": prompt_tokens_sum,
+            "completionTokens": completion_tokens_sum,
+            "totalTokens": total_tokens_sum,
             "modelDistribution": model_distribution,
             "triadRemaining": max(0, TRIAD_MAX_REQUESTS - triad_used),
             "triadMax": TRIAD_MAX_REQUESTS,
