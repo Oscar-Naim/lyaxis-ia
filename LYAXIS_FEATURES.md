@@ -91,5 +91,29 @@ El sistema está construido para ser escalable, rápido y seguro:
 
 ---
 
+## 🚀 6. Avances y Fortalecimiento Técnico (Release v4.0 Quantum Studio)
+
+1. **⚡ Tríada de Motores a la Vista & Cajón de Especialistas:**
+   - La interfaz destaca directamente los 3 motores neurálgicos (`Speed`, `Cortex` y `Zenith`), ocultando la complejidad en un selector de especialistas colapsable que permite acceder con un clic a los 7 núcleos restantes (`Architect`, `Classic`, `Phantom`, `Nexus`, `Forge`, `Magister` y `Root`).
+2. **🛡️ Normalizador de Markdown en Streaming:**
+   - Algoritmo en tiempo real que previene saltos visuales y rupturas del DOM durante la recepción de tokens por SSE, auto-balanceando cercas de código (` ``` `) y delimitadores en vivo.
+3. **📊 Renderizado Local de Mermaid con ErrorBoundary y Zoom/Pan:**
+   - Compilación nativa offline de diagramas (flujo, clases, secuencias, estados y entidad-relación).
+   - Encapsulado seguro en `ErrorBoundary` que captura cualquier error de sintaxis y muestra el código fuente sin romper la aplicación.
+   - Compuerta sintáctica para diagramas ER que corrige inconsistencias de cardinalidad (`||--o{`).
+   - Controles interactivos integrados: Zoom In (+), Zoom Out (-), Reset (100%) y arrastre libre Panorámico.
+4. **💻 Bloques de Código MacOS Premium con Grid de Líneas:**
+   - Ventanas con estilo macOS y números de línea sincronizados mediante CSS Grid, manteniendo la alineación exacta en scrolls verticales y horizontales.
+5. **🛑 Cancelación Mutua de Inferencia (Client-Server Abort):**
+   - Integración de `AbortController` en el hook `useSSEStream.ts` e intercepción asíncrona en FastAPI mediante `await request.is_disconnected()`. Al abortar una respuesta, el backend cancela la tarea de inferencia en Groq/NVIDIA inmediatamente, previniendo gastos de cuota y sockets huérfanos.
+6. **🎯 Interceptor Pre-Vuelo y Gobernanza de Tokens:**
+   - Monitoreo determinista del volumen de tokens antes de despachar a los motores de inferencia, emitiendo telemetría precisa (`durationMs`, `promptTokens`, `completionTokens`).
+7. **🧪 Suites de Pruebas de Estrés Certificadas:**
+   - `milestone1.stress.test.ts` / `test_disconnect_empirical.py`: 100% de éxito en desconexión intempestiva y reconexión SSE.
+   - `milestone2.stress.test.ts`: 100% de éxito en normalización de markdown, estabilidad de Mermaid y aislamiento de errores.
+
+---
+
 > *"La perfección no se alcanza cuando no hay nada más que añadir, sino cuando no hay nada más que quitar."* — LYAXIS IA
+
 
