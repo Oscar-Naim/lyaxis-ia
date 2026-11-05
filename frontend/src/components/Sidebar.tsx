@@ -71,6 +71,27 @@ const MODEL_ICONS: Record<ModelType, (size: number, color?: string) => React.Rea
   root: (s, c = '#00FF66') => <Terminal size={s} color={c} />,
 };
 
+const BUCKET_ORDER: Record<string, number> = {
+  '📌 Fijados': 0,
+  Hoy: 1,
+  Ayer: 2,
+  Anteriores: 3,
+};
+
+function getChatTimeBucket(chat: Conversation): string {
+  if (chat.pinned) return '📌 Fijados';
+  if (!chat.createdAt) return 'Hoy';
+  const parsed = new Date(chat.createdAt);
+  if (Number.isNaN(parsed.getTime())) return 'Hoy';
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfYesterday = startOfToday - 86400000;
+  const ts = parsed.getTime();
+  if (ts >= startOfToday) return 'Hoy';
+  if (ts >= startOfYesterday) return 'Ayer';
+  return 'Anteriores';
+}
+
 export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   isMobile,
@@ -103,9 +124,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [editingTitle, setEditingTitle] = useState<string>('');
 
   const sortedConversations = [...conversations].sort((a, b) => {
-    if (Boolean(a.pinned) !== Boolean(b.pinned)) {
-      return a.pinned ? -1 : 1;
-    }
+    const bucketDiff = (BUCKET_ORDER[getChatTimeBucket(a)] ?? 9) - (BUCKET_ORDER[getChatTimeBucket(b)] ?? 9);
+    if (bucketDiff !== 0) return bucketDiff;
     return 0;
   });
 
@@ -765,37 +785,53 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </span>
               </div>
             ) : (
-              filteredConversations.map((chat) => {
+              filteredConversations.map((chat, idx) => {
             const isSelected = currentChatId === chat.id;
             const modelColor = getModelColor(chat.model);
             const isEditingThis = editingChatId === chat.id;
+            const bucket = getChatTimeBucket(chat);
+            const showGroupHeader =
+              !searchQuery.trim() &&
+              (idx === 0 || getChatTimeBucket(filteredConversations[idx - 1]) !== bucket);
             return (
-              <div
-                key={chat.id}
-                onClick={() => {
-                  if (isEditingThis) return;
-                  onSelectConversation(chat);
-                  if (isMobile) onClose();
-                }}
-                style={{
-                  minHeight: '46px',
-                  padding: '8px 10px 8px 12px',
-                  borderRadius: '10px',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                  backgroundColor: isSelected ? `${modelColor}22` : (chat.pinned ? 'rgba(245, 158, 11, 0.05)' : 'transparent'),
-                  border: isSelected
-                    ? `1px solid ${modelColor}55`
-                    : (chat.pinned ? '1px solid rgba(245, 158, 11, 0.22)' : '1px solid transparent'),
-                  color: isSelected ? '#ffffff' : '#cbd5e1',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  transition: 'all 0.2s ease',
-                  boxShadow: isSelected ? `0 0 14px ${modelColor}22` : 'none',
-                  gap: '6px',
-                }}
-              >
+              <React.Fragment key={chat.id}>
+                {showGroupHeader && (
+                  <div className="lyaxis-sidebar-group-label">{bucket}</div>
+                )}
+                <div
+                  onClick={() => {
+                    if (isEditingThis) return;
+                    onSelectConversation(chat);
+                    if (isMobile) onClose();
+                  }}
+                  style={{
+                    minHeight: '46px',
+                    padding: isSelected ? '8px 10px 8px 10px' : '8px 10px 8px 12px',
+                    borderRadius: '10px',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    backgroundColor: isSelected ? `${modelColor}1f` : (chat.pinned ? 'rgba(245, 158, 11, 0.05)' : 'transparent'),
+                    borderTop: isSelected
+                      ? `1px solid ${modelColor}44`
+                      : (chat.pinned ? '1px solid rgba(245, 158, 11, 0.22)' : '1px solid transparent'),
+                    borderRight: isSelected
+                      ? `1px solid ${modelColor}44`
+                      : (chat.pinned ? '1px solid rgba(245, 158, 11, 0.22)' : '1px solid transparent'),
+                    borderBottom: isSelected
+                      ? `1px solid ${modelColor}44`
+                      : (chat.pinned ? '1px solid rgba(245, 158, 11, 0.22)' : '1px solid transparent'),
+                    borderLeft: isSelected
+                      ? `3px solid ${modelColor}`
+                      : (chat.pinned ? '1px solid rgba(245, 158, 11, 0.22)' : '1px solid transparent'),
+                    color: isSelected ? '#ffffff' : '#cbd5e1',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    transition: 'all 0.2s var(--lx-ease-out)',
+                    boxShadow: isSelected ? `inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 4px 14px -4px ${modelColor}33` : 'none',
+                    gap: '6px',
+                  }}
+                >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '9px', overflow: 'hidden', flex: 1, minWidth: 0 }}>
                   <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', position: 'relative' }}>
                     {MODEL_ICONS[chat.model]?.(16, modelColor) || <Sparkles size={16} color={modelColor} />}
@@ -948,7 +984,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <Trash2 size={13} />
                   </button>
                 </div>
-              </div>
+                </div>
+              </React.Fragment>
             );
           })
         )}

@@ -5,133 +5,319 @@ async function loadHtml2Pdf() {
   return mod.default || mod;
 }
 
-function markdownToPdfHtml(markdownText: string): string {
-  if (!markdownText) return '';
-  let text = markdownText;
+type KatexRenderer = (tex: string, displayMode: boolean) => string;
 
-  // Format LYAXIS TRIAD™ structured cores for PDF export
-  if (text.includes('[TRIAD_CORE:')) {
+async function loadKatexRenderer(): Promise<KatexRenderer> {
+  try {
+    const mod: any = await import('katex');
+    const katex = mod.default || mod;
+    return (tex: string, displayMode: boolean) =>
+      katex.renderToString(tex, {
+        displayMode,
+        throwOnError: false,
+        strict: 'ignore',
+        output: 'html',
+      });
+  } catch {
+    return (tex: string) => escapeHtml(tex);
+  }
+}
+
+function escapeHtml(raw: string): string {
+  return String(raw)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function stripThoughtBlocks(raw: string): string {
+  if (!raw) return '';
+  let cleaned = raw.replace(/<(thought|think)>[\s\S]*?<\/\1>/gi, '');
+  cleaned = cleaned.replace(/<(thought|think)>[\s\S]*$/gi, '');
+  return cleaned.trim();
+}
+
+export function markdownToPdfHtml(markdownText: string, renderMath?: KatexRenderer): string {
+  if (!markdownText) return '';
+  let text = markdownText.replace(/\r\n/g, '\n');
+
+  // Formatear núcleos estructurados de LYAXIS TRIAD™ en tarjetas editoriales dedicadas
+  if (/(?:^|\n)\[TRIAD_CORE:(create|break|rebuild)\]/.test(text)) {
+    const firstTagIdx = text.search(/\[TRIAD_CORE:(create|break|rebuild)\]/);
+    const preamble = firstTagIdx > 0 ? stripThoughtBlocks(text.slice(0, firstTagIdx)) : '';
     const extractCore = (core: string) => {
       const openTag = `[TRIAD_CORE:${core}]`;
       const closeTag = `[/TRIAD_CORE:${core}]`;
       const s = text.indexOf(openTag);
       if (s === -1) return '';
-      const e = text.indexOf(closeTag, s + openTag.length);
-      return e !== -1 ? text.slice(s + openTag.length, e).trim() : text.slice(s + openTag.length).trim();
+      const after = s + openTag.length;
+      const e = text.indexOf(closeTag, after);
+      if (e !== -1) return text.slice(after, e).trim();
+      const next = text.indexOf('[TRIAD_CORE:', after);
+      return (next !== -1 ? text.slice(after, next) : text.slice(after)).trim();
     };
-    const c1 = extractCore('create');
-    const c2 = extractCore('break');
-    const c3 = extractCore('rebuild').replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
+    const cores = [
+      { title: '⚡ NÚCLEO I · CREATE — LYAXIS Speed', color: '#0284c7', bg: '#f0f9ff', body: stripThoughtBlocks(extractCore('create')) },
+      { title: '🎯 NÚCLEO II · BREAK — LYAXIS Phantom', color: '#e11d48', bg: '#fff1f2', body: stripThoughtBlocks(extractCore('break')) },
+      { title: '🧠 NÚCLEO III · REBUILD — LYAXIS Cortex', color: '#7c3aed', bg: '#f5f3ff', body: stripThoughtBlocks(extractCore('rebuild')) },
+    ].filter((c) => c.body);
 
-    text = `## ⚡ NÚCLEO I · CREATE (Speed)\n\n${c1}\n\n## 👻 NÚCLEO II · BREAK (Phantom)\n\n${c2}\n\n## 🧠 NÚCLEO III · REBUILD (Cortex Pro)\n\n${c3}`;
-  }
-  
-  // Remove <thought> process tags for clean output
-  if (text.includes('<thought>')) {
-    const parts = text.split('</thought>');
-    text = parts.length > 1 ? parts.slice(1).join('').trim() : text.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
-  }
-
-  const lines = text.split('\n');
-  const resultLines: string[] = [];
-  let inTable = false;
-  let tableBuffer: string[] = [];
-
-  const processTableBuffer = (buffer: string[]) => {
-    if (buffer.length < 2) return buffer.join('\n');
-
-    let tableHtml = '<table class="pdf-table" style="width:100%; border-collapse:collapse; margin:14px 0; border:1px solid #cbd5e1; font-size:12px; background-color:#ffffff; page-break-inside:auto; break-inside:auto;">';
-    let isHeader = true;
-
-    for (let i = 0; i < buffer.length; i++) {
-      const line = buffer[i].trim();
-      // Skip markdown divider lines like | :--- | :--- |
-      if (/^\|?[\s:-|]+\|?$/.test(line) && line.includes('---')) {
-        isHeader = false;
-        continue;
-      }
-
-      const rawCells = line.split('|');
-      const cells = rawCells.map(c => c.trim()).filter((c, idx) => {
-        if ((idx === 0 || idx === rawCells.length - 1) && c === '') return false;
-        return true;
-      });
-
-      if (cells.length === 0) continue;
-
-      const bgColor = isHeader ? '#f1f5f9' : (i % 2 === 0 ? '#ffffff' : '#f8fafc');
-      const textColor = isHeader ? '#0f172a' : '#334155';
-      const fontWeight = isHeader ? 'bold' : 'normal';
-
-      tableHtml += `<tr style="background-color:${bgColor}; page-break-inside:avoid; break-inside:avoid;">`;
-      cells.forEach(cell => {
-        const tag = isHeader ? 'th' : 'td';
-        // Parse inline formatting inside cell
-        let formattedCell = cell
-          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-          .replace(/\*(.*?)\*/g, '<em>$1</em>');
-
-        tableHtml += `<${tag} style="border:1px solid #cbd5e1; padding:8px 10px; text-align:left; color:${textColor}; font-weight:${fontWeight}; line-height:1.4; page-break-inside:avoid; break-inside:avoid;">${formattedCell}</${tag}>`;
-      });
-      tableHtml += '</tr>';
-
-      if (isHeader) isHeader = false;
+    if (cores.length > 0) {
+      const preambleHtml = preamble ? markdownToPdfHtml(preamble, renderMath) : '';
+      const coresHtml = cores
+        .map(
+          (c) => `
+          <div style="margin:12px 0; border:1px solid ${c.color}55; border-left:4px solid ${c.color}; border-radius:8px; background-color:#ffffff; overflow:hidden;">
+            <div style="padding:7px 12px; background-color:${c.bg}; border-bottom:1px solid ${c.color}33; font-size:11.5px; font-weight:800; color:${c.color}; letter-spacing:0.3px;">
+              ${c.title}
+            </div>
+            <div style="padding:12px 14px;">
+              ${markdownToPdfHtml(c.body, renderMath)}
+            </div>
+          </div>`
+        )
+        .join('\n');
+      return preambleHtml + coresHtml;
     }
+  }
 
-    tableHtml += '</table>';
-    return tableHtml;
+  text = stripThoughtBlocks(text);
+
+  const blockTokens: string[] = [];
+  const inlineTokens: string[] = [];
+
+  const pushBlock = (htmlFrag: string): string => {
+    const id = blockTokens.length;
+    blockTokens.push(htmlFrag);
+    return `\n\n@@PDFBLOCK_${id}@@\n\n`;
   };
 
-  for (let idx = 0; idx < lines.length; idx++) {
-    const line = lines[idx];
-    const trimmed = line.trim();
-    const isTableLine = trimmed.startsWith('|') || (trimmed.includes('|') && trimmed.endsWith('|'));
+  const pushInline = (htmlFrag: string): string => {
+    const id = inlineTokens.length;
+    inlineTokens.push(htmlFrag);
+    return `@@PDFINLINE_${id}@@`;
+  };
 
+  // 1. Aislar bloques de código cercados ANTES de cualquier regex o split de párrafos
+  text = text.replace(/```([^\n`]*)\n([\s\S]*?)```/g, (_m, rawLang: string, rawCode: string) => {
+    const cleanLang = (rawLang || '').trim() || 'code';
+    const trimmedCode = String(rawCode || '').replace(/\n$/, '');
+    const lineCount = trimmedCode.split('\n').length;
+    const breakRule = lineCount <= 32 ? 'page-break-inside:avoid; break-inside:avoid;' : 'page-break-inside:auto; break-inside:auto;';
+    const escaped = escapeHtml(trimmedCode);
+    return pushBlock(
+      `<div class="pdf-code-card" style="margin:12px 0; border-radius:8px; overflow:hidden; border:1px solid #1e293b; background-color:#0b1120; ${breakRule}">` +
+        `<div style="background-color:#0f172a; padding:5px 12px; border-bottom:1px solid #1e293b; display:flex; justify-content:space-between; align-items:center; font-family:'JetBrains Mono',Consolas,monospace; font-size:10px; color:#38bdf8; font-weight:700;">` +
+          `<span>${escapeHtml(cleanLang)}</span>` +
+          `<span style="color:#64748b; font-weight:500;">${lineCount} ${lineCount === 1 ? 'línea' : 'líneas'}</span>` +
+        `</div>` +
+        `<pre style="margin:0; padding:12px 14px; background-color:#0b1120; color:#e2e8f0; font-family:'JetBrains Mono',Consolas,monospace; font-size:11px; line-height:1.55; white-space:pre-wrap; word-break:break-word; overflow-x:auto;"><code style="color:#e2e8f0; background:transparent; font-family:inherit;">${escaped}</code></pre>` +
+      `</div>`
+    );
+  });
+
+  // 2. Aislar matemáticas en bloque ($$ ... $$)
+  text = text.replace(/\$\$([\s\S]+?)\$\$/g, (_m, expr: string) => {
+    const rendered = renderMath ? renderMath(expr.trim(), true) : `<code>${escapeHtml(expr.trim())}</code>`;
+    return pushBlock(
+      `<div style="margin:10px 0; padding:10px 14px; background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; text-align:center; color:#0f172a; overflow-x:auto; page-break-inside:avoid; break-inside:avoid;">${rendered}</div>`
+    );
+  });
+
+  // 3. Aislar código inline (`...`) para proteger *ptr, **kwargs, <T>, pipes |, etc.
+  text = text.replace(/`([^`\n]+)`/g, (_m, code: string) =>
+    pushInline(
+      `<code style="background-color:#f1f5f9; color:#0f172a; padding:1.5px 5px; border-radius:4px; border:1px solid #cbd5e1; font-family:'JetBrains Mono',Consolas,monospace; font-size:11px; font-weight:600;">${escapeHtml(code)}</code>`
+    )
+  );
+
+  // 4. Aislar matemáticas inline ($...$) evitando cantidades monetarias como "$100 y $200"
+  text = text.replace(/(?<!\$)\$(?!\s)([^$\n]+?)(?<!\s)\$(?!\$)/g, (full, expr: string) => {
+    if (/^\d+([.,]\d+)?$/.test(expr.trim())) return full;
+    const rendered = renderMath ? renderMath(expr.trim(), false) : `<em>${escapeHtml(expr.trim())}</em>`;
+    return pushInline(`<span style="color:#0f172a;">${rendered}</span>`);
+  });
+
+  // Formateo inline seguro sobre texto ya escapado
+  const formatInline = (rawLine: string): string => {
+    let s = escapeHtml(rawLine);
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#0f172a; font-weight:700;">$1</strong>');
+    s = s.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
+    s = s.replace(/~~(.+?)~~/g, '<del style="color:#64748b;">$1</del>');
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" style="color:#0284c7; text-decoration:underline;">$1</a>');
+    return s;
+  };
+
+  // 5. Procesar tablas GFM línea por línea
+  const lines = text.split('\n');
+  const stageLines: string[] = [];
+  let tableBuffer: string[] = [];
+
+  const flushTable = () => {
+    if (tableBuffer.length === 0) return;
+    const isSeparatorRow = (l: string) => /^\|?\s*:?-{2,}:?(\s*\|\s*:?-{2,}:?)+\s*\|?$/.test(l.trim()) || (/^\|?[\s:|-]+\|?$/.test(l.trim()) && l.includes('--'));
+    const hasSeparator = tableBuffer.some(isSeparatorRow);
+    if (tableBuffer.length < 2 || !hasSeparator) {
+      stageLines.push(...tableBuffer);
+      tableBuffer = [];
+      return;
+    }
+
+    let tableHtml =
+      '<table class="pdf-table" style="width:100%; border-collapse:collapse; margin:14px 0; border:1px solid #cbd5e1; font-size:11.5px; background-color:#ffffff; page-break-inside:auto; break-inside:auto;">';
+    let inHead = true;
+    let bodyRowIdx = 0;
+
+    for (let i = 0; i < tableBuffer.length; i++) {
+      const line = tableBuffer[i].trim();
+      if (isSeparatorRow(line)) {
+        inHead = false;
+        continue;
+      }
+      const rawCells = line.split('|');
+      const cells = rawCells
+        .map((c) => c.trim())
+        .filter((c, idx) => !((idx === 0 || idx === rawCells.length - 1) && c === ''));
+      if (cells.length === 0) continue;
+
+      const bgColor = inHead ? '#0f172a' : bodyRowIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
+      const textColor = inHead ? '#f8fafc' : '#1e293b';
+      const weight = inHead ? '700' : '400';
+      if (!inHead) bodyRowIdx++;
+
+      tableHtml += `<tr style="background-color:${bgColor}; page-break-inside:avoid; break-inside:avoid;">`;
+      cells.forEach((cell) => {
+        const tag = inHead ? 'th' : 'td';
+        tableHtml += `<${tag} style="border:1px solid #cbd5e1; padding:7px 10px; text-align:left; color:${textColor}; font-weight:${weight}; line-height:1.45; vertical-align:top;">${formatInline(cell)}</${tag}>`;
+      });
+      tableHtml += '</tr>';
+    }
+    tableHtml += '</table>';
+    stageLines.push(pushBlock(tableHtml));
+    tableBuffer = [];
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    const isTableLine = !trimmed.startsWith('@@PDFBLOCK_') && (trimmed.startsWith('|') || (trimmed.includes('|') && trimmed.endsWith('|')));
     if (isTableLine) {
-      inTable = true;
       tableBuffer.push(line);
     } else {
-      if (inTable) {
-        resultLines.push(processTableBuffer(tableBuffer));
-        tableBuffer = [];
-        inTable = false;
+      flushTable();
+      stageLines.push(line);
+    }
+  }
+  flushTable();
+
+  // 6. Estructurar bloques (h1-h6, hr, blockquotes, listas ul/ol y párrafos)
+  const finalBlocks: string[] = [];
+  let paraBuf: string[] = [];
+  let listBuf: { ordered: boolean; items: string[] } | null = null;
+  let quoteBuf: string[] = [];
+
+  const flushPara = () => {
+    if (paraBuf.length === 0) return;
+    const content = paraBuf.map(formatInline).join('<br/>');
+    finalBlocks.push(
+      `<p style="margin:7px 0; line-height:1.62; color:#1e293b; page-break-inside:avoid; break-inside:avoid; orphans:3; widows:3;">${content}</p>`
+    );
+    paraBuf = [];
+  };
+
+  const flushList = () => {
+    if (!listBuf || listBuf.items.length === 0) return;
+    const tag = listBuf.ordered ? 'ol' : 'ul';
+    const itemsHtml = listBuf.items
+      .map(
+        (it) =>
+          `<li style="margin-bottom:5px; color:#1e293b; line-height:1.55; page-break-inside:avoid; break-inside:avoid;">${formatInline(it)}</li>`
+      )
+      .join('');
+    finalBlocks.push(`<${tag} style="margin:8px 0 10px; padding-left:20px; color:#1e293b;">${itemsHtml}</${tag}>`);
+    listBuf = null;
+  };
+
+  const flushQuote = () => {
+    if (quoteBuf.length === 0) return;
+    const cleaned = quoteBuf.map((q) => q.replace(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i, '')).filter(Boolean);
+    finalBlocks.push(
+      `<blockquote style="margin:10px 0; padding:8px 14px; border-left:3px solid #0284c7; background-color:#f8fafc; border-radius:0 6px 6px 0; color:#334155; page-break-inside:avoid; break-inside:avoid;">${cleaned.map(formatInline).join('<br/>')}</blockquote>`
+    );
+    quoteBuf = [];
+  };
+
+  const flushAll = () => {
+    flushPara();
+    flushList();
+    flushQuote();
+  };
+
+  for (const rawLine of stageLines) {
+    const trimmed = rawLine.trim();
+    if (!trimmed) {
+      flushAll();
+      continue;
+    }
+
+    if (/^@@PDFBLOCK_\d+@@$/.test(trimmed)) {
+      flushAll();
+      finalBlocks.push(trimmed);
+      continue;
+    }
+
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+      flushAll();
+      finalBlocks.push('<hr style="border:none; border-top:1px solid #cbd5e1; margin:14px 0;" />');
+      continue;
+    }
+
+    const headingMatch = /^(#{1,6})\s+(.*)$/.exec(trimmed);
+    if (headingMatch) {
+      flushAll();
+      const level = headingMatch[1].length;
+      const hText = formatInline(headingMatch[2]);
+      const sizes: Record<number, string> = { 1: '18px', 2: '15.5px', 3: '14px', 4: '13px', 5: '12px', 6: '11.5px' };
+      const border = level <= 2 ? 'border-bottom:1px solid #e2e8f0; padding-bottom:4px;' : '';
+      finalBlocks.push(
+        `<h${level} style="font-size:${sizes[level] || '13px'}; font-weight:800; color:#0f172a; margin:14px 0 6px; ${border} page-break-after:avoid; break-after:avoid; page-break-inside:avoid; break-inside:avoid;">${hText}</h${level}>`
+      );
+      continue;
+    }
+
+    if (trimmed.startsWith('>')) {
+      flushPara();
+      flushList();
+      quoteBuf.push(trimmed.replace(/^>\s?/, ''));
+      continue;
+    }
+
+    const ulMatch = /^\s*[-*+]\s+(.*)$/.exec(rawLine);
+    const olMatch = /^\s*\d+[.)]\s+(.*)$/.exec(rawLine);
+    if (ulMatch || olMatch) {
+      flushPara();
+      flushQuote();
+      const ordered = Boolean(olMatch);
+      const itemText = (ulMatch ? ulMatch[1] : olMatch![1]).trim();
+      if (!listBuf || listBuf.ordered !== ordered) {
+        flushList();
+        listBuf = { ordered, items: [] };
       }
-      resultLines.push(line);
+      listBuf.items.push(itemText);
+      continue;
     }
+
+    flushList();
+    flushQuote();
+    paraBuf.push(trimmed);
   }
+  flushAll();
 
-  if (inTable) {
-    resultLines.push(processTableBuffer(tableBuffer));
-  }
-
-  let html = resultLines.join('\n');
-
-  // Headers with page-break-after avoid and inside avoid
-  html = html.replace(/^### (.*$)/gim, '<h3 style="font-size:14px; font-weight:700; color:#1e293b; margin:14px 0 6px; page-break-after:avoid; break-after:avoid; page-break-inside:avoid; break-inside:avoid;">$1</h3>');
-  html = html.replace(/^## (.*$)/gim, '<h2 style="font-size:16px; font-weight:800; color:#0f172a; margin:16px 0 8px; border-bottom:1px solid #e2e8f0; padding-bottom:4px; page-break-after:avoid; break-after:avoid; page-break-inside:avoid; break-inside:avoid;">$1</h2>');
-  html = html.replace(/^# (.*$)/gim, '<h1 style="font-size:18px; font-weight:800; color:#0f172a; margin:18px 0 10px; page-break-after:avoid; break-after:avoid; page-break-inside:avoid; break-inside:avoid;">$1</h1>');
-
-  // Bold & Italic
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-
-  // Bullet points
-  html = html.replace(/^\s*[-*+]\s+(.*$)/gim, '<li style="margin-bottom:5px; color:#334155; page-break-inside:avoid; break-inside:avoid; line-height:1.5;">$1</li>');
-
-  // Code blocks
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre style="background-color:#0f172a; color:#38bdf8; padding:12px; border-radius:6px; font-family:monospace; font-size:11px; overflow-x:auto; margin:10px 0; page-break-inside:avoid; break-inside:avoid; white-space:pre-wrap;"><code>$2</code></pre>');
-
-  // Wrap structured paragraphs avoiding mid-line cuts
-  const chunks = html.split(/\n\s*\n/);
-  html = chunks.map(chunk => {
-    const trimmed = chunk.trim();
-    if (!trimmed) return '';
-    if (trimmed.startsWith('<h') || trimmed.startsWith('<table') || trimmed.startsWith('<pre') || trimmed.startsWith('<li') || trimmed.startsWith('<div')) {
-      return trimmed;
-    }
-    return `<p style="margin:8px 0; line-height:1.6; color:#1e293b; page-break-inside:avoid; break-inside:avoid; orphans:3; widows:3;">${trimmed.replace(/\n/g, '<br/>')}</p>`;
-  }).join('\n');
-
+  // 7. Re-hidratar primero placeholders de bloque y después inline
+  let html = finalBlocks.join('\n');
+  html = html.replace(/@@PDFBLOCK_(\d+)@@/g, (_m, idxStr: string) => blockTokens[Number(idxStr)] ?? '');
+  html = html.replace(/@@PDFINLINE_(\d+)@@/g, (_m, idxStr: string) => inlineTokens[Number(idxStr)] ?? '');
   return html;
 }
 
@@ -143,9 +329,11 @@ export const exportChatToPDF = async (
 ) => {
   if (!messages || messages.length === 0) return;
 
+  const renderMath = await loadKatexRenderer();
+
   const container = document.createElement('div');
   container.style.padding = '20px 24px';
-  container.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+  container.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
   container.style.color = '#0f172a';
   container.style.backgroundColor = '#ffffff';
 
@@ -157,17 +345,17 @@ export const exportChatToPDF = async (
     minute: '2-digit'
   });
 
-  // Global print CSS rules to avoid orphan lines and half-page cuts
+  // Reglas de paginación editorial sin romper bloques de código largos
   let htmlContent = `
     <style>
       @page {
         margin: 15mm;
       }
-      p, tr, pre, h1, h2, h3, li, blockquote, .pdf-avoid-break {
+      p, tr, h1, h2, h3, h4, h5, h6, li, blockquote, .pdf-avoid-break {
         page-break-inside: avoid !important;
         break-inside: avoid !important;
       }
-      h1, h2, h3 {
+      h1, h2, h3, h4, h5, h6 {
         page-break-after: avoid !important;
         break-after: avoid !important;
       }
@@ -181,8 +369,8 @@ export const exportChatToPDF = async (
     <div style="border-bottom: 2px solid ${modelColor}; padding-bottom: 14px; margin-bottom: 22px; display: flex; justify-content: space-between; align-items: flex-end; page-break-after: avoid; break-after: avoid;">
       <div>
         <div style="font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px;">LYAXIS labs™</div>
-        <div style="font-size: 13px; font-weight: 700; color: ${modelColor}; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px;">Motor: LYAXIS ${modelLabel}</div>
-        <div style="font-size: 15px; font-weight: 700; color: #334155; margin-top: 6px;">${title || 'Conversación'}</div>
+        <div style="font-size: 13px; font-weight: 700; color: ${modelColor}; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px;">Motor: LYAXIS ${escapeHtml(modelLabel)}</div>
+        <div style="font-size: 15px; font-weight: 700; color: #334155; margin-top: 6px;">${escapeHtml(title || 'Conversación')}</div>
       </div>
       <div style="text-align: right; font-size: 11px; color: #64748b;">
         <div><strong>Fecha:</strong> ${dateStr}</div>
@@ -194,20 +382,24 @@ export const exportChatToPDF = async (
   // Messages
   messages.forEach((msg) => {
     const isUser = msg.role === 'user';
-    const roleTitle = isUser ? 'Usuario' : `LYAXIS ${modelLabel}`;
+    const roleTitle = isUser ? 'Usuario' : `LYAXIS ${escapeHtml(modelLabel)}`;
     const roleBorder = isUser ? '#cbd5e1' : modelColor;
     const roleBg = isUser ? '#f8fafc' : '#ffffff';
     const titleColor = isUser ? '#475569' : modelColor;
 
-    const parsedContent = markdownToPdfHtml(msg.content);
+    const parsedContent = markdownToPdfHtml(msg.content, renderMath);
+    const usageSeal =
+      !isUser && msg.usage && msg.usage.totalTokens > 0
+        ? `✓ ${msg.usage.totalTokens.toLocaleString('es-MX')} tokens (${msg.usage.promptTokens.toLocaleString('es-MX')} in · ${msg.usage.completionTokens.toLocaleString('es-MX')} out) • LYAXIS IA`
+        : 'LYAXIS IA';
 
     htmlContent += `
       <div class="pdf-msg-card" style="margin-bottom: 18px; border: 1px solid ${roleBorder}; border-radius: 8px; overflow: hidden; background-color: ${roleBg}; page-break-inside: auto; break-inside: auto;">
-        <div style="background-color: ${isUser ? '#f1f5f9' : '#f8fafc'}; padding: 8px 14px; border-bottom: 1px solid ${roleBorder}; font-size: 12px; font-weight: 800; color: ${titleColor}; display: flex; justify-content: space-between; page-break-after: avoid; break-after: avoid;">
+        <div style="background-color: ${isUser ? '#f1f5f9' : '#f8fafc'}; padding: 8px 14px; border-bottom: 1px solid ${roleBorder}; font-size: 12px; font-weight: 800; color: ${titleColor}; display: flex; justify-content: space-between; align-items: center; page-break-after: avoid; break-after: avoid;">
           <span>${roleTitle}</span>
-          <span style="font-size: 10px; font-weight: normal; color: #94a3b8;">LYAXIS IA</span>
+          <span style="font-size: 10px; font-weight: 600; color: #64748b; font-family: 'JetBrains Mono', Consolas, monospace;">${usageSeal}</span>
         </div>
-        <div style="padding: 14px; font-size: 12.5px; line-height: 1.6; color: #1e293b;">
+        <div style="padding: 14px; font-size: 12.5px; line-height: 1.62; color: #1e293b;">
           ${parsedContent}
         </div>
       </div>
@@ -230,8 +422,8 @@ export const exportChatToPDF = async (
     html2canvas: { scale: 2, useCORS: true, logging: false },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
     pagebreak: {
-      mode: ['avoid-all', 'css', 'legacy'],
-      avoid: ['tr', '.pdf-avoid-break', 'p', 'pre', 'h1', 'h2', 'h3', 'li', 'blockquote']
+      mode: ['css', 'legacy'],
+      avoid: ['tr', '.pdf-avoid-break', 'p', 'h1', 'h2', 'h3', 'h4', 'li', 'blockquote']
     }
   };
 

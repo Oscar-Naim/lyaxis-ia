@@ -25,10 +25,20 @@ function splitStreamingMarkdownBlocks(text: string): { frozen: string[]; active:
   let inFence = false;
   let inDisplayMath = false;
 
+  const isListStart = (s: string) => /^(\d+[.)]|[-*+])\s+/.test(s);
+  const isTableRow = (s: string) => s.startsWith('|') || (s.includes('|') && s.endsWith('|'));
+
+  const peekNextNonEmpty = (fromIdx: number): string => {
+    for (let j = fromIdx; j < lines.length; j++) {
+      if (lines[j].trim() !== '') return lines[j];
+    }
+    return '';
+  };
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trimStart();
-    if (trimmed.startsWith('```')) {
+    if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
       inFence = !inFence;
     } else if (!inFence && trimmed.startsWith('$$')) {
       const count = (trimmed.match(/\$\$/g) || []).length;
@@ -36,9 +46,24 @@ function splitStreamingMarkdownBlocks(text: string): { frozen: string[]; active:
     }
 
     if (!inFence && !inDisplayMath && line.trim() === '' && buf.length > 0) {
-      const blockText = buf.join('\n').trim();
-      if (blockText) blocks.push(blockText);
-      buf = [];
+      const nextRaw = peekNextNonEmpty(i + 1);
+      const nextTrimmed = nextRaw.trimStart();
+      const bufFirst = (buf.find((l) => l.trim() !== '') || '').trimStart();
+      const bufLast = (buf[buf.length - 1] || '').trimStart();
+
+      // Mantener unidas listas multipárrafo (evita que 1., 2., 3. se reinicien a 1.), citas y tablas
+      const keepTogether =
+        (isListStart(bufFirst) && (isListStart(nextTrimmed) || /^ {2,}\S/.test(nextRaw) || nextRaw.startsWith('\t'))) ||
+        (bufLast.startsWith('>') && nextTrimmed.startsWith('>')) ||
+        (isTableRow(bufLast) && isTableRow(nextTrimmed));
+
+      if (keepTogether) {
+        buf.push(line);
+      } else {
+        const blockText = buf.join('\n').trim();
+        if (blockText) blocks.push(blockText);
+        buf = [];
+      }
     } else {
       buf.push(line);
     }
@@ -133,12 +158,17 @@ const MemoizedMarkdownChunk = React.memo(
           );
         },
         pre({ children }: any) {
+          // Si un bloque cercado sin idioma y de 1 línea cayó en <code> inline, promoverlo a CodeBlock
+          if (React.isValidElement(children) && (children as any).type === 'code') {
+            const rawChild = String(((children as any).props as any)?.children ?? '').replace(/\n$/, '');
+            return <CodeBlock language="plaintext" codeString={rawChild} />;
+          }
           return (
             <div
               style={{
-                overflowX: 'auto',
                 width: '100%',
                 maxWidth: '100%',
+                minWidth: 0,
                 margin: '8px 0',
                 WebkitOverflowScrolling: 'touch',
               }}
@@ -148,24 +178,25 @@ const MemoizedMarkdownChunk = React.memo(
           );
         },
         code({ className, children, ...props }: any) {
-          const match = /language-(\w+)/.exec(className || '');
-          const codeString = String(children || '').replace(/\n$/, '');
+          const match = /language-([^\s]+)/.exec(className || '');
+          const raw = String(children ?? '');
+          const codeString = raw.replace(/\n$/, '');
 
-          if (match) {
-            return <CodeBlock language={match[1]} codeString={codeString} />;
+          if (match || raw.includes('\n')) {
+            return <CodeBlock language={match ? match[1] : 'plaintext'} codeString={codeString} />;
           }
           return (
             <code
               style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                color: '#ffffff',
+                backgroundColor: 'rgba(255, 255, 255, 0.07)',
+                color: '#f1f5f9',
                 padding: '2px 6px',
-                borderRadius: '4px',
-                fontSize: '12px',
-                border: '1px solid rgba(255, 255, 255, 0.14)',
-                fontFamily: "'JetBrains Mono', Consolas, monospace",
+                borderRadius: '5px',
+                fontSize: '0.88em',
+                border: '1px solid rgba(255, 255, 255, 0.13)',
+                fontFamily: 'var(--lx-font-mono)',
                 fontWeight: 600,
-                letterSpacing: '0.2px',
+                letterSpacing: '0.1px',
               }}
               {...props}
             >
@@ -174,6 +205,62 @@ const MemoizedMarkdownChunk = React.memo(
           );
         },
         blockquote({ children, ...props }: any) {
+          // Detectar alertas estilo GitHub ([!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION])
+          const extractPlain = (node: any): string => {
+            if (typeof node === 'string' || typeof node === 'number') return String(node);
+            if (Array.isArray(node)) return node.map(extractPlain).join('');
+            if (React.isValidElement(node)) return extractPlain(((node as any).props as any)?.children);
+            return '';
+          };
+          const plainText = extractPlain(children).trimStart();
+          const alertMatch = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i.exec(plainText);
+
+          if (alertMatch) {
+            const kind = alertMatch[1].toUpperCase();
+            const palette: Record<string, { label: string; color: string; bg: string; border: string }> = {
+              NOTE: { label: 'Nota Técnica', color: '#60a5fa', bg: 'rgba(59, 130, 246, 0.08)', border: 'rgba(59, 130, 246, 0.35)' },
+              TIP: { label: 'Recomendación', color: '#34d399', bg: 'rgba(16, 185, 129, 0.08)', border: 'rgba(16, 185, 129, 0.35)' },
+              IMPORTANT: { label: 'Importante', color: '#c084fc', bg: 'rgba(168, 85, 247, 0.09)', border: 'rgba(168, 85, 247, 0.38)' },
+              WARNING: { label: 'Atención', color: '#fbbf24', bg: 'rgba(245, 158, 11, 0.09)', border: 'rgba(245, 158, 11, 0.38)' },
+              CAUTION: { label: 'Precaución Crítica', color: '#f87171', bg: 'rgba(239, 68, 68, 0.09)', border: 'rgba(239, 68, 68, 0.38)' },
+            };
+            const cfg = palette[kind] || palette.NOTE;
+            const stripTag = (node: any): any => {
+              if (typeof node === 'string') return node.replace(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i, '');
+              if (Array.isArray(node)) {
+                let stripped = false;
+                return node.map((child) => {
+                  if (stripped) return child;
+                  const next = stripTag(child);
+                  if (next !== child) stripped = true;
+                  return next;
+                });
+              }
+              if (React.isValidElement(node)) {
+                const cProps: any = (node as any).props;
+                const nextChildren = stripTag(cProps?.children);
+                if (nextChildren !== cProps?.children) {
+                  return React.cloneElement(node as React.ReactElement<any>, {}, nextChildren);
+                }
+              }
+              return node;
+            };
+
+            return (
+              <div
+                className="lyaxis-callout"
+                style={{
+                  '--lx-callout-color': cfg.color,
+                  '--lx-callout-bg': cfg.bg,
+                  '--lx-callout-border': cfg.border,
+                } as React.CSSProperties}
+              >
+                <div className="lyaxis-callout-title">◆ {cfg.label}</div>
+                <div>{stripTag(children)}</div>
+              </div>
+            );
+          }
+
           return (
             <blockquote
               style={{
@@ -356,18 +443,61 @@ export function parseTriadContent(content: string): ParsedTriad {
   };
 }
 
-const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) => {
+/**
+ * Extrae bloques de razonamiento (<thought>...</thought> o <think>...</think>),
+ * tanto cerrados como aún abiertos en pleno streaming, sin exponer jamás etiquetas XML crudas.
+ */
+function extractReasoningBlocks(raw: string): {
+  hasThought: boolean;
+  thoughtText: string;
+  finalContent: string;
+  isThinkingNow: boolean;
+} {
+  if (!raw || !/<(thought|think)>/i.test(raw)) {
+    return { hasThought: false, thoughtText: '', finalContent: raw, isThinkingNow: false };
+  }
+
+  const thoughts: string[] = [];
+  let rest = raw.replace(/<(thought|think)>([\s\S]*?)<\/\1>/gi, (_m, _tag, body) => {
+    if (body && String(body).trim()) thoughts.push(String(body).trim());
+    return '';
+  });
+
+  let isThinkingNow = false;
+  const openMatch = /<(thought|think)>([\s\S]*)$/i.exec(rest);
+  if (openMatch) {
+    isThinkingNow = true;
+    if (openMatch[2] && openMatch[2].trim()) {
+      thoughts.push(openMatch[2].trim());
+    }
+    rest = rest.slice(0, openMatch.index);
+  }
+
+  return {
+    hasThought: thoughts.length > 0 || isThinkingNow,
+    thoughtText: thoughts.join('\n\n'),
+    finalContent: rest.trim(),
+    isThinkingNow,
+  };
+}
+
+const ThinkingAccordion: React.FC<{ thoughtText: string; isStreamingThought?: boolean }> = ({
+  thoughtText,
+  isStreamingThought = false,
+}) => {
   const [isOpen, setIsOpen] = useState(false);
-  if (!thoughtText || !thoughtText.trim()) return null;
+  if (!thoughtText && !isStreamingThought) return null;
+  const lineCount = thoughtText ? thoughtText.split('\n').filter((l) => l.trim() !== '').length : 0;
 
   return (
     <div
+      className={isStreamingThought ? 'lyaxis-thinking-live' : undefined}
       style={{
         marginBottom: '12px',
-        borderRadius: '10px',
-        border: '1px solid rgba(168, 85, 247, 0.28)',
-        backgroundColor: '#000000',
-        boxShadow: '0 0 20px rgba(168, 85, 247, 0.08)',
+        borderRadius: '11px',
+        border: isStreamingThought ? '1px solid rgba(192, 132, 252, 0.45)' : '1px solid rgba(168, 85, 247, 0.28)',
+        backgroundColor: 'rgba(8, 6, 16, 0.92)',
+        boxShadow: '0 0 20px rgba(168, 85, 247, 0.09)',
         overflow: 'hidden',
       }}
     >
@@ -386,19 +516,31 @@ const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) =
           color: '#c084fc',
           fontSize: '11px',
           fontWeight: 700,
-          fontFamily: 'monospace',
-          letterSpacing: '0.4px',
+          fontFamily: 'var(--lx-font-mono)',
+          letterSpacing: '0.3px',
           cursor: 'pointer',
+          gap: '8px',
         }}
       >
-        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Brain size={14} color="#c084fc" />
-          🧠 Razonamiento analítico (clic para ver)
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+          <Brain size={14} color="#c084fc" style={{ flexShrink: 0 }} />
+          {isStreamingThought ? (
+            <span className="lyaxis-thinking-shimmer">
+              Razonando arquitectura paso a paso...
+            </span>
+          ) : (
+            <span>
+              Razonamiento analítico completado{lineCount > 0 ? ` (${lineCount} ${lineCount === 1 ? 'paso' : 'pasos'})` : ''}
+            </span>
+          )}
         </span>
-        {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#a78bfa', flexShrink: 0 }}>
+          <span style={{ fontSize: '10px', opacity: 0.8 }}>{isOpen ? 'Ocultar' : 'Inspeccionar'}</span>
+          {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+        </span>
       </button>
 
-      {isOpen && (
+      {isOpen && thoughtText && (
         <div
           style={{
             padding: '10px 14px',
@@ -428,7 +570,7 @@ const ThinkingAccordion: React.FC<{ thoughtText: string }> = ({ thoughtText }) =
                       padding: '2px 5px',
                       borderRadius: '4px',
                       fontSize: '11px',
-                      fontFamily: "'JetBrains Mono', monospace",
+                      fontFamily: 'var(--lx-font-mono)',
                     }}
                   >
                     {children}
@@ -755,28 +897,28 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
         </div>
 
         {/* Card Body */}
-        <div style={{ flex: 1, overflowWrap: 'break-word', fontSize: isMobile ? '13px' : '13.5px', lineHeight: 1.6, color: '#f1f5f9' }}>
+        <div style={{ flex: 1, minWidth: 0, overflowWrap: 'break-word', fontSize: isMobile ? '13px' : '13.5px', lineHeight: 1.6, color: '#f1f5f9' }}>
           {hasContent ? (
-            <div>
-              {title.includes('REBUILD') && body.includes('<thought>') ? (
-                (() => {
-                  const parts = body.split('</thought>');
-                  const thoughtPart = parts[0].replace('<thought>', '').trim();
-                  const finalRebuild = parts.length > 1 ? parts.slice(1).join('</thought>').trim() : '';
+            <div style={{ minWidth: 0 }}>
+              {(() => {
+                const parsed = extractReasoningBlocks(body);
+                if (parsed.hasThought) {
                   return (
                     <>
-                      <ThinkingAccordion thoughtText={thoughtPart} />
-                      {finalRebuild ? renderMarkdown(finalRebuild) : (
+                      <ThinkingAccordion
+                        thoughtText={parsed.thoughtText}
+                        isStreamingThought={isStreamingActive && parsed.isThinkingNow}
+                      />
+                      {parsed.finalContent ? renderMarkdown(parsed.finalContent) : (
                         <div style={{ fontSize: '12px', color: '#c084fc', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 0' }}>
                           <Sparkles size={14} className="animate-spin" /> Sintetizando solución final...
                         </div>
                       )}
                     </>
                   );
-                })()
-              ) : (
-                renderMarkdown(body)
-              )}
+                }
+                return renderMarkdown(body);
+              })()}
               {isStreamingActive && <span className="lyaxis-cursor" />}
             </div>
           ) : isStreamingActive ? (
@@ -1087,15 +1229,16 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
       );
     }
 
-    // Reasoning Thought Process
-    if (content.includes('<thought>')) {
-      const parts = content.split('</thought>');
-      const thoughtPart = parts[0].replace('<thought>', '').trim();
-      const finalContent = parts.length > 1 ? parts.slice(1).join('</thought>').trim() : '';
-
+    // Reasoning Thought Process (<thought> o <think>, abierto en vivo o cerrado)
+    const parsedReasoning = extractReasoningBlocks(content);
+    if (parsedReasoning.hasThought) {
+      const { thoughtText, finalContent, isThinkingNow } = parsedReasoning;
       return (
         <>
-          <ThinkingAccordion thoughtText={thoughtPart} />
+          <ThinkingAccordion
+            thoughtText={thoughtText}
+            isStreamingThought={Boolean(message.isStreaming) && isThinkingNow}
+          />
           {finalContent ? (
             finalContent.includes('<slide') ? (
               renderPresentation ? renderPresentation(finalContent) : (
@@ -1135,36 +1278,36 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
 
   return (
     <div
-      className={`lyaxis-msg-bubble ${isTriad ? 'lyaxis-triad-bubble' : ''}`}
+      className={`lyaxis-msg-bubble ${isTriad ? 'lyaxis-triad-bubble' : (isUser ? 'lyaxis-msg-user' : 'lyaxis-msg-model')}`}
       style={{
         display: 'flex',
         flexDirection: 'column',
-        alignSelf: 'flex-start',
+        alignSelf: isUser && !isTriad ? 'flex-end' : 'flex-start',
         maxWidth: '100%',
         width: '100%',
-        backgroundColor: isTriad ? 'transparent' : (isUser ? '#07070a' : '#000000'),
+        backgroundColor: isTriad ? 'transparent' : (isUser ? '#0c101c' : 'rgba(9, 13, 24, 0.78)'),
         backdropFilter: isTriad ? 'none' : 'blur(16px)',
         WebkitBackdropFilter: isTriad ? 'none' : 'blur(16px)',
         border: isTriad 
           ? 'none' 
-          : (isUser ? '1px solid #1a1a24' : '1px solid rgba(255, 255, 255, 0.08)'),
+          : (isUser ? '1px solid rgba(255, 255, 255, 0.09)' : '1px solid rgba(255, 255, 255, 0.08)'),
         borderLeft: isTriad
           ? 'none'
-          : (isUser ? '1px solid #1a1a24' : `3px solid ${modelColor}`),
+          : (isUser ? '1px solid rgba(255, 255, 255, 0.09)' : `3px solid ${modelColor}`),
         borderRadius: '14px',
         padding: isTriad ? 0 : (isMobile ? '12px 14px' : '16px 20px'),
         fontSize: isMobile ? '13.5px' : '14.5px',
-        lineHeight: '1.6',
+        lineHeight: '1.65',
         boxShadow: isTriad 
           ? 'none' 
           : (isUser 
               ? '0 4px 18px rgba(0,0,0,0.5)' 
               : `0 8px 30px rgba(0,0,0,0.8), 0 0 20px ${modelColor}14`),
         overflowWrap: 'break-word',
-        animation: 'fadeIn 0.25s ease-out',
         position: 'relative',
         boxSizing: 'border-box',
-      }}
+        '--lx-model-glow': `${modelColor}18`,
+      } as React.CSSProperties}
     >
       {/* Message Header — Core Identity & Actions */}
       {!isTriad && (
@@ -1266,6 +1409,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
             <div
+              className={`lyaxis-model-avatar${message.isStreaming ? ' is-live' : ''}`}
               style={{
                 width: isMobile ? '32px' : '36px',
                 height: isMobile ? '32px' : '36px',
@@ -1278,7 +1422,8 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                 color: isTriad ? '#00D9FF' : modelColor,
                 boxShadow: `0 0 16px ${isTriad ? '#7C3AED' : modelColor}35`,
                 flexShrink: 0,
-              }}
+                '--lx-avatar-glow': `${isTriad ? '#7C3AED' : modelColor}55`,
+              } as React.CSSProperties}
             >
               {isTriad ? <Zap size={18} color="#00D9FF" /> : getModelIconNode(msgModel, 18)}
             </div>
@@ -1715,13 +1860,21 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
             )}
           </div>
 
-          <span style={{ fontSize: '10.5px', color: '#7C3AED', fontFamily: 'monospace', fontWeight: 600 }}>
-            LYAXIS TRIAD™ // SYNTHESIS VERIFIED
-          </span>
+          <div className="lyaxis-usage-seal">
+            {message.usage && message.usage.totalTokens > 0 && (
+              <span className="seal-chip verified" title={`Entrada: ${message.usage.promptTokens} · Salida: ${message.usage.completionTokens}${message.usage.modelUsed ? ` · ${message.usage.modelUsed}` : ''}`}>
+                ✓ {message.usage.totalTokens.toLocaleString('es-MX')} tok
+                {message.durationMs ? ` · ${(message.durationMs / 1000).toFixed(1)}s` : ''}
+              </span>
+            )}
+            <span style={{ fontSize: '10.5px', color: '#7C3AED', fontFamily: 'var(--lx-font-mono)', fontWeight: 600 }}>
+              LYAXIS TRIAD™ // SYNTHESIS VERIFIED
+            </span>
+          </div>
         </div>
       )}
 
-      {/* Footer bar for standard assistant message: "Copiar respuesta completa" */}
+      {/* Footer bar for standard assistant message: "Copiar respuesta completa" + Sello de Telemetría Real */}
       {!isUser && !isTriad && message.content && !message.isStreaming && (
         <div
           style={{
@@ -1731,6 +1884,8 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '8px',
             fontSize: '11px',
             color: '#71717a',
           }}
@@ -1758,9 +1913,27 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
             <span>{copied ? '¡Copiado al portapapeles!' : 'Copiar respuesta completa'}</span>
           </button>
 
-          <span style={{ fontSize: '10.5px', color: '#52525b', fontFamily: 'monospace' }}>
-            LYAXIS labs™ // DETERMINISTIC
-          </span>
+          <div className="lyaxis-usage-seal">
+            {message.usage && message.usage.totalTokens > 0 ? (
+              <span
+                className="seal-chip verified"
+                title={
+                  message.usage.modelUsed
+                    ? `Motor verificado: ${message.usage.modelUsed}`
+                    : 'Tokens reales reportados por el backend'
+                }
+              >
+                ✓ {message.usage.totalTokens.toLocaleString('es-MX')} tokens ({message.usage.promptTokens.toLocaleString('es-MX')} in · {message.usage.completionTokens.toLocaleString('es-MX')} out)
+                {message.durationMs ? ` · ${(message.durationMs / 1000).toFixed(1)}s` : ''}
+              </span>
+            ) : message.usage?.modelUsed?.startsWith('cache:') ? (
+              <span className="seal-chip verified">⚡ Caché determinista · 0 tokens API</span>
+            ) : (
+              <span style={{ fontSize: '10.5px', color: '#52525b', fontFamily: 'var(--lx-font-mono)' }}>
+                LYAXIS labs™ // DETERMINISTIC
+              </span>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -1773,6 +1946,8 @@ export const MessageBubble = React.memo(MessageBubbleComponent, (prev, next) => 
     prev.message.content === next.message.content &&
     prev.message.isStreaming === next.message.isStreaming &&
     prev.message.image === next.message.image &&
+    prev.message.usage === next.message.usage &&
+    prev.message.durationMs === next.message.durationMs &&
     prev.activeModel === next.activeModel &&
     prev.isMobile === next.isMobile
   );

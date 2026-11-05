@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import type { Message } from './types';
+import type { Message, MessageUsage } from './types';
 import { API_BASE, getAuthHeaders } from './config';
 
 export type TriadCoreType = 'create' | 'break' | 'rebuild';
@@ -10,13 +10,35 @@ export interface TriadState {
   rebuild: string;
 }
 
+/**
+ * Normaliza el objeto `usage` del backend (snake_case en SSE / BD) a `MessageUsage`.
+ * Devuelve `undefined` si no hay datos utilizables.
+ */
+export function normalizeUsage(raw: any): MessageUsage | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const prompt = Number(raw.prompt_tokens ?? raw.promptTokens ?? 0) || 0;
+  const completion = Number(raw.completion_tokens ?? raw.completionTokens ?? 0) || 0;
+  const totalRaw = Number(raw.total_tokens ?? raw.totalTokens ?? 0) || 0;
+  const total = totalRaw || prompt + completion;
+  const modelUsedRaw = raw.model_used ?? raw.modelUsed;
+  const modelUsed = Array.isArray(modelUsedRaw)
+    ? modelUsedRaw.filter(Boolean).join(' + ')
+    : modelUsedRaw && typeof modelUsedRaw === 'object'
+      ? Object.values(modelUsedRaw).filter(Boolean).join(' + ')
+      : modelUsedRaw
+        ? String(modelUsedRaw)
+        : undefined;
+  if (!total && !modelUsed) return undefined;
+  return { promptTokens: prompt, completionTokens: completion, totalTokens: total, modelUsed };
+}
+
 export interface UseSSEStreamOptions {
-  onDone?: (fullText: string) => void;
+  onDone?: (fullText: string, usage?: MessageUsage) => void;
   onError?: (err: Error) => void;
 }
 
 export interface StreamCallOptions {
-  onDone?: (fullText: string) => void;
+  onDone?: (fullText: string, usage?: MessageUsage) => void;
   onError?: (err: Error) => void;
   timeoutMs?: number;
   temperature?: number;
@@ -46,6 +68,7 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
       const timeoutMs = options?.timeoutMs ?? 65000;
 
       let accumulatedText = '';
+      let finalUsage: MessageUsage | undefined = undefined;
       const triadState: TriadState = { create: '', break: '', rebuild: '' };
       let activeCore: TriadCoreType | null = null;
       let isTriadStream = Boolean(options?.triad_mode);
@@ -264,6 +287,9 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
                   }
                   scheduleFlush();
                 } else if (parsed.done) {
+                  // Telemetría real de tokens emitida por el backend en el frame final
+                  const usage = normalizeUsage(parsed.usage);
+                  if (usage) finalUsage = usage;
                   scheduleFlush();
                 }
 
@@ -289,7 +315,7 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
           options.onTriadToken({ ...triadState }, activeCore);
         }
 
-        if (activeOnDone) activeOnDone(accumulatedText);
+        if (activeOnDone) activeOnDone(accumulatedText, finalUsage);
       } catch (err: any) {
         clearTimeout(timeoutTimer);
         const isAbort = err.name === 'AbortError' && !timeoutTriggered;

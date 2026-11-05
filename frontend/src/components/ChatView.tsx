@@ -41,6 +41,7 @@ import {
   Sliders,
   FileCode,
   Bookmark,
+  ArrowDown,
 } from 'lucide-react';
 import type { Message, ModelType, User } from '../types';
 import { useSSEStream } from '../useSSEStream';
@@ -250,7 +251,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
   }, [syncServerQuota]);
 
   // Streaming Telemetry & Velocity Stats
-  const [streamingTelemetry, setStreamingTelemetry] = useState<{ tps: number; durationMs: number; tokenCount: number } | null>(null);
+  const [streamingTelemetry, setStreamingTelemetry] = useState<{
+    tps: number;
+    durationMs: number;
+    tokenCount: number;
+    /** true cuando los tokens provienen del backend (usage real), no de una estimación */
+    verified?: boolean;
+    promptTokens?: number;
+    completionTokens?: number;
+    modelUsed?: string;
+  } | null>(null);
   const streamStartTimeRef = useRef<number>(0);
   const streamTokenCountRef = useRef<number>(0);
 
@@ -549,8 +559,35 @@ export const ChatView: React.FC<ChatViewProps> = ({
     );
   };
 
-  useEffect(() => {
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const userScrolledUpRef = useRef(false);
+
+  const handleChatScroll = () => {
+    const el = messagesScrollRef.current;
+    if (!el) return;
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const isUp = distFromBottom > 140;
+    userScrolledUpRef.current = isUp;
+    setShowScrollBottom(isUp && messages.length > 0);
+  };
+
+  const scrollToBottomSmooth = () => {
+    userScrolledUpRef.current = false;
+    setShowScrollBottom(false);
     if (messagesScrollRef.current) {
+      messagesScrollRef.current.scrollTo({
+        top: messagesScrollRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      userScrolledUpRef.current = false;
+      setShowScrollBottom(false);
+    }
+    if (messagesScrollRef.current && !userScrolledUpRef.current) {
       messagesScrollRef.current.scrollTop = messagesScrollRef.current.scrollHeight;
     }
     if (typeof window !== 'undefined' && window.scrollY !== 0) {
@@ -811,6 +848,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     };
 
     const updatedMessages = [...messages, userMessage];
+    userScrolledUpRef.current = false;
+    setShowScrollBottom(false);
     setMessages([...updatedMessages, assistantMessage]);
 
     // Active model individual temperature
@@ -864,14 +903,51 @@ export const ChatView: React.FC<ChatViewProps> = ({
         onError: (err) => {
           handleStreamError(err);
         },
-        onDone: () => {
+        onDone: (_fullText, usage) => {
           const finalElapsed = Math.max((Date.now() - streamStartTimeRef.current) / 1000, 0.1);
-          const finalTps = Math.round(streamTokenCountRef.current / finalElapsed);
-          setStreamingTelemetry({
-            tps: Math.min(Math.max(finalTps, 20), 165),
-            durationMs: Math.round(finalElapsed * 1000),
-            tokenCount: streamTokenCountRef.current,
-          });
+          const finalDurationMs = Math.round(finalElapsed * 1000);
+          if (usage && usage.totalTokens > 0) {
+            // Telemetría real verificada por el backend
+            const outTokens = usage.completionTokens || Math.max(usage.totalTokens - usage.promptTokens, 0);
+            const realTps = outTokens > 0 ? Math.round(outTokens / finalElapsed) : 0;
+            setStreamingTelemetry({
+              tps: realTps,
+              durationMs: finalDurationMs,
+              tokenCount: usage.totalTokens,
+              verified: true,
+              promptTokens: usage.promptTokens,
+              completionTokens: outTokens,
+              modelUsed: usage.modelUsed,
+            });
+            try {
+              localStorage.setItem(
+                'lyaxis_last_stream_telemetry',
+                JSON.stringify({
+                  tps: realTps,
+                  durationMs: finalDurationMs,
+                  promptTokens: usage.promptTokens,
+                  completionTokens: outTokens,
+                  totalTokens: usage.totalTokens,
+                  modelUsed: usage.modelUsed || activeModelForSend,
+                  at: new Date().toISOString(),
+                })
+              );
+            } catch {}
+          } else {
+            const finalTps = Math.round(streamTokenCountRef.current / finalElapsed);
+            setStreamingTelemetry({
+              tps: Math.min(Math.max(finalTps, 20), 165),
+              durationMs: finalDurationMs,
+              tokenCount: streamTokenCountRef.current,
+            });
+          }
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantPlaceholderId
+                ? { ...msg, usage: usage && usage.totalTokens > 0 ? usage : msg.usage, durationMs: finalDurationMs }
+                : msg
+            )
+          );
           setServerErrorBanner(null);
           setLastFailedUserText(null);
           onConversationUpdated?.();
@@ -1831,8 +1907,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
               </div>
             </>
           ) : (
-            /* Botones en PC (>= 768px) — Deduplicados, sin desborde en laptops ni monitores */
+            /* Botones en PC (>= 768px) — Cápsula unificada de Estudio + Perfil */
             <>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '3px',
+                  borderRadius: '11px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.025)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                }}
+              >
               {/* Auto-Router Inteligente */}
               <button
                 type="button"
@@ -2185,6 +2272,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   <Info size={15} color="#00D9FF" />
                 </button>
               )}
+              </div>
 
               {/* User Profile / Login Button — Always Visible on Right Edge */}
               {user ? (
@@ -2378,9 +2466,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
       {/* Split-View Workspace Container: Chat Column + Optional Docked LiveCanvas */}
       <div style={{ display: 'flex', flex: '1 1 0%', minHeight: 0, overflow: 'hidden', position: 'relative' }}>
         <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
-      {/* Main Messages List or Cyberpunk Empty State */}
+      {/* Main Messages List or Quantum Studio Mission Control Empty State */}
       <div
         ref={messagesScrollRef}
+        onScroll={handleChatScroll}
         className="lyaxis-chat-scroll-area"
         style={{
           flex: '1 1 0%',
@@ -2395,7 +2484,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       >
         <div style={{ maxWidth: '960px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px', flex: 1 }}>
           {messages.length === 0 ? (
-            /* 1. Tarjetas de Acción Rápida por Modelo (Eliminar pantalla vacía) */
+            /* 1. Mission Control Empty State v4: Emblema Reactivo + Quick Engine Pill Bar + Bento Cards */
             <div
               className="lyaxis-empty-state"
               style={{
@@ -2405,24 +2494,38 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#71717a',
-                gap: '20px',
+                gap: isMobile ? '16px' : '20px',
                 textAlign: 'center',
                 minHeight: '52vh',
                 padding: '12px',
-                animation: 'fadeIn 0.3s ease-out',
+                animation: 'quantumReveal 0.42s var(--lx-ease-out) both',
               }}
             >
-              {/* Emblem with animated glowing aura ring */}
+              {/* Emblem with multi-layer orbital ring (or Tri-Core Prism when TRIAD is active) */}
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div
                   style={{
                     position: 'absolute',
-                    width: '96px',
-                    height: '96px',
-                    borderRadius: '28px',
-                    background: `radial-gradient(circle, ${meta.color}66 0%, transparent 70%)`,
+                    width: '104px',
+                    height: '104px',
+                    borderRadius: '30px',
+                    background: isTriadActive
+                      ? 'radial-gradient(circle, rgba(192, 132, 252, 0.42) 0%, rgba(0, 217, 255, 0.18) 45%, transparent 72%)'
+                      : `radial-gradient(circle, ${meta.color}66 0%, transparent 70%)`,
                     filter: 'blur(16px)',
-                    animation: 'lyaxisPulse 2.5s infinite ease-in-out',
+                    animation: 'lyaxisPulse 2.8s infinite ease-in-out',
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    width: '78px',
+                    height: '78px',
+                    borderRadius: '24px',
+                    border: isTriadActive
+                      ? '1px solid rgba(192, 132, 252, 0.38)'
+                      : `1px solid ${meta.color}44`,
+                    pointerEvents: 'none',
                   }}
                 />
                 <div
@@ -2431,75 +2534,126 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     width: '64px',
                     height: '64px',
                     borderRadius: '20px',
-                    background: `linear-gradient(135deg, ${meta.color}, #00D9FF)`,
+                    background: isTriadActive
+                      ? 'linear-gradient(135deg, #00D9FF 0%, #FF3366 50%, #C084FC 100%)'
+                      : `linear-gradient(135deg, ${meta.color}, #00D9FF)`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: `0 0 35px ${meta.color}77, 0 0 15px rgba(0, 217, 255, 0.4)`,
+                    boxShadow: isTriadActive
+                      ? '0 0 36px rgba(192, 132, 252, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.35)'
+                      : `0 0 35px ${meta.color}77, 0 0 15px rgba(0, 217, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.32)`,
                     border: '1px solid rgba(255, 255, 255, 0.3)',
                     position: 'relative',
                     zIndex: 1,
+                    transition: 'all 0.35s var(--lx-ease-out)',
                   }}
                 >
-                  {MODEL_ICONS[currentActiveModel]?.(30, '#ffffff')}
+                  {isTriadActive ? <Zap size={30} color="#ffffff" /> : MODEL_ICONS[currentActiveModel]?.(30, '#ffffff')}
                 </div>
               </div>
 
               {/* Title & Philosophy */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <h1
-                  className="lyaxis-empty-title"
+                  className="lyaxis-empty-title lx-display"
                   style={{
-                    fontSize: isMobile ? '28px' : '34px',
+                    fontSize: isMobile ? '27px' : '34px',
                     fontWeight: 800,
-                    letterSpacing: '-0.025em',
-                    background: 'linear-gradient(to right, #ffffff, #e2e8f0, #67e8f9)',
+                    letterSpacing: '-0.03em',
+                    background: isTriadActive
+                      ? 'linear-gradient(90deg, #ffffff 0%, #67e8f9 45%, #e879f9 100%)'
+                      : 'linear-gradient(to right, #ffffff, #e2e8f0, #67e8f9)',
                     WebkitBackgroundClip: 'text',
                     backgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     color: 'transparent',
-                    margin: '8px 0 4px 0',
+                    margin: '6px 0 4px 0',
                     display: 'inline-block',
                     textAlign: 'center',
                   }}
                 >
-                  LYAXIS {meta.label}
+                  {isTriadActive ? 'LYAXIS TRIAD™' : `LYAXIS ${meta.label}`}
                 </h1>
                 <div
                   style={{
                     height: '1px',
-                    width: '128px',
+                    width: '140px',
                     margin: '8px auto',
-                    background: 'linear-gradient(to right, transparent, rgba(6, 182, 212, 0.4), transparent)',
+                    background: `linear-gradient(to right, transparent, ${isTriadActive ? 'rgba(192, 132, 252, 0.55)' : `${meta.color}88`}, transparent)`,
                   }}
                 />
-                <p style={{ fontSize: '14px', maxWidth: '540px', margin: '4px auto 0', lineHeight: '1.6', color: '#94a3b8' }}>
-                  {meta.description}
+                <p style={{ fontSize: '14px', maxWidth: '560px', margin: '4px auto 0', lineHeight: '1.6', color: '#94a3b8' }}>
+                  {isTriadActive
+                    ? 'Debate concurrente a 3 núcleos en tiempo real: Create (Zenith) ➔ Break (Phantom) ➔ Rebuild (Architect).'
+                    : meta.description}
                 </p>
+              </div>
+
+              {/* Quick Engine Pill Bar (1-click switching across primary LYAXIS engines) */}
+              <div
+                role="tablist"
+                aria-label="Selector rápido de motores LYAXIS"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  flexWrap: 'wrap',
+                  maxWidth: '720px',
+                }}
+              >
+                {(['speed', 'cortex', 'zenith', 'phantom', 'architect', 'forge', 'magister', 'root'] as ModelType[]).map((mId) => {
+                  const mMeta = MODEL_META[mId];
+                  const isActivePill = !isTriadActive && currentActiveModel === mId;
+                  return (
+                    <button
+                      key={mId}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActivePill}
+                      disabled={isStreaming}
+                      className={`lyaxis-engine-pill${isActivePill ? ' active' : ''}`}
+                      style={{ '--lx-pill-color': mMeta.color } as React.CSSProperties}
+                      onClick={() => {
+                        if (isTriadActive) {
+                          setIsTriadActive(false);
+                          try {
+                            localStorage.setItem('lyaxis_triad_active', 'false');
+                          } catch {}
+                        }
+                        handleModelSwitch(mId);
+                      }}
+                    >
+                      {MODEL_ICONS[mId]?.(13, isActivePill ? '#ffffff' : mMeta.color)}
+                      <span>{mMeta.label}</span>
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Capability badges */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: '#00D9FF', backgroundColor: 'rgba(0, 217, 255, 0.08)', border: '1px solid rgba(0, 217, 255, 0.25)', padding: '4px 11px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span className="lx-tabular" style={{ fontSize: '11px', fontWeight: 600, color: '#00D9FF', backgroundColor: 'rgba(0, 217, 255, 0.08)', border: '1px solid rgba(0, 217, 255, 0.25)', padding: '4px 11px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <Zap size={11} /> Temperatura: {meta.temperature}
                 </span>
                 <span style={{ fontSize: '11px', fontWeight: 600, color: meta.color, backgroundColor: `${meta.color}14`, border: `1px solid ${meta.color}40`, padding: '4px 11px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <Shield size={11} /> Encriptación AES-256
                 </span>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: '#a78bfa', backgroundColor: 'rgba(167, 139, 250, 0.08)', border: '1px solid rgba(167, 139, 250, 0.25)', padding: '4px 11px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <Cpu size={11} /> Motor Dual Neural LYAXIS
+                <span style={{ fontSize: '11px', fontWeight: 600, color: '#34d399', backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.28)', padding: '4px 11px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <Cpu size={11} /> Gobernanza de Tokens Activa
                 </span>
               </div>
 
-              {/* 4 Cyberpunk Quick Action Cards */}
+              {/* 4 Bento Suggested Prompt Cards v4 */}
               <div
                 style={{
                   display: 'grid',
                   gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
                   gap: '12px',
                   width: '100%',
-                  maxWidth: '680px',
-                  marginTop: '10px',
+                  maxWidth: '700px',
+                  marginTop: '6px',
                 }}
               >
                 {quickActions.map((promptText, i) => (
@@ -2512,33 +2666,33 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       gap: '12px',
-                      backgroundColor: 'rgba(10, 10, 16, 0.75)',
-                      border: `1px solid ${meta.color}33`,
+                      backgroundColor: 'rgba(9, 13, 24, 0.78)',
+                      border: `1px solid ${meta.color}30`,
                       borderRadius: '14px',
-                      padding: isMobile ? '14px 16px' : '12px 16px',
-                      minHeight: isMobile ? '56px' : '48px',
+                      padding: isMobile ? '13px 15px' : '12px 16px',
+                      minHeight: isMobile ? '58px' : '54px',
                       cursor: 'pointer',
                       textAlign: 'left',
                       color: '#ffffff',
                       backdropFilter: 'blur(12px)',
-                      boxShadow: `0 4px 20px rgba(0, 0, 0, 0.5), inset 0 0 1px ${meta.color}22`,
-                      transition: 'all 0.2s ease',
+                      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 8px 24px -8px rgba(0, 0, 0, 0.65)',
+                      transition: 'all 0.22s var(--lx-ease-out)',
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.borderColor = `${meta.color}88`;
-                      e.currentTarget.style.backgroundColor = 'rgba(18, 18, 28, 0.85)';
-                      e.currentTarget.style.boxShadow = `0 6px 24px rgba(0,0,0,0.6), 0 0 16px ${meta.color}22`;
+                      e.currentTarget.style.backgroundColor = 'rgba(14, 20, 36, 0.9)';
+                      e.currentTarget.style.boxShadow = `inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 10px 28px -6px rgba(0,0,0,0.75), 0 0 18px ${meta.color}24`;
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = `${meta.color}33`;
-                      e.currentTarget.style.backgroundColor = 'rgba(10, 10, 16, 0.75)';
-                      e.currentTarget.style.boxShadow = `0 4px 20px rgba(0, 0, 0, 0.5), inset 0 0 1px ${meta.color}22`;
+                      e.currentTarget.style.borderColor = `${meta.color}30`;
+                      e.currentTarget.style.backgroundColor = 'rgba(9, 13, 24, 0.78)';
+                      e.currentTarget.style.boxShadow = 'inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 8px 24px -8px rgba(0, 0, 0, 0.65)';
                     }}
                   >
                     <div
                       style={{
-                        width: isMobile ? '38px' : '32px',
-                        height: isMobile ? '38px' : '32px',
+                        width: isMobile ? '38px' : '34px',
+                        height: isMobile ? '38px' : '34px',
                         borderRadius: '10px',
                         backgroundColor: `${meta.color}15`,
                         border: `1px solid ${meta.color}40`,
@@ -2550,11 +2704,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     >
                       {MODEL_ICONS[currentActiveModel]?.(isMobile ? 18 : 15, meta.color)}
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span className="lx-card-index">PROMPT 0{i + 1}</span>
                       <span
                         style={{
-                          fontSize: isMobile ? '14.5px' : '13px',
-                          lineHeight: '1.5',
+                          fontSize: isMobile ? '14px' : '13px',
+                          lineHeight: '1.45',
                           display: '-webkit-box',
                           WebkitLineClamp: 2,
                           WebkitBoxOrient: 'vertical',
@@ -2566,7 +2721,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         {promptText}
                       </span>
                     </div>
-                    <ChevronRight size={16} color="#71717a" style={{ flexShrink: 0 }} />
+                    <ChevronRight size={16} color="#71717a" className="lx-card-arrow" style={{ flexShrink: 0 }} />
                   </button>
                 ))}
               </div>
@@ -2574,7 +2729,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               {/* Status footer pill */}
               <div
                 style={{
-                  marginTop: '8px',
+                  marginTop: '4px',
                   padding: '5px 14px',
                   borderRadius: '20px',
                   backgroundColor: 'rgba(255, 255, 255, 0.02)',
@@ -2583,6 +2738,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   alignItems: 'center',
                   gap: '8px',
                   fontSize: '10.5px',
+                  fontFamily: 'var(--lx-font-mono)',
                   color: '#71717a',
                 }}
               >
@@ -2636,21 +2792,33 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </div>
       </div>
 
-      {/* Input Area with Image Attachment & Nexus Suggestion (5. BARRA DE INPUT INFERIOR FLOTANTE) */}
+      {/* Input Area with Image Attachment & Nexus Suggestion (5. BARRA DE INPUT INFERIOR FLOTANTE v4) */}
       <div
         className="lyaxis-bottom-bar"
         style={{
-          padding: isMobile ? '8px 12px calc(12px + env(safe-area-inset-bottom, 12px))' : '16px 24px 20px',
-          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-          backgroundColor: 'rgba(5, 8, 17, 0.92)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
+          padding: isMobile ? '8px 12px calc(12px + env(safe-area-inset-bottom, 12px))' : '14px 24px 20px',
+          borderTop: '1px solid rgba(255, 255, 255, 0.07)',
+          backgroundColor: 'rgba(6, 9, 18, 0.90)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
           position: 'sticky',
           bottom: 0,
           zIndex: 40,
           flexShrink: 0,
         }}
       >
+        {showScrollBottom && (
+          <button
+            type="button"
+            className="lyaxis-scroll-bottom-pill"
+            onClick={scrollToBottomSmooth}
+            title="Desplazarse suavemente al último mensaje"
+          >
+            {isStreaming && <span className="live-dot" />}
+            <span>{isStreaming ? 'En vivo · Ir al final' : 'Volver al final'}</span>
+            <ArrowDown size={13} />
+          </button>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -3041,10 +3209,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
               {(inputValue.trim().length > 0 || attachedFiles.length > 0) && (
                 <span
+                  className="lx-tabular"
                   title="Estimación de tokens de entrada para este mensaje"
                   style={{
                     fontSize: '10.5px',
-                    fontFamily: 'monospace',
+                    fontFamily: 'var(--lx-font-mono)',
                     color: '#94a3b8',
                     backgroundColor: 'rgba(255, 255, 255, 0.04)',
                     border: '1px solid rgba(255, 255, 255, 0.09)',
@@ -3146,57 +3315,74 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
           )}
 
-          {/* Real-time Streaming Telemetry Badge */}
+          {/* Real-time Streaming Telemetry Badge (tokens reales verificados por el backend al cerrar el stream) */}
           {streamingTelemetry && (
             <div
+              className="lx-tabular"
+              title={
+                streamingTelemetry.verified
+                  ? `Tokens reales reportados por el backend${streamingTelemetry.modelUsed ? ` · ${streamingTelemetry.modelUsed}` : ''}`
+                  : 'Estimación en vivo durante la transmisión'
+              }
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '10px',
+                gap: '8px',
                 marginBottom: '8px',
                 padding: '4px 12px',
                 borderRadius: '20px',
-                backgroundColor: 'rgba(0, 217, 255, 0.08)',
-                border: '1px solid rgba(0, 217, 255, 0.25)',
+                backgroundColor: streamingTelemetry.verified ? 'rgba(16, 185, 129, 0.07)' : 'rgba(0, 217, 255, 0.07)',
+                border: streamingTelemetry.verified ? '1px solid rgba(16, 185, 129, 0.28)' : '1px solid rgba(0, 217, 255, 0.22)',
                 fontSize: '11px',
-                fontFamily: 'monospace',
-                color: '#67e8f9',
+                fontFamily: 'var(--lx-font-mono)',
+                color: '#a5f3fc',
                 width: 'fit-content',
+                maxWidth: '100%',
+                flexWrap: 'wrap',
                 animation: 'fadeIn 0.2s ease-out',
               }}
             >
               <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#10b981', fontWeight: 700 }}>
                 <Zap size={12} color="#10b981" />
-                {streamingTelemetry.tps} tps
+                {streamingTelemetry.tps > 0 ? `${streamingTelemetry.tps} t/s` : 'instantáneo'}
               </span>
-              <span>•</span>
+              <span style={{ opacity: 0.4 }}>•</span>
               <span>{(streamingTelemetry.durationMs / 1000).toFixed(1)}s</span>
-              <span>•</span>
-              <span>{streamingTelemetry.tokenCount} tokens est.</span>
-              <span>•</span>
-              <span style={{ color: '#00d9ff' }}>LYAXIS {meta.label}</span>
+              <span style={{ opacity: 0.4 }}>•</span>
+              {streamingTelemetry.verified ? (
+                <span style={{ color: '#34d399', fontWeight: 700 }}>
+                  ✓ {streamingTelemetry.tokenCount.toLocaleString('es-MX')} tokens reales
+                  <span style={{ color: '#94a3b8', fontWeight: 500 }}>
+                    {' '}({(streamingTelemetry.promptTokens || 0).toLocaleString('es-MX')} in · {(streamingTelemetry.completionTokens || 0).toLocaleString('es-MX')} out)
+                  </span>
+                </span>
+              ) : (
+                <span>~{streamingTelemetry.tokenCount.toLocaleString('es-MX')} tokens est.</span>
+              )}
+              <span style={{ opacity: 0.4 }}>•</span>
+              <span style={{ color: currentTheme.primary, fontWeight: 700 }}>LYAXIS {meta.label}</span>
             </div>
           )}
 
-          {/* Input Bar with Dynamic Chromatic Focus Glow and Themed Border (3. BARRA DE ENTRADA INFERIOR) */}
+          {/* Input Bar with Dynamic Chromatic Focus Glow and Specular Obsidian Glass (Command Dock v4) */}
           <div
             className={isTriadActive ? 'lyaxis-triad-active-box' : ''}
             style={{
               display: 'flex',
               alignItems: 'flex-end',
-              backgroundColor: '#08080c',
+              backgroundColor: 'rgba(9, 13, 24, 0.88)',
               border: isTriadActive
                 ? '1px solid transparent'
-                : `1px solid ${selectedImage ? currentTheme.primary + '88' : isInputFocused ? currentTheme.primary + '80' : currentTheme.primary + '33'}`,
-              borderRadius: '14px',
-              padding: isMobile ? '8px 10px' : '12px 16px',
+                : `1px solid ${selectedImage ? currentTheme.primary + '88' : isInputFocused ? currentTheme.primary + '90' : currentTheme.primary + '36'}`,
+              borderRadius: '16px',
+              padding: isMobile ? '8px 10px' : '11px 15px',
               gap: '10px',
               boxShadow: isTriadActive
                 ? undefined
                 : isInputFocused
-                  ? `0 4px 25px rgba(0,0,0,0.85), 0 0 24px ${currentTheme.glow}`
-                  : `0 4px 25px rgba(0,0,0,0.8), 0 0 10px ${currentTheme.glow}`,
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  ? `inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 12px 32px -6px rgba(0, 0, 0, 0.88), 0 0 26px ${currentTheme.glow}`
+                  : `inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 8px 24px -6px rgba(0, 0, 0, 0.8), 0 0 10px ${currentTheme.glow}`,
+              transition: 'all 0.28s var(--lx-ease-out)',
             }}
           >
             {/* Hidden File Input (supports multiple files up to 5) */}

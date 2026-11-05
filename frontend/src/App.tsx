@@ -8,6 +8,7 @@ import { AuthModal } from './AuthModal';
 import { InstallPwaPrompt } from './InstallPwaPrompt';
 import { BootSplash } from './components/BootSplash';
 import { exportChatToPDF } from './pdfExporter';
+import { normalizeUsage } from './useSSEStream';
 import { isSoundMuted, setSoundMuted, playCyberClick } from './sound';
 import { CommandPalette } from './components/CommandPalette';
 import { exportChatToMarkdown, exportChatToJSON } from './utils/chatExporter';
@@ -243,8 +244,19 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
-          setMessages(data);
-          localStorage.setItem(`lyaxis_msgs_${chatId}`, JSON.stringify(data));
+          // Hidratar telemetría real de tokens guardada en BD (snake_case -> MessageUsage)
+          const hydrated: Message[] = data.map((row: any) => {
+            const usage = row && row.role === 'model' ? normalizeUsage(row) : undefined;
+            const clean: any = { ...row };
+            delete clean.prompt_tokens;
+            delete clean.completion_tokens;
+            delete clean.total_tokens;
+            delete clean.model_used;
+            if (usage) clean.usage = usage;
+            return clean as Message;
+          });
+          setMessages(hydrated);
+          localStorage.setItem(`lyaxis_msgs_${chatId}`, JSON.stringify(hydrated));
         }
       }
     } catch (e) {

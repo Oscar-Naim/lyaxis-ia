@@ -30,35 +30,56 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
   contrastTheme = 'cyber',
   onChangeContrastTheme,
 }) => {
-  const [latency, setLatency] = useState<number>(14);
-  const [tokensPerSec, setTokensPerSec] = useState<number>(128);
+  const [latency, setLatency] = useState<number | null>(null);
+  const [lastStream, setLastStream] = useState<{
+    tps: number;
+    durationMs: number;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    modelUsed?: string;
+    at?: string;
+  } | null>(null);
   const [activeTab, setActiveTab] = useState<'telemetry' | 'engine' | 'settings'>('telemetry');
   const [liveTelemetry, setLiveTelemetry] = useState<any>(null);
 
-  // Fetch real backend telemetry + simulate subtle real-time ping fluctuations
+  // Telemetría 100% real: RTT medido contra el backend + tokens guardados en BD + última transmisión verificada
   useEffect(() => {
     if (!isOpen) return;
+    let cancelled = false;
+
+    const readLastStream = () => {
+      try {
+        const raw = localStorage.getItem('lyaxis_last_stream_telemetry');
+        if (raw && !cancelled) setLastStream(JSON.parse(raw));
+      } catch {}
+    };
+
     const fetchTelemetry = async () => {
       try {
         const t0 = performance.now();
         const res = await fetch(`${API_BASE}/api/v1/telemetry?user_id=${encodeURIComponent(activeUserId || '')}`);
-        if (res.ok) {
+        if (res.ok && !cancelled) {
           const data = await res.json();
-          const rtt = Math.max(8, Math.min(95, Math.round((performance.now() - t0) / 4)));
-          setLatency(rtt);
+          setLatency(Math.max(1, Math.round(performance.now() - t0)));
           setLiveTelemetry(data);
         }
       } catch {}
+      readLastStream();
     };
+
     fetchTelemetry();
-    const interval = setInterval(() => {
-      setLatency((prev) => Math.max(9, Math.min(45, prev + Math.floor(Math.random() * 5 - 2))));
-      setTokensPerSec(Math.floor(120 + Math.random() * 25));
-    }, 1500);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchTelemetry, 6000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [isOpen, activeUserId]);
 
   if (!isOpen) return null;
+
+  const userStats = liveTelemetry?.userStats;
+  const fmt = (n: number | undefined) => (Number(n) || 0).toLocaleString('es-MX');
 
   const modelMetrics: Record<ModelType, { name: string; latency: string; tps: string; focus: string; color: string }> = {
     speed: { name: 'LYAXIS Speed', latency: '~12ms', tps: '160 t/s', focus: 'Desarrollo Ágil & Streaming Ultrarrápido', color: '#2563FF' },
@@ -251,14 +272,16 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
                   }}
                 >
                   <span style={{ fontSize: '11px', color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    LATENCIA DE STREAMING
+                    LATENCIA REAL (RTT)
                   </span>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                    <span style={{ fontSize: '24px', fontWeight: 800, color: '#00D9FF' }}>{latency}</span>
+                  <div className="lx-tabular" style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                    <span style={{ fontSize: '24px', fontWeight: 800, color: '#00D9FF', fontFamily: 'var(--lx-font-mono)' }}>
+                      {latency !== null ? fmt(latency) : '—'}
+                    </span>
                     <span style={{ fontSize: '12px', color: '#00D9FF', fontWeight: 600 }}>ms</span>
                   </div>
                   <span style={{ fontSize: '10px', color: '#10B981', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                    <CheckCircle2 size={10} /> Ultra-Fast HTTP/2 SSE
+                    <CheckCircle2 size={10} /> Medido contra /api/v1/telemetry
                   </span>
                 </div>
 
@@ -274,13 +297,21 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
                   }}
                 >
                   <span style={{ fontSize: '11px', color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    RENDIMIENTO DE TOKENS
+                    ÚLTIMA TRANSMISIÓN
                   </span>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                    <span style={{ fontSize: '24px', fontWeight: 800, color: '#a78bfa' }}>{tokensPerSec}</span>
-                    <span style={{ fontSize: '12px', color: '#a78bfa', fontWeight: 600 }}>t/s</span>
+                  <div className="lx-tabular" style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                    <span style={{ fontSize: '24px', fontWeight: 800, color: '#a78bfa', fontFamily: 'var(--lx-font-mono)' }}>
+                      {lastStream ? (lastStream.tps > 0 ? fmt(lastStream.tps) : '⚡') : '—'}
+                    </span>
+                    <span style={{ fontSize: '12px', color: '#a78bfa', fontWeight: 600 }}>
+                      {lastStream && lastStream.tps === 0 ? 'pre-vuelo' : 't/s'}
+                    </span>
                   </div>
-                  <span style={{ fontSize: '10px', color: '#a78bfa' }}>Batching RAF activado</span>
+                  <span className="lx-tabular" style={{ fontSize: '10px', color: '#a78bfa' }}>
+                    {lastStream
+                      ? `${fmt(lastStream.totalTokens)} tokens reales · ${(lastStream.durationMs / 1000).toFixed(1)}s`
+                      : 'Envía un mensaje para medir'}
+                  </span>
                 </div>
 
                 <div
@@ -307,7 +338,46 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
                 </div>
               </div>
 
-              {liveTelemetry?.userStats && (
+              {/* Gobernanza y Consumo Real de Tokens (Base de Datos) */}
+              <div
+                style={{
+                  backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                  border: '1px solid rgba(16, 185, 129, 0.22)',
+                  borderRadius: '12px',
+                  padding: '14px 16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#34d399', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+                    ✓ Gobernanza de Tokens Verificada (BD)
+                  </span>
+                  <span className="lx-tabular" style={{ fontFamily: 'var(--lx-font-mono)', fontSize: '12px', fontWeight: 800, color: '#ffffff' }}>
+                    {fmt((userStats?.totalTokens || 0) || lastStream?.totalTokens || 0)} tokens totales
+                  </span>
+                </div>
+                <div className="lx-tabular" style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', fontSize: '11px', fontFamily: 'var(--lx-font-mono)', color: '#94a3b8' }}>
+                  <span>
+                    Entrada: <strong style={{ color: '#cbd5e1' }}>{fmt(userStats?.promptTokens ?? lastStream?.promptTokens ?? 0)}</strong>
+                  </span>
+                  <span style={{ opacity: 0.4 }}>•</span>
+                  <span>
+                    Salida: <strong style={{ color: '#34d399' }}>{fmt(userStats?.completionTokens ?? lastStream?.completionTokens ?? 0)}</strong>
+                  </span>
+                  {lastStream?.modelUsed && (
+                    <>
+                      <span style={{ opacity: 0.4 }}>•</span>
+                      <span>
+                        Último motor: <strong style={{ color: '#00D9FF' }}>{lastStream.modelUsed}</strong>
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {userStats && (
                 <div
                   style={{
                     backgroundColor: 'rgba(124, 58, 237, 0.06)',
@@ -323,8 +393,8 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
                   <span style={{ color: '#cbd5e1', fontWeight: 600 }}>
                     ⚡ Estado de Cuota Concurrente LYAXIS TRIAD™ (6h):
                   </span>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#00D9FF' }}>
-                    {liveTelemetry.userStats.triadRemaining} / {liveTelemetry.userStats.triadMax} disponibles
+                  <span className="lx-tabular" style={{ fontFamily: 'var(--lx-font-mono)', fontWeight: 800, color: '#00D9FF' }}>
+                    {userStats.triadRemaining} / {userStats.triadMax} disponibles
                   </span>
                 </div>
               )}

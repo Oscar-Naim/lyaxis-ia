@@ -42,6 +42,9 @@ const EXT_MAP: Record<string, string> = {
   shell: 'sh',
   c: 'c',
   cpp: 'cpp',
+  'c++': 'cpp',
+  csharp: 'cs',
+  'c#': 'cs',
   rust: 'rs',
   go: 'go',
   svg: 'svg',
@@ -50,12 +53,37 @@ const EXT_MAP: Record<string, string> = {
   mermaid: 'mmd',
 };
 
+const HLJS_ALIAS: Record<string, string> = {
+  'c++': 'cpp',
+  'c#': 'csharp',
+  'f#': 'fsharp',
+  sh: 'bash',
+  shell: 'bash',
+  zsh: 'bash',
+  ps1: 'powershell',
+  jsx: 'javascript',
+  tsx: 'typescript',
+};
+
+function getLanguageAccent(lang: string): string {
+  if (['ts', 'tsx', 'typescript', 'py', 'python'].includes(lang)) return '#38bdf8';
+  if (['js', 'jsx', 'javascript', 'json', 'yaml', 'yml'].includes(lang)) return '#fbbf24';
+  if (['html', 'xml', 'svg', 'vue', 'css', 'scss'].includes(lang)) return '#34d399';
+  if (['sql', 'graphql', 'prisma'].includes(lang)) return '#f472b6';
+  if (['rust', 'rs', 'go', 'c', 'cpp', 'c++', 'csharp', 'c#', 'java'].includes(lang)) return '#fb923c';
+  if (lang === 'mermaid') return '#c084fc';
+  if (['bash', 'sh', 'shell', 'zsh', 'powershell'].includes(lang)) return '#4ade80';
+  return '#94a3b8';
+}
+
 export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, value }) => {
   const [copied, setCopied] = useState(false);
   const [isCanvasOpen, setIsCanvasOpen] = useState(false);
   const [wordWrap, setWordWrap] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mermaidSvg, setMermaidSvg] = useState<string | null>(null);
+  const [mermaidLoading, setMermaidLoading] = useState(false);
+  const [mermaidError, setMermaidError] = useState<string | null>(null);
   const [showMermaidSource, setShowMermaidSource] = useState(false);
   const [mermaidZoom, setMermaidZoom] = useState<number>(1);
 
@@ -69,6 +97,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
   } else if (Array.isArray(language) && language.length > 0 && language[0]) {
     langStr = String(language[0]).replace(/^language-/, '').split(',')[0].trim().toLowerCase();
   }
+  const langAccent = getLanguageAccent(langStr);
 
   // Check if code is runnable in live canvas sandbox
   const isRunnable =
@@ -77,44 +106,87 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
     rawCode.trim().startsWith('<html') ||
     rawCode.trim().startsWith('<svg');
 
-  // Render Mermaid diagrams dynamically
+  // Render Mermaid diagrams dynamically (Zero-Glitch Engine: debounced + suppressErrorRendering)
   useEffect(() => {
-    if (langStr === 'mermaid') {
-      let isMounted = true;
-      (async () => {
-        try {
-          const mermaidCdnUrl = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-          const mermaidModule = await import(/* @vite-ignore */ mermaidCdnUrl);
-          const mermaid = mermaidModule.default;
-          mermaid.initialize({
-            startOnLoad: false,
-            theme: 'dark',
-            darkMode: true,
-            themeVariables: {
-              primaryColor: '#00d9ff',
-              primaryTextColor: '#ffffff',
-              lineColor: '#3b82f6',
-              mainBkg: '#070b14',
-            },
-          });
-          const id = `mermaid-${Math.random().toString(36).substring(2, 9)}`;
-          const { svg } = await mermaid.render(id, rawCode);
-          if (isMounted) setMermaidSvg(svg);
-        } catch (err) {
-          console.warn('Aviso renderizando Mermaid:', err);
+    if (langStr !== 'mermaid') return;
+    const trimmedCode = rawCode.trim();
+    if (!trimmedCode) return;
+
+    let isMounted = true;
+    setMermaidLoading(true);
+    setMermaidError(null);
+
+    const timer = setTimeout(async () => {
+      const id = `mermaid-${Math.random().toString(36).substring(2, 9)}`;
+      try {
+        const mermaidCdnUrl = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        const mermaidModule = await import(/* @vite-ignore */ mermaidCdnUrl);
+        const mermaid = mermaidModule.default;
+        mermaid.initialize({
+          startOnLoad: false,
+          suppressErrorRendering: true,
+          securityLevel: 'loose',
+          theme: 'dark',
+          darkMode: true,
+          themeVariables: {
+            primaryColor: '#0f172a',
+            primaryTextColor: '#f8fafc',
+            primaryBorderColor: '#38bdf8',
+            lineColor: '#38bdf8',
+            secondaryColor: '#1e1b4b',
+            tertiaryColor: '#090d16',
+            mainBkg: '#090d16',
+          },
+        });
+
+        const isValid = await mermaid.parse(trimmedCode, { suppressErrors: true });
+        if (isValid === false) {
+          if (isMounted) {
+            setMermaidLoading(false);
+            setMermaidError('Vista de código activa (diagrama en transmisión o sintaxis extendida)');
+          }
+          return;
         }
-      })();
-      return () => {
-        isMounted = false;
-      };
-    }
+
+        const { svg } = await mermaid.render(id, trimmedCode);
+        if (isMounted) {
+          setMermaidSvg(svg);
+          setMermaidError(null);
+          setMermaidLoading(false);
+        }
+      } catch {
+        if (isMounted) {
+          setMermaidLoading(false);
+          setMermaidError('Vista de código activa (sintaxis Mermaid no renderizable)');
+        }
+      } finally {
+        // Limpiar cualquier nodo temporal huérfano que Mermaid v11 haya podido crear
+        if (typeof document !== 'undefined') {
+          const stray = document.getElementById(`d${id}`) || document.getElementById(id);
+          if (stray && stray.parentElement === document.body) {
+            stray.remove();
+          }
+        }
+      }
+    }, 220);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
   }, [langStr, rawCode]);
 
   // Highlight code
   let highlightedCode = '';
+  const hljsLang = HLJS_ALIAS[langStr] || langStr;
   try {
-    if (hljs.getLanguage(langStr)) {
-      highlightedCode = hljs.highlight(rawCode, { language: langStr, ignoreIllegals: true }).value;
+    if (hljsLang !== 'plaintext' && hljs.getLanguage(hljsLang)) {
+      highlightedCode = hljs.highlight(rawCode, { language: hljsLang, ignoreIllegals: true }).value;
+    } else if (hljsLang === 'plaintext') {
+      highlightedCode = rawCode
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
     } else {
       highlightedCode = hljs.highlightAuto(rawCode).value;
     }
@@ -240,25 +312,38 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
           >
             <span
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
                 fontSize: '11px',
-                fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-                fontWeight: 600,
-                color: '#00D9FF',
+                fontFamily: 'var(--lx-font-mono)',
+                fontWeight: 700,
+                color: langAccent,
                 textTransform: 'lowercase',
-                letterSpacing: '0.4px',
-                backgroundColor: 'rgba(0, 217, 255, 0.08)',
-                padding: '2px 8px',
+                letterSpacing: '0.3px',
+                backgroundColor: `${langAccent}14`,
+                padding: '2px 9px',
                 borderRadius: '6px',
-                border: '1px solid rgba(0, 217, 255, 0.2)',
+                border: `1px solid ${langAccent}38`,
               }}
             >
+              <span
+                style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  backgroundColor: langAccent,
+                  boxShadow: `0 0 8px ${langAccent}`,
+                }}
+              />
               {langStr}
             </span>
             <span
+              className="lx-tabular"
               style={{
                 fontSize: '10.5px',
                 color: '#64748b',
-                fontFamily: 'monospace',
+                fontFamily: 'var(--lx-font-mono)',
               }}
             >
               {displayLines.length} {displayLines.length === 1 ? 'línea' : 'líneas'}
@@ -267,7 +352,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
         </div>
 
         {/* Action Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+        <div className="lyaxis-code-toolbar" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
           {isRunnable && (
             <>
               <button
@@ -516,12 +601,29 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
         </div>
       </div>
 
-      {/* Mermaid Diagram Render View */}
-      {mermaidSvg && !showMermaidSource ? (
+      {/* Mermaid Diagram Render View (Zero-Glitch Engine) */}
+      {langStr === 'mermaid' && mermaidLoading && !mermaidSvg && !showMermaidSource ? (
+        <div style={{ padding: '18px 16px', backgroundColor: '#040711' }}>
+          <div className="lyaxis-mermaid-skeleton" />
+          <div
+            style={{
+              marginTop: '10px',
+              fontSize: '11px',
+              fontFamily: 'var(--lx-font-mono)',
+              color: '#a78bfa',
+              textAlign: 'center',
+            }}
+          >
+            Sincronizando diagrama arquitectónico...
+          </div>
+        </div>
+      ) : mermaidSvg && !showMermaidSource ? (
         <div
           style={{
             padding: '24px 16px',
             backgroundColor: '#040711',
+            backgroundImage: 'radial-gradient(rgba(56, 189, 248, 0.12) 1px, transparent 1px)',
+            backgroundSize: '20px 20px',
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
@@ -534,78 +636,97 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
               transform: `scale(${mermaidZoom})`,
               transformOrigin: 'center center',
               transition: 'transform 0.2s ease',
+              maxWidth: '100%',
             }}
             dangerouslySetInnerHTML={{ __html: mermaidSvg }}
           />
         </div>
       ) : (
         /* Code Body with Line Numbers & Collapse Overlay */
-        <div
-          style={{
-            display: 'flex',
-            position: 'relative',
-            overflow: 'hidden',
-            maxHeight: isCollapsed ? '210px' : 'none',
-          }}
-        >
-          {/* Discrete Line Numbers Gutter */}
-          {!wordWrap && (
+        <>
+          {langStr === 'mermaid' && mermaidError && !mermaidSvg && (
             <div
               style={{
-                userSelect: 'none',
-                textAlign: 'right',
-                padding: '14px 12px 14px 14px',
-                color: 'rgba(255, 255, 255, 0.22)',
-                fontSize: '12px',
-                fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-                lineHeight: '1.6',
-                borderRight: '1px solid rgba(255, 255, 255, 0.06)',
-                backgroundColor: '#030306',
-                flexShrink: 0,
-                minWidth: '38px',
+                padding: '6px 14px',
+                fontSize: '11px',
+                fontFamily: 'var(--lx-font-mono)',
+                color: '#c084fc',
+                backgroundColor: 'rgba(168, 85, 247, 0.08)',
+                borderBottom: '1px solid rgba(168, 85, 247, 0.18)',
               }}
             >
-              {displayLines.map((_, i) => (
-                <div key={i}>{i + 1}</div>
-              ))}
+              ◇ {mermaidError}
             </div>
           )}
-
-          {/* Code Content — Deep OLED Black with zero grey boxes */}
-          <pre
-            className="lyaxis-code-pre"
+          <div
             style={{
-              margin: 0,
-              padding: '14px 16px',
-              overflowX: wordWrap ? 'hidden' : 'auto',
-              flex: 1,
-              fontSize: '13px',
-              lineHeight: '1.6',
-              fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-              backgroundColor: '#030306',
-              color: '#f8fafc',
-              whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
-              wordBreak: wordWrap ? 'break-word' : 'normal',
+              display: 'flex',
+              position: 'relative',
+              overflow: 'hidden',
+              maxHeight: isCollapsed ? '210px' : 'none',
             }}
           >
-            <code
-              className={`hljs language-${langStr}`}
-              style={{
-                background: 'transparent !important',
-                backgroundColor: 'transparent !important',
-                padding: 0,
-                fontFamily: 'inherit',
-                fontSize: 'inherit',
-                whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
-              }}
-              dangerouslySetInnerHTML={{ __html: highlightedCode }}
-            />
-          </pre>
+            {/* Discrete Line Numbers Gutter */}
+            {!wordWrap && (
+              <div
+                className="lyaxis-code-gutter lx-tabular"
+                style={{
+                  userSelect: 'none',
+                  textAlign: 'right',
+                  padding: '14px 12px 14px 14px',
+                  color: 'rgba(255, 255, 255, 0.24)',
+                  fontSize: '13px',
+                  fontFamily: 'var(--lx-font-mono)',
+                  lineHeight: '1.65',
+                  borderRight: '1px solid rgba(255, 255, 255, 0.06)',
+                  backgroundColor: '#030306',
+                  flexShrink: 0,
+                  minWidth: '40px',
+                }}
+              >
+                {displayLines.map((_, i) => (
+                  <div key={i}>{i + 1}</div>
+                ))}
+              </div>
+            )}
 
-          {/* Bottom Gradient Expand Bar when Collapsed */}
-          {isCollapsed && (
-            <div
-              onClick={() => setIsCollapsed(false)}
+            {/* Code Content — Deep OLED Black with zero grey boxes */}
+            <pre
+              className="lyaxis-code-pre"
+              style={{
+                margin: 0,
+                padding: '14px 16px',
+                overflowX: wordWrap ? 'hidden' : 'auto',
+                flex: 1,
+                minWidth: 0,
+                fontSize: '13px',
+                lineHeight: '1.65',
+                fontFamily: 'var(--lx-font-mono)',
+                backgroundColor: '#030306',
+                color: '#f8fafc',
+                whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
+                wordBreak: wordWrap ? 'break-word' : 'normal',
+              }}
+            >
+              <code
+                className={`hljs language-${hljsLang}`}
+                style={{
+                  background: 'transparent !important',
+                  backgroundColor: 'transparent !important',
+                  padding: 0,
+                  fontFamily: 'inherit',
+                  fontSize: 'inherit',
+                  lineHeight: 'inherit',
+                  whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
+                }}
+                dangerouslySetInnerHTML={{ __html: highlightedCode }}
+              />
+            </pre>
+
+            {/* Bottom Gradient Expand Bar when Collapsed */}
+            {isCollapsed && (
+              <div
+                onClick={() => setIsCollapsed(false)}
               style={{
                 position: 'absolute',
                 bottom: 0,
@@ -639,7 +760,8 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
               </span>
             </div>
           )}
-        </div>
+          </div>
+        </>
       )}
 
       {/* Inline Artifacts Live Canvas Studio */}
