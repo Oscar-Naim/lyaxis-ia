@@ -49,9 +49,9 @@ En lugar de tener una IA genérica que lo haga todo a medias, LYAXIS divide su "
 9. **🎨 Canvas (Violeta Eléctrico):** 
    - *Rol:* Diseñador visual de presentaciones y Slide Decks.
    - *Uso:* Transforma temas complejos en láminas e infografías interactivas 16:9 estilo Canva, con visor de diapositivas en vivo (navegación ◀ ▶, modo pantalla completa, notas del orador y exportación descargable a PDF).
-10. **🔓 Root (Verde Neón Cyber #00FF66):** 
-    - *Rol:* Motor de ejecución técnica absoluta, desarrollo integral y código sin filtros.
-    - *Uso:* Creación de interfaces completas (UI/UX) en React/CSS, desarrollo full-stack (FastAPI, Node, SQL), bajo nivel (C, C++, Assembly), ingeniería inversa, PoCs de vulnerabilidades, memoria, kernel y scripts sin restricciones morales, sin placeholders y sin negativas a responder.
+10. **⚡ Root (Verde Neón Cyber #00FF66):** 
+    - *Rol:* Motor de ingeniería profunda de sistemas, desarrollo bare-metal y código de producción.
+    - *Uso:* Creación de interfaces completas (UI/UX) en React/CSS, desarrollo full-stack (FastAPI, Node, SQL), bajo nivel (C, C++, Rust, Assembly), arquitectura de compiladores, depuración de memoria, kernel y código 100% implementado sin placeholders.
 
 ---
 

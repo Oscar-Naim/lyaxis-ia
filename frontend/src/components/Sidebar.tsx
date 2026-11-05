@@ -28,9 +28,10 @@ import {
   Check,
   Globe,
   ArrowUpRight,
+  Download,
 } from 'lucide-react';
 import type { Conversation, User, ModelType } from '../types';
-import { MODEL_META } from '../config';
+import { MODEL_META, API_BASE, getAuthHeaders } from '../config';
 import { isSoundMuted, setSoundMuted, playCyberClick } from '../sound';
 
 export interface SidebarProps {
@@ -119,6 +120,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenCommandPalette,
   onOpenDirectives,
 }) => {
+  const handleExportData = async () => {
+    try {
+      playCyberClick();
+      const res = await fetch(`${API_BASE}/api/v1/auth/export`, {
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) throw new Error('Error exportando datos');
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `lyaxis-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('No se pudo exportar la información. Verifica tu conexión.');
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    playCyberClick();
+    const confirmed = window.confirm(
+      '¿Estás seguro de que deseas eliminar permanentemente tu cuenta y todos tus chats? Esta acción es irreversible (Cumplimiento de Derechos ARCO / GDPR).'
+    );
+    if (!confirmed) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/auth/account`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) throw new Error('Error al eliminar cuenta');
+      alert('Tu cuenta y conversaciones han sido eliminadas correctamente.');
+      onLogout();
+    } catch {
+      alert('No se pudo eliminar la cuenta. Intenta de nuevo más tarde.');
+    }
+  };
   const [internalMuted, setInternalMuted] = useState<boolean>(() => isSoundMuted());
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilterModel, setSelectedFilterModel] = useState<string>('all');
@@ -404,14 +443,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         )}
         {user && (
-          <button
-            type="button"
-            onClick={onLogout}
-            title="Cerrar sesión"
-            style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '4px' }}
-          >
-            <LogOut size={14} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+            <button
+              type="button"
+              onClick={handleExportData}
+              title="Descargar mis datos (JSON - Portabilidad)"
+              style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+            >
+              <Download size={13} />
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteAccount}
+              title="Eliminar cuenta permanentemente (Derechos ARCO)"
+              style={{ background: 'none', border: 'none', color: '#ef4444', opacity: 0.8, cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+            >
+              <Trash2 size={13} />
+            </button>
+            <button
+              type="button"
+              onClick={onLogout}
+              title="Cerrar sesión"
+              style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+            >
+              <LogOut size={13} />
+            </button>
+          </div>
         )}
       </div>
 

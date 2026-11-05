@@ -72,7 +72,7 @@ export const CustomInstructionsModal: React.FC<CustomInstructionsModalProps> = (
     { id: 'technical', label: '💻 Ingeniero / Técnico', desc: 'Código estricto, tipos y patrones.' },
     { id: 'pedagogical', label: '🎓 Pedagógico / Didáctico', desc: 'Paso a paso, estilo docente.' },
     { id: 'balanced', label: '⚖️ Equilibrado', desc: 'Completo, amigable y estructurado.' },
-    { id: 'unfiltered', label: '🔓 Bare-Metal (Root)', desc: 'Directo al grano, sin restricciones.' },
+    { id: 'unfiltered', label: '⚡ Bare-Metal (Root)', desc: 'Directo al grano, arquitectura de sistemas y código completo.' },
   ] as const;
 
   return (

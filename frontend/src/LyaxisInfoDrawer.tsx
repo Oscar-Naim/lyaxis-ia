@@ -327,13 +327,44 @@ export const LyaxisInfoDrawer: React.FC<LyaxisInfoDrawerProps> = ({
             </div>
           )}
 
-          {/* TAB 4: TÉRMINOS & HONESTIDAD */}
+          {/* TAB 4: TÉRMINOS, PRIVACIDAD & HONESTIDAD */}
           {activeTab === 'terms' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>TÉRMINOS DE SERVICIO Y GARANTÍA DE HONESTIDAD</div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>TÉRMINOS LEGALES, PRIVACIDAD Y DERECHOS ARCO</div>
               <p style={{ fontSize: '12.5px', color: '#a1a1aa', lineHeight: '1.55', margin: 0 }}>
-                LYAXIS IA es un proyecto de investigación y desarrollo operado por LYAXIS labs™. Al utilizar la plataforma aceptas los siguientes términos:
+                LYAXIS IA es una plataforma operada por LYAXIS labs™. Cumplimos con la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP) de México, GDPR y las políticas de Google API Services User Data Policy:
               </p>
+
+              <div style={{ backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#00D9FF' }}>Aviso de Privacidad & Cumplimiento Google OAuth</div>
+                <p style={{ fontSize: '12px', color: '#a1a1aa', margin: 0, lineHeight: '1.45' }}>
+                  Solo utilizamos tu correo y nombre para autenticar tu cuenta y sincronizar tus conversaciones. Tus datos no se venden ni se comparten con anunciantes ni terceros sin consentimiento expreso.
+                </p>
+
+                <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#00D9FF' }}>Derechos ARCO y Portabilidad (LFPDPPP México)</div>
+                <p style={{ fontSize: '12px', color: '#a1a1aa', margin: 0, lineHeight: '1.45' }}>
+                  Puedes solicitar la exportación completa o eliminación definitiva de tu cuenta y conversaciones en privacidad@lyaxis.lat o desde las opciones de usuario.
+                </p>
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                  <a
+                    href="/privacy.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: '11px', color: '#00D9FF', textDecoration: 'none', border: '1px solid rgba(0, 217, 255, 0.3)', padding: '5px 10px', borderRadius: '6px', background: 'rgba(0, 217, 255, 0.05)' }}
+                  >
+                    Aviso de Privacidad Integral ↗
+                  </a>
+                  <a
+                    href="/terms.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: '11px', color: '#00D9FF', textDecoration: 'none', border: '1px solid rgba(0, 217, 255, 0.3)', padding: '5px 10px', borderRadius: '6px', background: 'rgba(0, 217, 255, 0.05)' }}
+                  >
+                    Términos de Servicio ↗
+                  </a>
+                </div>
+              </div>
 
               <div style={{ backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#F59E0B' }}>1. Garantía de Honestidad Radical</div>
@@ -341,14 +372,9 @@ export const LyaxisInfoDrawer: React.FC<LyaxisInfoDrawerProps> = ({
                   Nuestros modelos están programados para admitir cuando no tienen suficiente información en vez de inventar o alucinar respuestas comerciales.
                 </p>
 
-                <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#F59E0B' }}>2. Uso Responsable de Inteligencia Artificial</div>
+                <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#F59E0B' }}>2. Propiedad Intelectual del Usuario</div>
                 <p style={{ fontSize: '12px', color: '#a1a1aa', margin: 0, lineHeight: '1.45' }}>
-                  El usuario es responsable de verificar el código y las recomendaciones generadas antes de desplegarlas en entornos críticos de producción.
-                </p>
-
-                <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#F59E0B' }}>3. Derechos de Propiedad Intelectual</div>
-                <p style={{ fontSize: '12px', color: '#a1a1aa', margin: 0, lineHeight: '1.45' }}>
-                  El código y las respuestas generadas por los motores de LYAXIS pertenecen al usuario que las genera.
+                  Todo código y respuestas generadas por los motores de LYAXIS pertenecen al usuario que las genera.
                 </p>
               </div>
             </div>

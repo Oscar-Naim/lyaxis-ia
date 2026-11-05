@@ -1,4 +1,7 @@
 import os
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] [lyaxis] %(message)s')
+logger = logging.getLogger('lyaxis')
 import re
 import json
 import sqlite3
@@ -57,25 +60,20 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
-@app.middleware("http")
-async def add_cors_headers(request: Request, call_next):
-    if request.method == "OPTIONS":
-        response = Response(status_code=200)
-    else:
-        response = await call_next(request)
-    
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    response.headers["Access-Control-Expose-Headers"] = "*"
-    return response
+# --- CORS Restringido a Producción y Desarrollo Local ---
+raw_allowed_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "https://lyaxis-ia.vercel.app,https://lyaxis-webforge.vercel.app,http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173"
+)
+ALLOWED_ORIGINS = [orig.strip() for orig in raw_allowed_origins.split(",") if orig.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -155,6 +153,14 @@ def init_sqlite():
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_triad_rl ON triad_rate_limits (client_id, timestamp)")
             cursor.execute("""
+            CREATE TABLE IF NOT EXISTS otp_codes (
+                target TEXT PRIMARY KEY,
+                code TEXT NOT NULL,
+                expires REAL NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0
+            )
+            """)
+            cursor.execute("""
             CREATE TABLE IF NOT EXISTS prompt_cache (
                 cache_key TEXT PRIMARY KEY,
                 model TEXT NOT NULL,
@@ -176,6 +182,7 @@ init_sqlite()
 class Database:
     def __init__(self):
         self.use_postgres = False
+        self.is_degraded = False
         self.pg_pool = None
         if DATABASE_URL:
             try:
@@ -201,6 +208,12 @@ class Database:
                         timestamp DOUBLE PRECISION NOT NULL
                     );
                     CREATE INDEX IF NOT EXISTS idx_triad_rl ON triad_rate_limits (client_id, timestamp);
+                    CREATE TABLE IF NOT EXISTS otp_codes (
+                        target VARCHAR(128) PRIMARY KEY,
+                        code VARCHAR(16) NOT NULL,
+                        expires DOUBLE PRECISION NOT NULL,
+                        attempts INTEGER NOT NULL DEFAULT 0
+                    );
                     CREATE TABLE IF NOT EXISTS prompt_cache (
                         cache_key VARCHAR(64) PRIMARY KEY,
                         model VARCHAR(32) NOT NULL,
@@ -213,8 +226,9 @@ class Database:
                 except Exception as e_pg_init:
                     print(f"Aviso inicializando tabla triad en PostgreSQL: {e_pg_init}")
             except Exception as e:
-                print(f"[DB] Supabase en pausa o no accesible ({' '.join(str(e).splitlines())}) -> Operando con respaldo SQLite local.")
+                logger.error(f"[STORAGE WARNING] Supabase en pausa o no accesible ({' '.join(str(e).splitlines())}) -> Operando con respaldo SQLite efímero.")
                 self.use_postgres = False
+                self.is_degraded = True
                 self.pg_pool = None
 
     def get_connection(self):
@@ -375,12 +389,17 @@ if db.use_postgres:
         print(f"Postgres tables init: {e}")
 
 # --- Seguridad de Sesión Firmada (HMAC-SHA256 sin dependencias externas) + Caché de Respuestas ---
-_AUTH_SECRET = (
-    os.getenv("AUTH_SECRET")
-    or os.getenv("JWT_SECRET")
-    or os.getenv("NVIDIA_API_KEY")
-    or "lyaxis-quantum-hmac-v2-core"
-).encode("utf-8")
+_ENV_AUTH_SECRET = os.getenv("AUTH_SECRET") or os.getenv("JWT_SECRET")
+if not _ENV_AUTH_SECRET:
+    # Si estamos en entorno de producción en Render o contenedor, requerir variable obligatoria
+    if os.getenv("RENDER") or os.getenv("PORT") or os.getenv("NODE_ENV") == "production":
+        raise RuntimeError("FATAL: AUTH_SECRET no está configurada en las variables de entorno de producción.")
+    # Clave de desarrollo local generada por instancia para no usar secretos públicos hardcodeados
+    import secrets
+    _ENV_AUTH_SECRET = secrets.token_hex(32)
+    print("Aviso: AUTH_SECRET no configurada. Generando secreto efímero local de sesión.")
+
+_AUTH_SECRET = _ENV_AUTH_SECRET.encode("utf-8")
 SESSION_TTL_SECONDS = 30 * 86400  # 30 días
 OTP_TTL_SECONDS = 300             # 5 minutos
 OTP_MAX_ATTEMPTS = 5
@@ -418,6 +437,8 @@ def resolve_request_user_id(request: Request, fallback_uid: Optional[str] = None
     """
     Retorna (user_id, is_token_verified).
     Si incluye Authorization: Bearer <token>, valida firma HMAC y prioriza ese user_id.
+    Si no incluye token verificado, únicamente se aceptan identificadores de invitado efímero ('guest-*').
+    Cualquier intento de acceder a cuentas registradas sin token verificado devuelve (None, False).
     """
     auth_header = (request.headers.get("authorization") or "").strip()
     if auth_header.lower().startswith("bearer "):
@@ -429,17 +450,24 @@ def resolve_request_user_id(request: Request, fallback_uid: Optional[str] = None
     candidate = (fallback_uid or hdr_uid or "").strip()
     if not candidate or candidate in ("anon", "null", "undefined", "None"):
         return None, False
-    return candidate, False
+    if candidate.startswith("guest-"):
+        return candidate, False
+    return None, False
 
-def _assert_conversation_access(cid: str, request: Request, fallback_uid: Optional[str] = None):
-    caller_uid, _ = resolve_request_user_id(request, fallback_uid or request.query_params.get("user_id"))
+def _assert_conversation_access(cid: str, request: Request, fallback_uid: Optional[str] = None) -> str:
+    caller_uid, is_verified = resolve_request_user_id(request, fallback_uid or request.query_params.get("user_id"))
     if not caller_uid:
-        return
+        raise HTTPException(status_code=401, detail="Se requiere autenticación válida con token para acceder a la conversación.")
     conv = db.fetchone("SELECT user_id FROM conversations WHERE id = ?", (cid,))
-    if conv:
-        owner = (conv.get("user_id") or "").strip()
-        if owner and owner not in ("anon", "") and owner != caller_uid:
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversación no encontrada.")
+    owner = (conv.get("user_id") or "").strip()
+    if owner and owner not in ("anon", ""):
+        if owner != caller_uid:
             raise HTTPException(status_code=403, detail="No tienes permiso para acceder a esta conversación.")
+        if not owner.startswith("guest-") and not is_verified:
+            raise HTTPException(status_code=401, detail="Token de sesión verificado requerido para acceder a conversaciones privadas.")
+    return caller_uid
 
 def _get_prompt_cache(model_key: str, prompt_text: str) -> Optional[str]:
     norm = " ".join((prompt_text or "").strip().lower().split())
@@ -799,18 +827,68 @@ def root():
 def options_handler(full_path: str):
     return Response(status_code=200)
 
+import smtplib
+from email.mime.text import MIMEText
+
+def _dispatch_email_otp(to_email: str, code: str):
+    smtp_host = os.getenv("SMTP_HOST")
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_pass = os.getenv("SMTP_PASSWORD")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    smtp_from = os.getenv("SMTP_FROM", "no-reply@lyaxis.lat")
+    
+    if not (smtp_host and smtp_user and smtp_pass):
+        print(f"[OTP DEV MODE] Código para {to_email}: {code}")
+        return
+        
+    try:
+        msg = MIMEText(f"Tu código de acceso de seguridad para LYAXIS IA es: {code}\n\nVálido por 5 minutos.")
+        msg["Subject"] = "Código de Acceso — LYAXIS IA"
+        msg["From"] = smtp_from
+        msg["To"] = to_email
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as s:
+            s.starttls()
+            s.login(smtp_user, smtp_pass)
+            s.send_message(msg)
+    except Exception as e:
+        print(f"Error despachando correo OTP: {e}")
+
 @app.post("/api/v1/auth/otp/send")
-def send_otp_code(req: RequestOtpPayload):
+def send_otp_code(request: Request, req: RequestOtpPayload):
+    client_ip = request.client.host if request.client else "unknown"
+    check_general_rate_limit(client_ip, max_requests=5, window_seconds=60)
+    
     target = (req.contact or req.target or req.identifier or req.email or req.phone or "").strip().lower()
-    if not target:
-        raise HTTPException(status_code=400, detail="Debes proporcionar un contacto (correo o teléfono).")
+    if not target or ("@" not in target and len(target) < 8):
+        raise HTTPException(status_code=400, detail="Debes proporcionar un correo o teléfono válido.")
 
     code = f"{random.randint(100000, 999999)}"
+    
+    # Persistencia del código OTP en SQLite/Postgres para que sobreviva a reinicios
+    now = time.time()
+    exp = now + OTP_TTL_SECONDS
     otp_storage[target] = {
         "code": code,
-        "expires": time.time() + OTP_TTL_SECONDS,
+        "expires": exp,
         "attempts": 0,
     }
+    
+    try:
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS otp_codes (
+                target VARCHAR(128) PRIMARY KEY,
+                code VARCHAR(16) NOT NULL,
+                expires DOUBLE PRECISION NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        db.execute("DELETE FROM otp_codes WHERE target = ? OR expires < ?", (target, now))
+        db.execute("INSERT INTO otp_codes (target, code, expires, attempts) VALUES (?, ?, ?, 0)", (target, code, exp))
+    except Exception as e_otp_db:
+        print(f"Aviso guardando OTP en base de datos: {e_otp_db}")
+
+    if "@" in target:
+        _dispatch_email_otp(target, code)
 
     return {
         "status": "ok",
@@ -864,15 +942,46 @@ def _upsert_contact_user(target: str, auth_type: str) -> dict:
             "token": sign_user_token(user_id),
         }
 
+# --- Rate Limiting General en Memoria para Endpoints Sensibles ---
+_request_rate_records: dict[str, list[float]] = {}
+def check_general_rate_limit(client_ip: str, max_requests: int = 15, window_seconds: int = 60):
+    now = time.time()
+    times = _request_rate_records.setdefault(client_ip, [])
+    # Filtrar marcas anteriores a la ventana
+    _request_rate_records[client_ip] = [t for t in times if (now - t) < window_seconds]
+    if len(_request_rate_records[client_ip]) >= max_requests:
+        raise HTTPException(status_code=429, detail="Demasiadas peticiones desde tu dirección IP. Intenta en 1 minuto.")
+    _request_rate_records[client_ip].append(now)
+
 @app.post("/api/v1/auth/session")
-def direct_session_auth(req: RequestOtpPayload):
-    """Inicio de sesión determinista sin fricción (sincroniza el mismo user_id entre PC y Móvil y emite token HMAC)."""
+def direct_session_auth(request: Request, req: RequestOtpPayload):
+    """
+    Validación de sesión para invitados locales o sesiones autenticadas.
+    No otorga tokens sobre correos ajenos sin verificación previa.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    check_general_rate_limit(client_ip, max_requests=10, window_seconds=60)
     target = (req.contact or req.target or req.identifier or req.email or req.phone or "").strip().lower()
     if not target:
         raise HTTPException(status_code=400, detail="Debes proporcionar un correo o identificador válido.")
-    auth_type = req.auth_type or ("email" if "@" in target else "phone")
-    user_payload = _upsert_contact_user(target, auth_type)
-    return {"status": "ok", "user": user_payload, "token": user_payload["token"]}
+    
+    # Invitados efímeros protegidos
+    if target.startswith("guest-"):
+        user_payload = _upsert_contact_user(target, "guest")
+        return {"status": "ok", "user": user_payload, "token": user_payload["token"]}
+        
+    # Para cuentas con correo o teléfono, se exige verificación OTP o Google Auth
+    auth_header = (request.headers.get("authorization") or "").strip()
+    if auth_header.lower().startswith("bearer "):
+        verified_uid = verify_user_token(auth_header[7:].strip())
+        if verified_uid:
+            user_payload = _upsert_contact_user(target, "email" if "@" in target else "phone")
+            return {"status": "ok", "user": user_payload, "token": user_payload["token"]}
+            
+    raise HTTPException(
+        status_code=401,
+        detail="Para proteger tu cuenta, inicia sesión con Google o verifica tu código OTP de seguridad."
+    )
 
 @app.post("/api/v1/auth/otp/verify")
 def verify_otp_code(req: VerifyOtpPayload):
@@ -882,33 +991,103 @@ def verify_otp_code(req: VerifyOtpPayload):
     if not target:
         raise HTTPException(status_code=400, detail="Debes proporcionar un contacto (correo o teléfono).")
 
-    # Compatibilidad con acceso rápido por correo
-    if code == "direct":
-        auth_type = req.auth_type or ("email" if "@" in target else "phone")
-        user_payload = _upsert_contact_user(target, auth_type)
-        return {"status": "ok", "user": user_payload, "token": user_payload["token"]}
-
+    now = time.time()
     entry = otp_storage.get(target)
-    if isinstance(entry, str):
-        entry = {"code": entry, "expires": time.time() + OTP_TTL_SECONDS, "attempts": 0}
+    if not entry or not isinstance(entry, dict):
+        try:
+            db_row = db.fetchone("SELECT code, expires, attempts FROM otp_codes WHERE target = ?", (target,))
+            if db_row:
+                entry = {
+                    "code": str(db_row.get("code")),
+                    "expires": float(db_row.get("expires", 0)),
+                    "attempts": int(db_row.get("attempts", 0))
+                }
+                otp_storage[target] = entry
+        except Exception as e_otp_q:
+            logger.warning(f"Error consultando OTP persistente en DB: {e_otp_q}")
 
-    if not entry or time.time() > float(entry.get("expires", 0)):
+    if not entry or now > float(entry.get("expires", 0)):
         otp_storage.pop(target, None)
-        raise HTTPException(status_code=400, detail="El código ha expirado. Solicita uno nuevo.")
+        try:
+            db.execute("DELETE FROM otp_codes WHERE target = ?", (target,))
+        except Exception:
+            pass
+        raise HTTPException(status_code=400, detail="El código ha expirado o no existe. Solicita uno nuevo.")
 
     if int(entry.get("attempts", 0)) >= OTP_MAX_ATTEMPTS:
         otp_storage.pop(target, None)
+        try:
+            db.execute("DELETE FROM otp_codes WHERE target = ?", (target,))
+        except Exception:
+            pass
         raise HTTPException(status_code=429, detail="Demasiados intentos fallidos. Solicita un nuevo código.")
 
     if str(entry.get("code")) != code:
-        entry["attempts"] = int(entry.get("attempts", 0)) + 1
+        new_attempts = int(entry.get("attempts", 0)) + 1
+        entry["attempts"] = new_attempts
         otp_storage[target] = entry
+        try:
+            db.execute("UPDATE otp_codes SET attempts = ? WHERE target = ?", (new_attempts, target))
+        except Exception:
+            pass
         raise HTTPException(status_code=400, detail="El código de 6 dígitos es incorrecto.")
 
     otp_storage.pop(target, None)
+    try:
+        db.execute("DELETE FROM otp_codes WHERE target = ?", (target,))
+    except Exception:
+        pass
     auth_type = req.auth_type or ("email" if "@" in target else "phone")
     user_payload = _upsert_contact_user(target, auth_type)
     return {"status": "ok", "user": user_payload, "token": user_payload["token"]}
+
+@app.delete("/api/v1/auth/account")
+def delete_user_account(request: Request):
+    """Eliminación permanente de cuenta de usuario y todos sus datos asociados (Derecho ARCO / GDPR)."""
+    caller_uid, is_verified = resolve_request_user_id(request)
+    if not caller_uid or not is_verified:
+        raise HTTPException(status_code=401, detail="Se requiere token autenticado para eliminar la cuenta.")
+    
+    try:
+        db.execute("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)", (caller_uid,))
+        db.execute("DELETE FROM conversations WHERE user_id = ?", (caller_uid,))
+        db.execute("DELETE FROM users WHERE id = ?", (caller_uid,))
+        db.execute("DELETE FROM triad_rate_limits WHERE client_id = ?", (caller_uid,))
+        return {"status": "ok", "message": "Tu cuenta y todos tus datos han sido eliminados permanentemente."}
+    except Exception as e:
+        logger.error(f"Error eliminando cuenta {caller_uid}: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo completar la eliminación de la cuenta.")
+
+@app.get("/api/v1/auth/export")
+def export_user_data(request: Request):
+    """Exportación completa de datos de usuario en formato estructurado JSON (Portabilidad / ARCO)."""
+    caller_uid, is_verified = resolve_request_user_id(request)
+    if not caller_uid or not is_verified:
+        raise HTTPException(status_code=401, detail="Se requiere token autenticado para exportar los datos.")
+
+    try:
+        user_row = db.fetchone("SELECT id, name, email, created_at FROM users WHERE id = ?", (caller_uid,))
+        conversations = db.fetchall("SELECT id, title, model, created_at, updated_at FROM conversations WHERE user_id = ? ORDER BY created_at ASC", (caller_uid,))
+        
+        full_export = {
+            "user": user_row or {"id": caller_uid},
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "conversations_count": len(conversations),
+            "conversations": []
+        }
+        
+        for c in conversations:
+            c_id = c.get("id")
+            messages = db.fetchall("SELECT id, role, content, model_used, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC", (c_id,))
+            full_export["conversations"].append({
+                "conversation": c,
+                "messages": messages
+            })
+            
+        return full_export
+    except Exception as e:
+        logger.error(f"Error exportando datos para {caller_uid}: {e}")
+        raise HTTPException(status_code=500, detail="Error exportando los datos de la cuenta.")
 
 @app.post("/api/v1/auth/google")
 def google_auth(req: GoogleAuthRequest):
@@ -2410,6 +2589,8 @@ async def generate_ai_stream(
 
 @app.post("/api/v1/chat/stream")
 async def chat_stream_endpoint(request: Request):
+    client_ip = request.client.host if request.client else "unknown"
+    check_general_rate_limit(client_ip, max_requests=40, window_seconds=60)
     try:
         body = await request.json()
     except Exception as e:
@@ -2654,5 +2835,12 @@ def get_system_telemetry(request: Request, user_id: Optional[str] = None):
 
 
 @app.get("/health")
+@app.get("/api/v1/health")
 def health_check():
-    return {"status": "ok", "service": "LYAXIS IA Production API"}
+    db_mode = "postgres" if db.use_postgres else ("degraded_ephemeral_sqlite" if getattr(db, "is_degraded", False) else "sqlite")
+    return {
+        "status": "warning" if getattr(db, "is_degraded", False) else "ok",
+        "service": "LYAXIS IA Production API",
+        "database": db_mode,
+        "database_warning": "Supabase en pausa o desconectado; operando con SQLite efímero local" if getattr(db, "is_degraded", False) else None
+    }

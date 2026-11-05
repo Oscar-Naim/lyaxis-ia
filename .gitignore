@@ -6,10 +6,14 @@
 !*.env.example
 
 # Python
-backend/venv/
-backend/__pycache__/
-backend/*.pyc
-backend/*.db
+.venv/
+venv/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
 backend/lyaxis.db
 
 # Node / React
@@ -17,11 +21,10 @@ node_modules/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
-shhhhhhhhh/
 
 # Sistema
 .DS_Store
 Thumbs.db
-# Agentes y bit·coras temporales
-.agents/
 
+# Agentes y bit√°coras temporales
+.agents/
