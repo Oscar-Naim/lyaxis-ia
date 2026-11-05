@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type { Message, MessageUsage } from './types';
 import { API_BASE, getAuthHeaders } from './config';
 
@@ -49,6 +49,44 @@ export interface StreamCallOptions {
 export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSSEStreamOptions = {}) {
   const [isStreaming, setIsStreaming] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const activeStreamIdRef = useRef<number>(0);
+  const rafIdRef = useRef<number | null>(null);
+  const timeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Limpieza estricta y cancelación al desmontar el hook
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      if (timeoutTimerRef.current !== null) {
+        clearTimeout(timeoutTimerRef.current);
+        timeoutTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const stopStreaming = useCallback(() => {
+    activeStreamIdRef.current += 1; // Invalida cualquier callback asíncrono en vuelo
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    if (timeoutTimerRef.current !== null) {
+      clearTimeout(timeoutTimerRef.current);
+      timeoutTimerRef.current = null;
+    }
+    setIsStreaming(false);
+  }, []);
 
   const sendMessage = useCallback(
     async (
@@ -59,9 +97,13 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
       onToken: (accumulated: string, triad?: TriadState) => void,
       options?: StreamCallOptions
     ) => {
-      setIsStreaming(true);
+      // 1. Cancelar de forma atómica cualquier stream previo en ejecución
+      stopStreaming();
+
+      const streamId = ++activeStreamIdRef.current;
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
+      setIsStreaming(true);
 
       const activeOnDone = options?.onDone || hookOnDone;
       const activeOnError = options?.onError || hookOnError;
@@ -73,24 +115,26 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
       let activeCore: TriadCoreType | null = null;
       let isTriadStream = Boolean(options?.triad_mode);
 
-      let rafId: number | null = null;
       let latestText = '';
       let timeoutTriggered = false;
 
       // Timer to detect Render cold start timeouts (free tier takes ~50-60s or fails with 504)
-      const timeoutTimer = setTimeout(() => {
+      timeoutTimerRef.current = setTimeout(() => {
+        if (activeStreamIdRef.current !== streamId) return;
         timeoutTriggered = true;
         abortController.abort(new Error('TIMEOUT'));
       }, timeoutMs);
 
       // Batch DOM updates at screen refresh rate instead of per-token
       const scheduleFlush = () => {
+        if (activeStreamIdRef.current !== streamId) return;
         latestText = accumulatedText;
         const currentTriad = { ...triadState };
-        if (rafId === null) {
-          rafId = requestAnimationFrame(() => {
+        if (rafIdRef.current === null) {
+          rafIdRef.current = requestAnimationFrame(() => {
+            if (activeStreamIdRef.current !== streamId) return;
             onToken(latestText, isTriadStream ? currentTriad : undefined);
-            rafId = null;
+            rafIdRef.current = null;
           });
         }
       };
@@ -189,8 +233,12 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
           signal: abortController.signal,
         });
 
-        // Clear timeout once connection is established and headers received
-        clearTimeout(timeoutTimer);
+        if (timeoutTimerRef.current !== null) {
+          clearTimeout(timeoutTimerRef.current);
+          timeoutTimerRef.current = null;
+        }
+
+        if (activeStreamIdRef.current !== streamId) return;
 
         // Handle server errors (Render cold start 502/504, 429 Rate Limit, or server 500)
         if (!response.ok) {
@@ -261,6 +309,7 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
+          if (activeStreamIdRef.current !== streamId) return;
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
@@ -268,6 +317,9 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
 
           for (const line of lines) {
             const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith(':')) continue; // Ignorar líneas vacías y comentarios/pings
+            if (trimmed === 'data: [DONE]') continue; // Centinela de fin estándar
+
             if (trimmed.startsWith('data: ')) {
               const dataContent = trimmed.slice(6);
               try {
@@ -298,17 +350,18 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
                   scheduleFlush();
                 }
               } catch {
-                accumulatedText += dataContent;
-                scheduleFlush();
+                // Suprimir silenciosamente errores de parseo JSON sin concatenar basura técnica
               }
             }
           }
         }
 
+        if (activeStreamIdRef.current !== streamId) return;
+
         // Final flush — ensure all remaining text is rendered
-        if (rafId !== null) {
-          cancelAnimationFrame(rafId);
-          rafId = null;
+        if (rafIdRef.current !== null) {
+          cancelAnimationFrame(rafIdRef.current);
+          rafIdRef.current = null;
         }
         onToken(accumulatedText, isTriadStream ? { ...triadState } : undefined);
         if (options?.onTriadToken && isTriadStream) {
@@ -317,7 +370,12 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
 
         if (activeOnDone) activeOnDone(accumulatedText, finalUsage);
       } catch (err: any) {
-        clearTimeout(timeoutTimer);
+        if (timeoutTimerRef.current !== null) {
+          clearTimeout(timeoutTimerRef.current);
+          timeoutTimerRef.current = null;
+        }
+        if (activeStreamIdRef.current !== streamId) return;
+
         const isAbort = err.name === 'AbortError' && !timeoutTriggered;
         if (!isAbort) {
           console.error('Error en streaming / red:', err);
@@ -331,24 +389,22 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
           if (activeOnError) activeOnError(errInstance);
         }
       } finally {
-        clearTimeout(timeoutTimer);
-        if (rafId !== null) {
-          cancelAnimationFrame(rafId);
-          rafId = null;
+        if (activeStreamIdRef.current === streamId) {
+          if (timeoutTimerRef.current !== null) {
+            clearTimeout(timeoutTimerRef.current);
+            timeoutTimerRef.current = null;
+          }
+          if (rafIdRef.current !== null) {
+            cancelAnimationFrame(rafIdRef.current);
+            rafIdRef.current = null;
+          }
+          setIsStreaming(false);
+          abortControllerRef.current = null;
         }
-        setIsStreaming(false);
-        abortControllerRef.current = null;
       }
     },
-    [hookOnDone, hookOnError]
+    [hookOnDone, hookOnError, stopStreaming]
   );
-
-  const stopStreaming = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      setIsStreaming(false);
-    }
-  }, []);
 
   return {
     isStreaming,

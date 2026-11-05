@@ -1449,6 +1449,7 @@ async def _stream_candidate_configs(
     metadata: Optional[dict] = None,
     max_tokens: int = 4096,
     usage_tracker: Optional[dict] = None,
+    request: Optional[Request] = None,
 ):
     full_text = ""
     last_err = None
@@ -1508,6 +1509,9 @@ async def _stream_candidate_configs(
                 )
                 try:
                     async for chunk in stream:
+                        if request and await request.is_disconnected():
+                            interrupted = True
+                            break
                         u_chunk = _extract_chunk_usage(chunk)
                         if u_chunk:
                             provider_usage = u_chunk
@@ -1569,6 +1573,9 @@ async def _stream_candidate_configs(
                 )
                 try:
                     async for chunk in stream:
+                        if request and await request.is_disconnected():
+                            interrupted = True
+                            break
                         u_chunk = _extract_chunk_usage(chunk)
                         if u_chunk:
                             provider_usage = u_chunk
@@ -1631,6 +1638,9 @@ async def _stream_candidate_configs(
                     )
                     try:
                         async for chunk in stream:
+                            if request and await request.is_disconnected():
+                                interrupted = True
+                                break
                             u_chunk = _extract_chunk_usage(chunk)
                             if u_chunk:
                                 provider_usage = u_chunk
@@ -1707,6 +1717,9 @@ async def _stream_candidate_configs(
                 )
                 try:
                     async for chunk in stream:
+                        if request and await request.is_disconnected():
+                            interrupted = True
+                            break
                         u_chunk = _extract_chunk_usage(chunk)
                         if u_chunk:
                             provider_usage = u_chunk
@@ -1762,7 +1775,15 @@ async def _stream_candidate_configs(
             payload.update(metadata)
         yield f"data: {json.dumps(payload)}\n\n", err_msg
 
-async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[str], messages: List[ChatMessage], temperature: float, model_type: str = "classic", triad_mode: bool = False):
+async def generate_ai_stream(
+    conversation_id: Optional[str],
+    user_id: Optional[str],
+    messages: List[ChatMessage],
+    temperature: float,
+    model_type: str = "classic",
+    triad_mode: bool = False,
+    request: Optional[Request] = None,
+):
     nvidia_keys = _get_active_keys()
 
     if not nvidia_keys:
@@ -1943,7 +1964,7 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
             accumulated = ""
             try:
                 async for sse_line, delta in _stream_candidate_configs(
-                    cfgs, msgs, temp, nvidia_keys, metadata=meta, max_tokens=core_max_tokens, usage_tracker=triad_usages[core_id]
+                    cfgs, msgs, temp, nvidia_keys, metadata=meta, max_tokens=core_max_tokens, usage_tracker=triad_usages[core_id], request=request
                 ):
                     accumulated += delta
                     await triad_queue.put((sse_line, delta, core_id))
@@ -1961,9 +1982,16 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         speed_text = ""
         phantom_text = ""
         cortex_text = ""
+        client_disconnected = False
 
         while active_workers > 0:
             sse_line, delta, core_id = await triad_queue.get()
+            if request and await request.is_disconnected():
+                print("[LYAXIS TRIAD] Cliente desconectado. Cancelando tareas activas de núcleos.")
+                client_disconnected = True
+                for t in phase1_tasks:
+                    t.cancel()
+                break
             if sse_line is None:
                 active_workers -= 1
                 if core_id == "create":
@@ -1974,6 +2002,34 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
                 yield sse_line
 
         await asyncio.gather(*phase1_tasks, return_exceptions=True)
+
+        if client_disconnected:
+            triad_p_tok = sum(int(u.get("prompt_tokens") or 0) for u in triad_usages.values())
+            triad_c_tok = sum(int(u.get("completion_tokens") or 0) for u in triad_usages.values())
+            triad_t_tok = sum(int(u.get("total_tokens") or 0) for u in triad_usages.values())
+            triad_models_used = "+".join(filter(None, [triad_usages[k].get("model_used") for k in ("create", "break", "rebuild")])) or "triad"
+            if conversation_id and (speed_text or phantom_text):
+                try:
+                    now = datetime.now(timezone.utc).isoformat()
+                    triad_parts = []
+                    if speed_text:
+                        triad_parts.append(f"[TRIAD_CORE:create]\n{speed_text.strip()}\n[/TRIAD_CORE:create]")
+                    if phantom_text:
+                        triad_parts.append(f"[TRIAD_CORE:break]\n{phantom_text.strip()}\n[/TRIAD_CORE:break]")
+                    triad_combined = "\n\n".join(triad_parts)
+                    _insert_assistant_message(
+                        conversation_id=conversation_id,
+                        content=triad_combined,
+                        created_at=now,
+                        prompt_tokens=triad_p_tok,
+                        completion_tokens=triad_c_tok,
+                        total_tokens=triad_t_tok,
+                        model_used=triad_models_used,
+                    )
+                    db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
+                except Exception as err_db_triad:
+                    print(f"Aviso guardando respuesta Triad parcial en DB: {err_db_triad}")
+            return
 
         # Fase 2: REBUILD recibe los hallazgos condensados de CREATE y BREAK para una reconstrucción auténtica
         create_brief = (speed_text or "").strip()[:380]
@@ -1990,8 +2046,12 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         ]
 
         async for sse_line, delta in _stream_candidate_configs(
-            candidate_rebuild, rebuild_messages, 0.2, nvidia_keys, metadata=meta_rebuild, max_tokens=1600, usage_tracker=triad_usages["rebuild"]
+            candidate_rebuild, rebuild_messages, 0.2, nvidia_keys, metadata=meta_rebuild, max_tokens=1600, usage_tracker=triad_usages["rebuild"], request=request
         ):
+            if request and await request.is_disconnected():
+                print("[LYAXIS TRIAD Rebuild] Cliente desconectado. Abortando rebuild.")
+                client_disconnected = True
+                break
             cortex_text += delta
             yield sse_line
 
@@ -2000,8 +2060,9 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         triad_t_tok = sum(int(u.get("total_tokens") or 0) for u in triad_usages.values())
         triad_models_used = "+".join(filter(None, [triad_usages[k].get("model_used") for k in ("create", "break", "rebuild")])) or "triad"
 
-        # Señal de finalización triádica con telemetría agregada
-        yield f"data: {json.dumps({'done': True, 'usage': {'prompt_tokens': triad_p_tok, 'completion_tokens': triad_c_tok, 'total_tokens': triad_t_tok, 'model_used': triad_models_used}})}\n\n"
+        if not client_disconnected:
+            # Señal de finalización triádica con telemetría agregada
+            yield f"data: {json.dumps({'done': True, 'usage': {'prompt_tokens': triad_p_tok, 'completion_tokens': triad_c_tok, 'total_tokens': triad_t_tok, 'model_used': triad_models_used}})}\n\n"
 
         # Guardar en base de datos el mensaje combinado estructurado + telemetría
         if conversation_id and (speed_text or phantom_text or cortex_text):
@@ -2176,6 +2237,7 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
             oai_messages[0]["content"] += "\nResponde de forma directa y concisa (máximo 140 palabras) salvo que la precisión técnica exija más."
 
     usage_tracker: dict = {}
+    client_disconnected = False
 
     # Generación con failover cruzado inteligente entre todos los proveedores (NVIDIA NIM ↔ Groq ↔ Gemini ↔ OpenRouter)
     async for sse_line, delta in _stream_candidate_configs(
@@ -2185,12 +2247,17 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         nvidia_keys=nvidia_keys,
         max_tokens=model_max_tokens,
         usage_tracker=usage_tracker,
+        request=request,
     ):
+        if request and await request.is_disconnected():
+            print("[SSE Stream] Cliente desconectado. Abortando inferencia backend.")
+            client_disconnected = True
+            break
         full_response_text += delta
         yield sse_line
 
     # Handle final errors if generation yielded nothing
-    if not full_response_text and last_err:
+    if not full_response_text and last_err and not client_disconnected:
         err_msg = str(last_err)
         if "401" in err_msg or "Unauthorized" in err_msg or "Authentication" in err_msg:
             friendly_err = "⚠️ Error de autenticación en el motor neural. Por favor verifica las credenciales de acceso en el servidor."
@@ -2203,11 +2270,11 @@ async def generate_ai_stream(conversation_id: Optional[str], user_id: Optional[s
         yield f"data: {json.dumps({'token': friendly_err})}\n\n"
         return
 
-    if full_response_text:
+    if full_response_text and not client_disconnected:
         yield f"data: {json.dumps({'done': True, 'usage': usage_tracker})}\n\n"
 
-    # Almacenar en caché si fue consulta limpia de un solo turno
-    if is_cacheable_single_turn and single_turn_query and full_response_text:
+    # Almacenar en caché si fue consulta limpia de un solo turno y se completó íntegramente
+    if is_cacheable_single_turn and single_turn_query and full_response_text and not client_disconnected:
         _set_prompt_cache(model_key, single_turn_query, full_response_text)
 
     # Capa 5: Guardar respuesta del asistente y telemetría real de tokens en DB
@@ -2374,7 +2441,8 @@ async def chat_stream_endpoint(request: Request):
         messages=messages,
         temperature=temp,
         model_type=model_type,
-        triad_mode=triad_mode
+        triad_mode=triad_mode,
+        request=request,
     )
 
     return StreamingResponse(

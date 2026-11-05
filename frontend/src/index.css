@@ -1,7 +1,41 @@
+/* ====== CSS HOUDINI REGISTERED PROPERTIES (Fluid GPU Engine Transitions) ====== */
+@property --current-primary {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #3b82f6;
+}
+
+@property --current-glow {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(59, 130, 246, 0.25);
+}
+
+@property --current-surface {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #080c18;
+}
+
+@property --current-border {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(59, 130, 246, 0.3);
+}
+
+@property --current-accent {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #60a5fa;
+}
+
 :root {
   color-scheme: dark;
-  --current-glow: rgba(59, 130, 246, 0.22);
   --current-primary: #3b82f6;
+  --current-glow: rgba(59, 130, 246, 0.25);
+  --current-surface: #080c18;
+  --current-border: rgba(59, 130, 246, 0.3);
+  --current-accent: #60a5fa;
 
   /* ====== LYAXIS Quantum Studio v4 — Design Tokens ====== */
   --lx-font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -18,6 +52,46 @@
   --lx-text-1: #f1f5f9;
   --lx-text-2: #cbd5e1;
   --lx-text-3: #94a3b8;
+}
+
+/* ====== 4-TIER ELEVATION HIERARCHY — SPECULAR OBSIDIAN GLASS (60 FPS TARGET) ====== */
+/* Capa 0: Deep Void Canvas */
+.lx-layer-0,
+.lx-elevation-canvas {
+  background-color: var(--lx-surface-0, #04060d);
+  position: relative;
+  z-index: 0;
+}
+
+/* Capa 1: Surface Glass Shell (Header, Sidebar, Command Dock) */
+.lx-layer-1,
+.lx-elevation-shell {
+  background: var(--lx-surface-3, rgba(12, 16, 28, 0.88));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--lx-border-soft, rgba(255, 255, 255, 0.07));
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  z-index: 20;
+}
+
+/* Capa 2: Floating Cards / Contenedores de Chat (Burbujas, CodeBlocks) — CERO backdrop-filter para 60 FPS */
+.lx-layer-2,
+.lx-elevation-card {
+  background: #080c18;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--lx-specular, inset 0 1px 0 rgba(255, 255, 255, 0.06)), 0 10px 28px -10px rgba(0, 0, 0, 0.7);
+  z-index: 5;
+}
+
+/* Capa 3: Specular Overlay (Command Palette, Modales, Tooltips, Toasts) */
+.lx-layer-3,
+.lx-elevation-overlay {
+  background: rgba(8, 12, 22, 0.94);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.9), 0 0 32px var(--current-glow, rgba(59, 130, 246, 0.25));
+  z-index: 9999;
 }
 
 *,
@@ -154,22 +228,6 @@ body::before {
   }
 }
 
-.lyaxis-loading-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #2563FF, #00D9FF);
-  display: inline-block;
-  animation: lyaxisPulse 1s infinite ease-in-out;
-}
-
-.lyaxis-loading-dot:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.lyaxis-loading-dot:nth-child(3) {
-  animation-delay: 0.4s;
-}
 
 /* Cursor palpitante */
 @keyframes lyaxisBlink {
@@ -345,9 +403,6 @@ body::before {
   }
 }
 
-.lyaxis-msg-bubble {
-  animation: messageSlideIn 0.45s cubic-bezier(0.22, 1, 0.36, 1);
-}
 
 /* Textarea auto-resize smoothness */
 textarea {
@@ -437,10 +492,6 @@ textarea {
   100% { background-position: 0% 50%; }
 }
 
-@keyframes inputNeonPulse {
-  0%, 100% { border-color: #1a1a24; box-shadow: 0 4px 25px rgba(0,0,0,0.8); }
-  50% { border-color: rgba(0, 217, 255, 0.2); box-shadow: 0 4px 25px rgba(0,0,0,0.8), 0 0 15px rgba(0, 217, 255, 0.06); }
-}
 
 .lyaxis-input-container:focus-within {
   border-color: rgba(0, 217, 255, 0.25) !important;
@@ -589,24 +640,6 @@ textarea {
   animation: glowRipple 0.6s ease-out;
 }
 
-/* ====== AMBIENT PARTICLE DRIFT ====== */
-@keyframes particleDrift {
-  0% {
-    transform: translate(0, 0) scale(0);
-    opacity: 0;
-  }
-  10% {
-    opacity: 0.6;
-    transform: scale(1);
-  }
-  90% {
-    opacity: 0.3;
-  }
-  100% {
-    transform: translate(calc(var(--drift-x, 100px)), calc(var(--drift-y, -200px))) scale(0);
-    opacity: 0;
-  }
-}
 
 /* Subtle scanline overlay for cyberpunk feel */
 @keyframes scanlineMove {
@@ -671,19 +704,6 @@ textarea {
   background-color: #10B981;
 }
 
-/* ====== TYPEWRITER FADE — Streaming Text ====== */
-@keyframes typewriterFade {
-  from {
-    opacity: 0;
-    transform: translateX(-2px);
-    filter: blur(2px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-    filter: blur(0);
-  }
-}
 
 /* Header glassmorphism enhancement */
 .lyaxis-header {
@@ -712,16 +732,6 @@ textarea {
   }
 }
 
-@keyframes ambientGlowDrift2 {
-  0%, 100% {
-    transform: translate(0, 0);
-    opacity: 0.02;
-  }
-  50% {
-    transform: translate(-25vw, 25vh);
-    opacity: 0.05;
-  }
-}
 
 .cyber-grid-bg::before {
   content: '';
@@ -738,12 +748,6 @@ textarea {
   filter: blur(60px);
 }
 
-/* ====== MODEL SELECTOR — Smooth transition glow ====== */
-@keyframes modelSelectPop {
-  0% { transform: scale(0.95); }
-  50% { transform: scale(1.03); }
-  100% { transform: scale(1); }
-}
 
 /* ====== PROMPT CARD ENTRANCE — Staggered ====== */
 @keyframes promptCardEntrance {
@@ -933,11 +937,6 @@ textarea {
   opacity: 0.7;
 }
 
-/* --- Pulsing Neon Ring around Active Model Button --- */
-@keyframes modelActiveRing {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 217, 255, 0), 0 0 12px rgba(0, 217, 255, 0.3); }
-  50% { box-shadow: 0 0 0 5px rgba(0, 217, 255, 0), 0 0 30px rgba(0, 217, 255, 0.7); }
-}
 
 /* --- Aggressive Typing Cursor (Wide beam) --- */
 @keyframes beamBlink {
@@ -972,17 +971,6 @@ textarea {
   box-shadow: 0 0 12px rgba(0, 217, 255, 0.8);
 }
 
-/* --- Power-On Flicker for New Messages --- */
-@keyframes powerFlicker {
-  0% { opacity: 0; filter: brightness(4); }
-  10% { opacity: 0.8; filter: brightness(2); }
-  20% { opacity: 0.4; filter: brightness(1); }
-  35% { opacity: 0.9; filter: brightness(1.5); }
-  50% { opacity: 0.6; filter: brightness(1); }
-  65% { opacity: 1; filter: brightness(1.1); }
-  80% { opacity: 0.95; filter: brightness(1); }
-  100% { opacity: 1; filter: brightness(1); }
-}
 
 .lyaxis-msg-bubble {
   animation: quantumReveal 0.42s var(--lx-ease-out) both;
@@ -1685,6 +1673,7 @@ pre {
 .lx-tabular {
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.02em;
 }
 
 .lx-mono {
@@ -1828,34 +1817,72 @@ code, kbd, samp, pre {
   height: auto;
 }
 
-/* 6. KaTeX blindado: nunca desborda la burbuja ni las columnas TRIAD */
+/* 6. KaTeX blindado: contención responsiva y prevención de desborde */
 .katex {
   font-size: 1.05em;
+  text-rendering: auto;
+  font-family: KaTeX_Main, 'Times New Roman', serif;
+  line-height: 1.2;
 }
 
-.katex-display {
+span.katex {
+  display: inline-block;
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 6px 2px;
-  margin: 0.8em 0 !important;
+  vertical-align: -0.25em;
+  padding: 1px 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 217, 255, 0.3) transparent;
+}
+
+.katex-display {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  margin: 1em 0 !important;
+  padding: 12px 14px !important;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.35) rgba(15, 23, 42, 0.6);
 }
 
 .katex-display > .katex {
+  display: inline-block;
+  min-width: 100%;
+  text-align: center;
   white-space: nowrap;
 }
 
-.katex-display::-webkit-scrollbar {
-  height: 4px;
+/* Evitar desbordes de MathML invisible */
+.katex .katex-mathml {
+  position: absolute !important;
+  clip: rect(1px, 1px, 1px, 1px) !important;
+  padding: 0 !important;
+  border: 0 !important;
+  height: 1px !important;
+  width: 1px !important;
+  overflow: hidden !important;
 }
 
 /* 7. Blindaje de desbordamiento horizontal (flex/grid children) */
 .lyaxis-msg-bubble,
+.lyaxis-msg-bubble p,
 .lyaxis-triad-card,
+.lyaxis-triad-card p,
 .lyaxis-triad-desktop-grid > *,
 .lyaxis-codeblock-container {
-  min-width: 0;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .lyaxis-triad-card .markdown-content,

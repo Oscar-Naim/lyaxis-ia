@@ -22,3 +22,6 @@ shhhhhhhhh/
 # Sistema
 .DS_Store
 Thumbs.db
+# Agentes y bitácoras temporales
+.agents/
+

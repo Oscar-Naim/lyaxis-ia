@@ -104,15 +104,17 @@ export function markdownToPdfHtml(markdownText: string, renderMath?: KatexRender
     const cleanLang = (rawLang || '').trim() || 'code';
     const trimmedCode = String(rawCode || '').replace(/\n$/, '');
     const lineCount = trimmedCode.split('\n').length;
-    const breakRule = lineCount <= 32 ? 'page-break-inside:avoid; break-inside:avoid;' : 'page-break-inside:auto; break-inside:auto;';
+    const breakRule = lineCount <= 28 
+      ? 'page-break-inside:avoid; break-inside:avoid;' 
+      : 'page-break-inside:auto; break-inside:auto;';
     const escaped = escapeHtml(trimmedCode);
     return pushBlock(
-      `<div class="pdf-code-card" style="margin:12px 0; border-radius:8px; overflow:hidden; border:1px solid #1e293b; background-color:#0b1120; ${breakRule}">` +
-        `<div style="background-color:#0f172a; padding:5px 12px; border-bottom:1px solid #1e293b; display:flex; justify-content:space-between; align-items:center; font-family:'JetBrains Mono',Consolas,monospace; font-size:10px; color:#38bdf8; font-weight:700;">` +
-          `<span>${escapeHtml(cleanLang)}</span>` +
+      `<div class="pdf-code-card" style="margin:14px 0; border-radius:6px; overflow:hidden; border:1px solid #cbd5e1; background-color:#f8fafc; -webkit-print-color-adjust:exact; print-color-adjust:exact; ${breakRule}">` +
+        `<div style="background-color:#f1f5f9; padding:6px 12px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; font-family:'JetBrains Mono',Consolas,monospace; font-size:10px; color:#0369a1; font-weight:700; -webkit-print-color-adjust:exact; print-color-adjust:exact;">` +
+          `<span style="text-transform:uppercase; letter-spacing:0.5px;">${escapeHtml(cleanLang)}</span>` +
           `<span style="color:#64748b; font-weight:500;">${lineCount} ${lineCount === 1 ? 'línea' : 'líneas'}</span>` +
         `</div>` +
-        `<pre style="margin:0; padding:12px 14px; background-color:#0b1120; color:#e2e8f0; font-family:'JetBrains Mono',Consolas,monospace; font-size:11px; line-height:1.55; white-space:pre-wrap; word-break:break-word; overflow-x:auto;"><code style="color:#e2e8f0; background:transparent; font-family:inherit;">${escaped}</code></pre>` +
+        `<pre style="margin:0; padding:12px 14px; background-color:#f8fafc; color:#0f172a; font-family:'JetBrains Mono',Consolas,monospace; font-size:10.5px; line-height:1.6; white-space:pre-wrap; word-break:break-word; overflow-x:auto; -webkit-print-color-adjust:exact; print-color-adjust:exact;"><code style="color:#0f172a !important; background:transparent !important; font-family:inherit;">${escaped}</code></pre>` +
       `</div>`
     );
   });
@@ -336,6 +338,8 @@ export const exportChatToPDF = async (
   container.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
   container.style.color = '#0f172a';
   container.style.backgroundColor = '#ffffff';
+  (container.style as any)['-webkit-print-color-adjust'] = 'exact';
+  (container.style as any)['print-color-adjust'] = 'exact';
 
   const dateStr = new Date().toLocaleDateString('es-MX', {
     year: 'numeric',
@@ -351,7 +355,15 @@ export const exportChatToPDF = async (
       @page {
         margin: 15mm;
       }
-      p, tr, h1, h2, h3, h4, h5, h6, li, blockquote, .pdf-avoid-break {
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .pdf-code-card pre code {
+        color: #0f172a !important;
+        background-color: transparent !important;
+      }
+      p, tr, h1, h2, h3, h4, h5, h6, li, blockquote, .pdf-avoid-break, .pdf-code-card {
         page-break-inside: avoid !important;
         break-inside: avoid !important;
       }
@@ -423,7 +435,7 @@ export const exportChatToPDF = async (
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
     pagebreak: {
       mode: ['css', 'legacy'],
-      avoid: ['tr', '.pdf-avoid-break', 'p', 'h1', 'h2', 'h3', 'h4', 'li', 'blockquote']
+      avoid: ['tr', '.pdf-avoid-break', 'p', 'h1', 'h2', 'h3', 'h4', 'li', 'blockquote', '.pdf-code-card']
     }
   };
 

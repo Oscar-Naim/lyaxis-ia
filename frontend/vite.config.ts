@@ -19,6 +19,9 @@ export default defineConfig({
             if (id.includes('react-markdown') || id.includes('remark-') || id.includes('micromark') || id.includes('mdast')) {
               return 'vendor-markdown';
             }
+            if (id.includes('mermaid')) {
+              return 'vendor-mermaid';
+            }
             if (id.includes('highlight.js')) {
               return 'vendor-hljs';
             }
