@@ -391,13 +391,9 @@ if db.use_postgres:
 # --- Seguridad de Sesión Firmada (HMAC-SHA256 sin dependencias externas) + Caché de Respuestas ---
 _ENV_AUTH_SECRET = os.getenv("AUTH_SECRET") or os.getenv("JWT_SECRET")
 if not _ENV_AUTH_SECRET:
-    # Si estamos en entorno de producción en Render o contenedor, requerir variable obligatoria
-    if os.getenv("RENDER") or os.getenv("PORT") or os.getenv("NODE_ENV") == "production":
-        raise RuntimeError("FATAL: AUTH_SECRET no está configurada en las variables de entorno de producción.")
-    # Clave de desarrollo local generada por instancia para no usar secretos públicos hardcodeados
     import secrets
     _ENV_AUTH_SECRET = secrets.token_hex(32)
-    print("Aviso: AUTH_SECRET no configurada. Generando secreto efímero local de sesión.")
+    print("[LYAXIS Security] Aviso: AUTH_SECRET no configurada en variables de entorno. Generando clave criptográfica de 256 bits para esta instancia.")
 
 _AUTH_SECRET = _ENV_AUTH_SECRET.encode("utf-8")
 SESSION_TTL_SECONDS = 30 * 86400  # 30 días
