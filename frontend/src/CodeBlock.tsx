@@ -75,6 +75,8 @@ export function isLikelyValidMermaidSyntax(code: string): boolean {
   const isValidStart = MERMAID_DIAGRAM_TYPES.some((t) => firstLine.startsWith(t));
   if (!isValidStart) return false;
 
+  const isEr = firstLine.startsWith('erdiagram');
+
   let square = 0;
   let paren = 0;
   let curly = 0;
@@ -84,11 +86,11 @@ export function isLikelyValidMermaidSyntax(code: string): boolean {
     else if (char === ']') square--;
     else if (char === '(') paren++;
     else if (char === ')') paren--;
-    else if (char === '{') curly++;
-    else if (char === '}') curly--;
-    if (square < 0 || paren < 0 || curly < 0) return false;
+    else if (!isEr && char === '{') curly++;
+    else if (!isEr && char === '}') curly--;
+    if (square < 0 || paren < 0 || (!isEr && curly < 0)) return false;
   }
-  return square === 0 && paren === 0 && curly === 0;
+  return square === 0 && paren === 0 && (isEr || curly === 0);
 }
 
 export function namespaceMermaidSvg(svg: string, uniquePrefix: string): string {
