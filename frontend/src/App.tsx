@@ -13,6 +13,7 @@ import { isSoundMuted, setSoundMuted, playCyberClick } from './sound';
 import { CommandPalette } from './components/CommandPalette';
 import { exportChatToMarkdown, exportChatToJSON } from './utils/chatExporter';
 import { CustomInstructionsModal } from './components/CustomInstructionsModal';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 const FuturisticDashboardModal = lazy(() =>
   import('./FuturisticDashboardModal').then((m) => ({ default: m.FuturisticDashboardModal }))
@@ -647,6 +648,7 @@ export default function App() {
           onClose={() => setIsDirectivesOpen(false)}
           accentColor={currentTheme.primary}
         />
+        <SpeedInsights />
       </div>
     </GoogleOAuthProvider>
   );
