@@ -122,6 +122,7 @@ def init_sqlite():
             CREATE TABLE IF NOT EXISTS messages (
                 id TEXT PRIMARY KEY,
                 conversation_id TEXT NOT NULL,
+                parent_id TEXT,
                 role TEXT NOT NULL,
                 content TEXT NOT NULL,
                 image TEXT,
@@ -138,11 +139,14 @@ def init_sqlite():
                 "ALTER TABLE messages ADD COLUMN completion_tokens INTEGER DEFAULT 0;",
                 "ALTER TABLE messages ADD COLUMN total_tokens INTEGER DEFAULT 0;",
                 "ALTER TABLE messages ADD COLUMN model_used TEXT;",
+                "ALTER TABLE messages ADD COLUMN parent_id TEXT;",
             ):
                 try:
                     cursor.execute(_col_stmt)
                 except Exception:
                     pass
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id);")
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS triad_rate_limits (
                 client_id TEXT NOT NULL,
@@ -334,6 +338,7 @@ if db.use_postgres:
         CREATE TABLE IF NOT EXISTS messages (
             id TEXT PRIMARY KEY,
             conversation_id TEXT NOT NULL,
+            parent_id TEXT,
             role TEXT NOT NULL,
             content TEXT NOT NULL,
             image TEXT,
@@ -350,11 +355,17 @@ if db.use_postgres:
             "ALTER TABLE messages ADD COLUMN IF NOT EXISTS completion_tokens INTEGER DEFAULT 0;",
             "ALTER TABLE messages ADD COLUMN IF NOT EXISTS total_tokens INTEGER DEFAULT 0;",
             "ALTER TABLE messages ADD COLUMN IF NOT EXISTS model_used TEXT;",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS parent_id TEXT;",
         ):
             try:
                 db.execute(_pg_col_stmt)
             except Exception:
                 pass
+        try:
+            db.execute("CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_id);")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id);")
+        except Exception:
+            pass
         try:
             db.execute("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id IS NULL OR user_id = '' OR user_id = 'anon')")
             db.execute("DELETE FROM conversations WHERE user_id IS NULL OR user_id = '' OR user_id = 'anon'")
@@ -627,6 +638,11 @@ class ChatMessage(BaseModel):
     timestamp: Optional[str] = None
     image: Optional[str] = None
     image_url: Optional[str] = None
+    parent_id: Optional[str] = None
+    parentId: Optional[str] = None
+
+    def get_parent_id(self) -> Optional[str]:
+        return self.parent_id or self.parentId
 
 class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
@@ -1046,18 +1062,89 @@ async def update_conversation(cid: str, request: Request):
     return {"status": "ok", "id": cid, "title": title, "pinned": pinned, "folder": folder}
 
 @app.get("/api/v1/conversations/{cid}/messages")
+@app.get("/api/conversations/{cid}/messages")
 def get_conversation_messages(cid: str, request: Request, user_id: Optional[str] = None):
     _assert_conversation_access(cid, request, user_id)
     try:
-        return db.fetchall(
-            "SELECT id, role, content, image, prompt_tokens, completion_tokens, total_tokens, model_used, created_at as timestamp FROM messages WHERE conversation_id = ? ORDER BY created_at ASC",
+        rows = db.fetchall(
+            "SELECT id, parent_id, role, content, image, prompt_tokens, completion_tokens, total_tokens, model_used, created_at as timestamp FROM messages WHERE conversation_id = ? ORDER BY created_at ASC",
             (cid,)
         )
     except Exception:
         try:
-            return db.fetchall("SELECT id, role, content, image, created_at as timestamp FROM messages WHERE conversation_id = ? ORDER BY created_at ASC", (cid,))
+            rows = db.fetchall(
+                "SELECT id, role, content, image, prompt_tokens, completion_tokens, total_tokens, model_used, created_at as timestamp FROM messages WHERE conversation_id = ? ORDER BY created_at ASC",
+                (cid,)
+            )
         except Exception:
-            return db.fetchall("SELECT id, role, content, created_at as timestamp FROM messages WHERE conversation_id = ? ORDER BY created_at ASC", (cid,))
+            rows = db.fetchall("SELECT id, role, content, created_at as timestamp FROM messages WHERE conversation_id = ? ORDER BY created_at ASC", (cid,))
+    
+    # Exponer tanto parent_id como parentId
+    for r in rows:
+        if "parent_id" in r and "parentId" not in r:
+            r["parentId"] = r["parent_id"]
+    return rows
+
+@app.get("/api/v1/conversations/{cid}")
+@app.get("/api/conversations/{cid}")
+def get_conversation_details(cid: str, request: Request, user_id: Optional[str] = None):
+    _assert_conversation_access(cid, request, user_id)
+    conv = db.fetchone("SELECT id, user_id, title, model, pinned, folder, created_at, updated_at FROM conversations WHERE id = ?", (cid,))
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversación no encontrada.")
+    
+    raw_msgs = get_conversation_messages(cid, request, user_id)
+    nodes = {}
+    root_id = None
+    leaf_id = None
+
+    for idx, msg in enumerate(raw_msgs):
+        mid = str(msg.get("id"))
+        pid = msg.get("parent_id") or msg.get("parentId")
+        if pid is None and idx > 0:
+            pid = str(raw_msgs[idx - 1].get("id"))
+        
+        if idx == 0 and not root_id:
+            root_id = mid
+        leaf_id = mid
+
+        node = {
+            "id": mid,
+            "parentId": pid,
+            "childrenIds": [],
+            "role": msg.get("role", "user"),
+            "content": msg.get("content", ""),
+            "model": msg.get("model_used") or conv.get("model", "speed"),
+            "timestamp": msg.get("timestamp"),
+            "image": msg.get("image"),
+            "metadata": {
+                "promptTokens": msg.get("prompt_tokens", 0),
+                "completionTokens": msg.get("completion_tokens", 0),
+                "totalTokens": msg.get("total_tokens", 0),
+            }
+        }
+        nodes[mid] = node
+
+    for mid, node in nodes.items():
+        pid = node.get("parentId")
+        if pid and pid in nodes:
+            if mid not in nodes[pid]["childrenIds"]:
+                nodes[pid]["childrenIds"].append(mid)
+
+    return {
+        "id": conv.get("id"),
+        "userId": conv.get("user_id"),
+        "title": conv.get("title"),
+        "model": conv.get("model"),
+        "pinned": bool(conv.get("pinned")),
+        "folder": conv.get("folder"),
+        "createdAt": conv.get("created_at"),
+        "updatedAt": conv.get("updated_at"),
+        "rootMessageId": root_id,
+        "currentLeafId": leaf_id,
+        "nodes": nodes,
+        "messages": raw_msgs,
+    }
 
 @app.delete("/api/v1/conversations/{cid}")
 def delete_conversation(cid: str, request: Request, user_id: Optional[str] = None):
@@ -1407,18 +1494,25 @@ def _insert_assistant_message(
     completion_tokens: int = 0,
     total_tokens: int = 0,
     model_used: Optional[str] = None,
+    parent_id: Optional[str] = None,
 ):
     mid = str(uuid.uuid4())
     try:
         db.execute(
-            "INSERT INTO messages (id, conversation_id, role, content, prompt_tokens, completion_tokens, total_tokens, model_used, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (mid, conversation_id, "model", content, int(prompt_tokens), int(completion_tokens), int(total_tokens), model_used, created_at),
+            "INSERT INTO messages (id, conversation_id, parent_id, role, content, prompt_tokens, completion_tokens, total_tokens, model_used, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (mid, conversation_id, parent_id, "model", content, int(prompt_tokens), int(completion_tokens), int(total_tokens), model_used, created_at),
         )
     except Exception:
-        db.execute(
-            "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-            (mid, conversation_id, "model", content, created_at),
-        )
+        try:
+            db.execute(
+                "INSERT INTO messages (id, conversation_id, role, content, prompt_tokens, completion_tokens, total_tokens, model_used, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (mid, conversation_id, "model", content, int(prompt_tokens), int(completion_tokens), int(total_tokens), model_used, created_at),
+            )
+        except Exception:
+            db.execute(
+                "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                (mid, conversation_id, "model", content, created_at),
+            )
 
 def _condense_code_block(match: re.Match) -> str:
     block = match.group(0)
@@ -1855,22 +1949,32 @@ async def generate_ai_stream(
             if not existing_msg:
                 img_to_store = last_user_msg.image or last_user_msg.image_url
                 user_est_tokens = _estimate_tokens(last_user_msg.content or "") + (765 if img_to_store else 0)
+                user_parent_id = last_user_msg.get_parent_id() if hasattr(last_user_msg, "get_parent_id") else (last_user_msg.parent_id or getattr(last_user_msg, "parentId", None))
+                if user_parent_id is None and len(messages) > 1:
+                    prior_msg = messages[-2]
+                    user_parent_id = getattr(prior_msg, "id", None)
                 try:
                     db.execute(
-                        "INSERT INTO messages (id, conversation_id, role, content, image, prompt_tokens, total_tokens, model_used, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (mid, conversation_id, "user", last_user_msg.content or "", img_to_store, user_est_tokens, user_est_tokens, model_key, now)
+                        "INSERT INTO messages (id, conversation_id, parent_id, role, content, image, prompt_tokens, total_tokens, model_used, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (mid, conversation_id, user_parent_id, "user", last_user_msg.content or "", img_to_store, user_est_tokens, user_est_tokens, model_key, now)
                     )
                 except Exception:
                     try:
                         db.execute(
-                            "INSERT INTO messages (id, conversation_id, role, content, image, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                            (mid, conversation_id, "user", last_user_msg.content or "", img_to_store, now)
+                            "INSERT INTO messages (id, conversation_id, role, content, image, prompt_tokens, total_tokens, model_used, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (mid, conversation_id, "user", last_user_msg.content or "", img_to_store, user_est_tokens, user_est_tokens, model_key, now)
                         )
                     except Exception:
-                        db.execute(
-                            "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                            (mid, conversation_id, "user", last_user_msg.content or "", now)
-                        )
+                        try:
+                            db.execute(
+                                "INSERT INTO messages (id, conversation_id, role, content, image, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                                (mid, conversation_id, "user", last_user_msg.content or "", img_to_store, now)
+                            )
+                        except Exception:
+                            db.execute(
+                                "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                                (mid, conversation_id, "user", last_user_msg.content or "", now)
+                            )
             db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
         except Exception as err_db:
             print(f"Aviso DB mensaje: {err_db}")
@@ -2025,6 +2129,7 @@ async def generate_ai_stream(
                         completion_tokens=triad_c_tok,
                         total_tokens=triad_t_tok,
                         model_used=triad_models_used,
+                        parent_id=mid,
                     )
                     db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
                 except Exception as err_db_triad:
@@ -2084,6 +2189,7 @@ async def generate_ai_stream(
                     completion_tokens=triad_c_tok,
                     total_tokens=triad_t_tok,
                     model_used=triad_models_used,
+                    parent_id=mid,
                 )
                 db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
             except Exception as err_db_triad:
@@ -2118,6 +2224,7 @@ async def generate_ai_stream(
                         completion_tokens=0,
                         total_tokens=0,
                         model_used=f"cache:{model_key}",
+                        parent_id=mid,
                     )
                     db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
                 except Exception as err_cache_db:
@@ -2295,6 +2402,7 @@ async def generate_ai_stream(
                 completion_tokens=int(usage_tracker.get("completion_tokens") or 0),
                 total_tokens=int(usage_tracker.get("total_tokens") or 0),
                 model_used=usage_tracker.get("model_used") or model_key,
+                parent_id=mid,
             )
             db.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id))
         except Exception as err_db2:
