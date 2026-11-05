@@ -737,7 +737,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <Pin size={10} />
                   Fijados
                 </button>
-                {(['speed', 'cortex', 'architect', 'root', 'forge', 'magister', 'phantom'] as const).map((m) => {
+                {/* 3 Modelos Principales en Filtro Rápido */}
+                {(['speed', 'cortex', 'zenith'] as const).map((m) => {
                   const isSel = selectedFilterModel === m;
                   const mMeta = MODEL_META[m];
                   return (

@@ -105,7 +105,9 @@ async def test_monomodel_disconnect_and_cache_integrity():
     lines_yielded = []
 
     with patch("main.client_nvidia.chat.completions.create", AsyncMock(return_value=mock_stream)), \
-         patch("main.client_groq.chat.completions.create", AsyncMock(return_value=mock_stream)):
+         patch("main.client_groq.chat.completions.create", AsyncMock(return_value=mock_stream)), \
+         patch("main.client_gemini.chat.completions.create", AsyncMock(return_value=mock_stream)), \
+         patch("main.client_openrouter.chat.completions.create", AsyncMock(return_value=mock_stream)):
 
         gen = generate_ai_stream(
             conversation_id=None,
@@ -180,11 +182,22 @@ async def test_triad_phase1_disconnect():
     rebuild_stream = MockStream([f"RebuildChunk{i} " for i in range(10)], delay=0.03)
 
     def side_effect_dispatch(*args, **kwargs):
-        model = kwargs.get("model", "")
-        if "8b" in model or "bolt" in model:
-            return create_stream
-        elif "ultra" in model or "versatile" in model or "70b" in model:
+        msgs = kwargs.get("messages", [])
+        sys_content = msgs[0].get("content", "") if msgs and isinstance(msgs[0], dict) else ""
+        if "NÚCLEO III" in sys_content or "Cortex Pro" in sys_content:
+            return rebuild_stream
+        elif "NÚCLEO II" in sys_content or "Phantom" in sys_content:
             return break_stream
+        elif "NÚCLEO I" in sys_content or "Speed" in sys_content:
+            return create_stream
+
+        model = kwargs.get("model", "")
+        if "pro" in model or "max" in model or "lightning" in model or "120b" in model:
+            return rebuild_stream
+        elif "ultra" in model or "versatile" in model or "70b" in model or "haiku" in model:
+            return break_stream
+        elif "8b" in model or "bolt" in model or "flash" in model or "plus" in model:
+            return create_stream
         else:
             return rebuild_stream
 
@@ -264,11 +277,22 @@ async def test_triad_phase2_rebuild_disconnect():
     rebuild_stream = MockStream([f"RebuildChunk{i} " for i in range(10)], delay=0.03)
 
     def side_effect_dispatch(*args, **kwargs):
-        model = kwargs.get("model", "")
-        if "8b" in model or "bolt" in model:
-            return create_stream
-        elif "ultra" in model or "versatile" in model or "70b" in model:
+        msgs = kwargs.get("messages", [])
+        sys_content = msgs[0].get("content", "") if msgs and isinstance(msgs[0], dict) else ""
+        if "NÚCLEO III" in sys_content or "Cortex Pro" in sys_content:
+            return rebuild_stream
+        elif "NÚCLEO II" in sys_content or "Phantom" in sys_content:
             return break_stream
+        elif "NÚCLEO I" in sys_content or "Speed" in sys_content:
+            return create_stream
+
+        model = kwargs.get("model", "")
+        if "pro" in model or "max" in model or "lightning" in model or "120b" in model:
+            return rebuild_stream
+        elif "ultra" in model or "versatile" in model or "70b" in model or "haiku" in model:
+            return break_stream
+        elif "8b" in model or "bolt" in model or "flash" in model or "plus" in model:
+            return create_stream
         else:
             return rebuild_stream
 
@@ -340,7 +364,9 @@ async def test_immediate_disconnect_before_first_token():
     lines_yielded = []
 
     with patch("main.client_nvidia.chat.completions.create", AsyncMock(return_value=mock_stream)), \
-         patch("main.client_groq.chat.completions.create", AsyncMock(return_value=mock_stream)):
+         patch("main.client_groq.chat.completions.create", AsyncMock(return_value=mock_stream)), \
+         patch("main.client_gemini.chat.completions.create", AsyncMock(return_value=mock_stream)), \
+         patch("main.client_openrouter.chat.completions.create", AsyncMock(return_value=mock_stream)):
 
         gen = generate_ai_stream(
             conversation_id=None,

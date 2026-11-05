@@ -2055,6 +2055,9 @@ async def generate_ai_stream(
             cortex_text += delta
             yield sse_line
 
+        if request and await request.is_disconnected():
+            client_disconnected = True
+
         triad_p_tok = sum(int(u.get("prompt_tokens") or 0) for u in triad_usages.values())
         triad_c_tok = sum(int(u.get("completion_tokens") or 0) for u in triad_usages.values())
         triad_t_tok = sum(int(u.get("total_tokens") or 0) for u in triad_usages.values())
@@ -2255,6 +2258,9 @@ async def generate_ai_stream(
             break
         full_response_text += delta
         yield sse_line
+
+    if request and await request.is_disconnected():
+        client_disconnected = True
 
     # Handle final errors if generation yielded nothing
     if not full_response_text and last_err and not client_disconnected:

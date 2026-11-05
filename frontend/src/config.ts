@@ -122,6 +122,16 @@ export const THEMES: Record<string, ModelTheme> = {
 
 export const CORE_MODELS: ModelType[] = ['speed', 'cortex', 'zenith'];
 
+export const SPECIALIST_MODELS: ModelType[] = [
+  'architect',
+  'phantom',
+  'root',
+  'forge',
+  'magister',
+  'nexus',
+  'classic',
+];
+
 export const ALL_MODELS: ModelType[] = [
   'speed',
   'cortex',

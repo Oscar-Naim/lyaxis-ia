@@ -51,7 +51,7 @@ import { LiveCanvasWorkspace } from './LiveCanvasWorkspace';
 import { PromptVaultModal } from './PromptVaultModal';
 import { TriadQuotaModal } from './TriadQuotaModal';
 import { isSoundMuted, setSoundMuted, playCyberClick as globalPlayCyberClick } from '../sound';
-import { API_BASE, CORE_MODELS, MODEL_META, MODEL_QUICK_ACTIONS, THEMES } from '../config';
+import { API_BASE, CORE_MODELS, SPECIALIST_MODELS, MODEL_META, MODEL_QUICK_ACTIONS, THEMES } from '../config';
 import { exportChatToPDF } from '../pdfExporter';
 import { exportChatToMarkdown, exportChatToJSON } from '../utils/chatExporter';
 import { routePromptToModel } from '../utils/neuralRouter';
@@ -311,6 +311,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
   const mobileActionsRef = useRef<HTMLDivElement | null>(null);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
+  const specialistsMenuRef = useRef<HTMLDivElement | null>(null);
+  const [isSpecialistsMenuOpen, setIsSpecialistsMenuOpen] = useState(false);
+  const [showEmptySpecialists, setShowEmptySpecialists] = useState(false);
 
   // Focus state for bottom input box chromatic glow
   const [isInputFocused, setIsInputFocused] = useState(false);
@@ -492,6 +495,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
       if (exportMenuRef.current && !exportMenuRef.current.contains(target)) {
         setIsExportMenuOpen(false);
       }
+      if (specialistsMenuRef.current && !specialistsMenuRef.current.contains(target)) {
+        setIsSpecialistsMenuOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -499,12 +505,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const meta = modelMeta[currentActiveModel] || MODEL_META[currentActiveModel] || MODEL_META.speed;
   const currentTheme = THEMES[currentActiveModel] || THEMES.speed;
-
-  // A la vista solo están los 3 modelos principales (Speed, Cortex, Zenith)
-  // Si se activa otro modelo especializado mediante comando '/', se muestra temporalmente
-  const visibleModels: ModelType[] = CORE_MODELS.includes(currentActiveModel)
-    ? [...CORE_MODELS]
-    : [...CORE_MODELS, currentActiveModel];
 
   // Índice de comando seleccionado en el popup de comandos '/'
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
@@ -1178,11 +1178,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 minWidth: 0,
               }}
             >
-              {visibleModels.map((m) => {
+              {/* 1. Solo a la vista los 3 Modelos Principales (Speed, Cortex, Zenith) */}
+              {CORE_MODELS.map((m) => {
                 const itemMeta = MODEL_META[m] || MODEL_META.speed;
                 const isSelected = currentActiveModel === m;
                 const theme = THEMES[m] || THEMES.speed;
-                const isAdvancedSpecialist = !CORE_MODELS.includes(m);
                 return (
                   <button
                     key={m}
@@ -1193,15 +1193,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       gap: '6px',
-                      padding: '6px 11px',
+                      padding: '6px 12px',
                       borderRadius: '8px',
-                      border: isSelected ? `1px solid ${theme.primary}77` : '1px solid transparent',
-                      backgroundColor: isSelected ? `${theme.primary}20` : 'transparent',
+                      border: isSelected ? `1px solid ${theme.primary}88` : '1px solid transparent',
+                      backgroundColor: isSelected ? `${theme.primary}22` : 'transparent',
                       color: isSelected ? '#ffffff' : '#94a3b8',
                       fontSize: '12.5px',
-                      fontWeight: isSelected ? 700 : 500,
+                      fontWeight: isSelected ? 800 : 500,
                       cursor: 'pointer',
-                      boxShadow: isSelected ? `0 0 14px ${theme.glow}` : 'none',
+                      boxShadow: isSelected ? `0 0 16px ${theme.glow}` : 'none',
                       transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                       whiteSpace: 'nowrap',
                       flexShrink: 0,
@@ -1225,7 +1225,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         height: '7px',
                         borderRadius: '50%',
                         backgroundColor: theme.primary,
-                        boxShadow: isSelected ? `0 0 8px ${theme.primary}` : 'none',
+                        boxShadow: isSelected ? `0 0 10px ${theme.primary}` : 'none',
                         display: 'inline-block',
                         flexShrink: 0,
                       }}
@@ -1234,17 +1234,163 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       <span className="lyaxis-brand-prefix">LYAXIS </span>
                       {itemMeta.label}
                     </span>
-                    {isAdvancedSpecialist && (
-                      <span style={{ fontSize: '9px', backgroundColor: `${theme.primary}33`, color: theme.primary, padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>
-                        ACTIVO
-                      </span>
-                    )}
-                    <span className="lyaxis-temp-tag" style={{ fontSize: '10px', color: isSelected ? `${theme.primary}` : '#64748b', fontFamily: 'monospace' }}>
+                    <span className="lyaxis-temp-tag lx-tabular" style={{ fontSize: '10px', color: isSelected ? `${theme.primary}` : '#64748b', fontFamily: 'var(--lx-font-mono)' }}>
                       T:{itemMeta.temperature}
                     </span>
                   </button>
                 );
               })}
+
+              {/* 2. Si un especialista está activo, mostrarlo con badge */}
+              {!CORE_MODELS.includes(currentActiveModel) && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 11px',
+                    borderRadius: '8px',
+                    border: `1px solid ${currentTheme.primary}88`,
+                    backgroundColor: `${currentTheme.primary}22`,
+                    color: '#ffffff',
+                    fontSize: '12.5px',
+                    fontWeight: 800,
+                    boxShadow: `0 0 14px ${currentTheme.glow}`,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '7px',
+                      height: '7px',
+                      borderRadius: '50%',
+                      backgroundColor: currentTheme.primary,
+                      boxShadow: `0 0 8px ${currentTheme.primary}`,
+                      display: 'inline-block',
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span>LYAXIS {meta.label}</span>
+                  <span style={{ fontSize: '9px', backgroundColor: `${currentTheme.primary}44`, color: currentTheme.primary, padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>
+                    ESPECIALISTA
+                  </span>
+                </div>
+              )}
+
+              {/* 3. Botón y Menú Desplegable de Motores Especializados Ocultos */}
+              <div style={{ position: 'relative' }} ref={specialistsMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerSound();
+                    setIsSpecialistsMenuOpen((prev) => !prev);
+                  }}
+                  title="Ver motores especializados (Architect, Phantom, Root, Forge, Magister...)"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '6px 10px',
+                    borderRadius: '8px',
+                    border: isSpecialistsMenuOpen ? '1px solid rgba(0, 217, 255, 0.45)' : '1px solid transparent',
+                    backgroundColor: isSpecialistsMenuOpen ? 'rgba(0, 217, 255, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                    color: isSpecialistsMenuOpen ? '#00d9ff' : '#94a3b8',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.18s var(--lx-ease-out)',
+                    whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSpecialistsMenuOpen) {
+                      e.currentTarget.style.color = '#ffffff';
+                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSpecialistsMenuOpen) {
+                      e.currentTarget.style.color = '#94a3b8';
+                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.03)';
+                    }
+                  }}
+                >
+                  <Sliders size={12} color={isSpecialistsMenuOpen ? '#00d9ff' : '#71717a'} />
+                  <span>+ Especialistas</span>
+                  <ChevronDown
+                    size={11}
+                    style={{
+                      transform: isSpecialistsMenuOpen ? 'rotate(180deg)' : 'none',
+                      transition: 'transform 0.2s ease',
+                    }}
+                  />
+                </button>
+
+                {isSpecialistsMenuOpen && (
+                  <div className="lyaxis-specialists-popover">
+                    <div style={{ padding: '6px 8px 6px', borderBottom: '1px solid rgba(255, 255, 255, 0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#00d9ff', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'var(--lx-font-mono)' }}>
+                        Motores Especializados
+                      </span>
+                      <span style={{ fontSize: '10px', color: '#64748b' }}>7 disponibles</span>
+                    </div>
+
+                    <div style={{ maxHeight: '290px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '3px', padding: '4px 0' }}>
+                      {SPECIALIST_MODELS.map((sId) => {
+                        const sMeta = MODEL_META[sId];
+                        const isSel = currentActiveModel === sId;
+                        return (
+                          <button
+                            key={sId}
+                            type="button"
+                            onClick={() => {
+                              handleModelSwitch(sId);
+                              setIsSpecialistsMenuOpen(false);
+                            }}
+                            className={`lyaxis-specialist-item${isSel ? ' active' : ''}`}
+                            style={{ '--lx-item-color': sMeta.color } as React.CSSProperties}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0, flex: 1 }}>
+                              <div
+                                style={{
+                                  width: '26px',
+                                  height: '26px',
+                                  borderRadius: '6px',
+                                  backgroundColor: `${sMeta.color}18`,
+                                  border: `1px solid ${sMeta.color}44`,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {MODEL_ICONS[sId]?.(13, sMeta.color)}
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontSize: '12.5px', fontWeight: 700, color: isSel ? '#ffffff' : '#e2e8f0' }}>
+                                    LYAXIS {sMeta.label}
+                                  </span>
+                                  {isSel && (
+                                    <span style={{ fontSize: '8.5px', padding: '1px 5px', borderRadius: '4px', backgroundColor: `${sMeta.color}33`, color: sMeta.color, fontWeight: 800 }}>
+                                      ACTIVO
+                                    </span>
+                                  )}
+                                </div>
+                                <span style={{ fontSize: '11px', color: '#94a3b8', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {sMeta.tagline}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="lx-tabular" style={{ fontSize: '10px', color: '#64748b', fontFamily: 'var(--lx-font-mono)' }}>
+                              T:{sMeta.temperature}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             /* Interactive In-Chat Model Selector con Identidad Cromática en Celular */
@@ -1329,13 +1475,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       gap: '2px',
                     }}
                   >
-                    <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 800, color: '#71717a', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
-                      Seleccionar Motor LYAXIS
+                    {/* 1. Sección de Motores Principales */}
+                    <div style={{ padding: '6px 8px 4px', fontSize: '10px', fontWeight: 800, color: '#00d9ff', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'var(--lx-font-mono)' }}>
+                      Motores Principales (3)
                     </div>
-                    {visibleModels.map((m) => {
+                    {CORE_MODELS.map((m) => {
                       const itemMeta = MODEL_META[m] || MODEL_META.speed;
                       const isSelected = currentActiveModel === m;
-                      const isAdvancedSpecialist = !CORE_MODELS.includes(m);
                       return (
                         <button
                           key={m}
@@ -1345,10 +1491,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            padding: '10px 12px',
+                            padding: '9px 12px',
                             borderRadius: '8px',
-                            border: 'none',
-                            backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+                            border: isSelected ? `1px solid ${itemMeta.color}55` : '1px solid transparent',
+                            backgroundColor: isSelected ? `${itemMeta.color}1c` : 'transparent',
                             color: isSelected ? '#ffffff' : '#a1a1aa',
                             cursor: 'pointer',
                             textAlign: 'left',
@@ -1357,24 +1503,70 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0, flex: 1 }}>
-                            <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: itemMeta.color, flexShrink: 0 }} />
+                            <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: itemMeta.color, boxShadow: isSelected ? `0 0 8px ${itemMeta.color}` : 'none', flexShrink: 0 }} />
                             <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ fontSize: '13.5px', fontWeight: isSelected ? 700 : 500, color: isSelected ? '#ffffff' : '#e2e8f0', lineHeight: 1.3 }}>
-                                  {itemMeta.label}
-                                </span>
-                                {isAdvancedSpecialist && (
-                                  <span style={{ fontSize: '9px', backgroundColor: `${itemMeta.color}33`, color: itemMeta.color, padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>
-                                    ACTIVO
-                                  </span>
-                                )}
-                              </div>
-                              <span style={{ fontSize: '11.5px', color: '#94a3b8', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              <span style={{ fontSize: '13px', fontWeight: isSelected ? 800 : 600, color: isSelected ? '#ffffff' : '#e2e8f0', lineHeight: 1.3 }}>
+                                LYAXIS {itemMeta.label}
+                              </span>
+                              <span style={{ fontSize: '11px', color: '#94a3b8', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {itemMeta.tagline}
                               </span>
                             </div>
                           </div>
-                          <span style={{ fontSize: '10.5px', color: '#71717a', fontFamily: 'monospace', flexShrink: 0 }}>
+                          <span className="lx-tabular" style={{ fontSize: '10px', color: '#64748b', fontFamily: 'var(--lx-font-mono)', flexShrink: 0 }}>
+                            T:{itemMeta.temperature}
+                          </span>
+                        </button>
+                      );
+                    })}
+
+                    {/* 2. Sección de Motores Especializados (Ocultos / Desplegables) */}
+                    <div style={{ padding: '8px 8px 4px', marginTop: '4px', borderTop: '1px solid rgba(255, 255, 255, 0.07)', fontSize: '10px', fontWeight: 800, color: '#71717a', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'var(--lx-font-mono)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>Especializados (7)</span>
+                      <Sliders size={11} color="#71717a" />
+                    </div>
+                    {SPECIALIST_MODELS.map((m) => {
+                      const itemMeta = MODEL_META[m] || MODEL_META.speed;
+                      const isSelected = currentActiveModel === m;
+                      return (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => handleModelSwitch(m)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            border: isSelected ? `1px solid ${itemMeta.color}55` : '1px solid transparent',
+                            backgroundColor: isSelected ? `${itemMeta.color}1c` : 'transparent',
+                            color: isSelected ? '#ffffff' : '#a1a1aa',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 0.15s ease',
+                            gap: '8px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0, flex: 1 }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: itemMeta.color, flexShrink: 0 }} />
+                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '12.5px', fontWeight: isSelected ? 800 : 500, color: isSelected ? '#ffffff' : '#cbd5e1', lineHeight: 1.3 }}>
+                                  {itemMeta.label}
+                                </span>
+                                {isSelected && (
+                                  <span style={{ fontSize: '8.5px', backgroundColor: `${itemMeta.color}33`, color: itemMeta.color, padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>
+                                    ACTIVO
+                                  </span>
+                                )}
+                              </div>
+                              <span style={{ fontSize: '10.5px', color: '#94a3b8', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {itemMeta.tagline}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="lx-tabular" style={{ fontSize: '10px', color: '#64748b', fontFamily: 'var(--lx-font-mono)', flexShrink: 0 }}>
                             T:{itemMeta.temperature}
                           </span>
                         </button>
@@ -2590,20 +2782,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 </p>
               </div>
 
-              {/* Quick Engine Pill Bar (1-click switching across primary LYAXIS engines) */}
+              {/* Quick Engine Pill Bar: Solo los 3 Principales (Speed, Cortex, Zenith) + Especialistas Ocultos */}
               <div
                 role="tablist"
-                aria-label="Selector rápido de motores LYAXIS"
+                aria-label="Selector de motores principales LYAXIS"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '6px',
+                  gap: '8px',
                   flexWrap: 'wrap',
                   maxWidth: '720px',
                 }}
               >
-                {(['speed', 'cortex', 'zenith', 'phantom', 'architect', 'forge', 'magister', 'root'] as ModelType[]).map((mId) => {
+                {/* 1. Solo a la vista los 3 Motores Principales */}
+                {CORE_MODELS.map((mId) => {
                   const mMeta = MODEL_META[mId];
                   const isActivePill = !isTriadActive && currentActiveModel === mId;
                   return (
@@ -2614,7 +2807,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       aria-selected={isActivePill}
                       disabled={isStreaming}
                       className={`lyaxis-engine-pill${isActivePill ? ' active' : ''}`}
-                      style={{ '--lx-pill-color': mMeta.color } as React.CSSProperties}
+                      style={{
+                        '--lx-pill-color': mMeta.color,
+                        padding: '7px 15px',
+                        fontSize: '13px',
+                      } as React.CSSProperties}
                       onClick={() => {
                         if (isTriadActive) {
                           setIsTriadActive(false);
@@ -2625,12 +2822,110 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         handleModelSwitch(mId);
                       }}
                     >
-                      {MODEL_ICONS[mId]?.(13, isActivePill ? '#ffffff' : mMeta.color)}
-                      <span>{mMeta.label}</span>
+                      {MODEL_ICONS[mId]?.(14, isActivePill ? '#ffffff' : mMeta.color)}
+                      <span style={{ fontWeight: isActivePill ? 800 : 600 }}>{mMeta.label}</span>
+                      <span className="lx-tabular" style={{ fontSize: '9.5px', opacity: 0.75, fontFamily: 'var(--lx-font-mono)' }}>
+                        T:{mMeta.temperature}
+                      </span>
                     </button>
                   );
                 })}
+
+                {/* 2. Si un especialista está activo, mostrarlo destacado al lado de los 3 */}
+                {!CORE_MODELS.includes(currentActiveModel) && !isTriadActive && (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={true}
+                    disabled={isStreaming}
+                    className="lyaxis-engine-pill active"
+                    style={{
+                      '--lx-pill-color': meta.color,
+                      padding: '7px 15px',
+                      fontSize: '13px',
+                    } as React.CSSProperties}
+                  >
+                    {MODEL_ICONS[currentActiveModel]?.(14, '#ffffff')}
+                    <span style={{ fontWeight: 800 }}>{meta.label}</span>
+                    <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.2)', fontWeight: 800 }}>
+                      ESPECIALISTA
+                    </span>
+                  </button>
+                )}
+
+                {/* 3. Botón para desplegar / ocultar los 7 especialistas */}
+                <button
+                  type="button"
+                  onClick={() => setShowEmptySpecialists((prev) => !prev)}
+                  className={`lyaxis-engine-pill${showEmptySpecialists ? ' active' : ''}`}
+                  style={{
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    background: showEmptySpecialists ? 'rgba(0, 217, 255, 0.14)' : 'rgba(255, 255, 255, 0.03)',
+                    color: showEmptySpecialists ? '#00d9ff' : '#94a3b8',
+                    padding: '7px 14px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                  }}
+                  title="Ver u ocultar los 7 motores especializados de LYAXIS"
+                >
+                  <Sliders size={12} color={showEmptySpecialists ? '#00d9ff' : '#71717a'} />
+                  <span>{showEmptySpecialists ? 'Ocultar Especialistas ▴' : '+ 7 Especialistas ▾'}</span>
+                </button>
               </div>
+
+              {/* Bento desplegable de los 7 Especialistas en Empty State */}
+              {showEmptySpecialists && (
+                <div className="lyaxis-specialists-bento">
+                  {SPECIALIST_MODELS.map((sId) => {
+                    const sMeta = MODEL_META[sId];
+                    const isSel = !isTriadActive && currentActiveModel === sId;
+                    return (
+                      <button
+                        key={sId}
+                        type="button"
+                        onClick={() => {
+                          if (isTriadActive) {
+                            setIsTriadActive(false);
+                            try {
+                              localStorage.setItem('lyaxis_triad_active', 'false');
+                            } catch {}
+                          }
+                          handleModelSwitch(sId);
+                        }}
+                        className={`lyaxis-specialist-bento-card${isSel ? ' active' : ''}`}
+                        style={{ '--lx-card-color': sMeta.color } as React.CSSProperties}
+                      >
+                        <div
+                          style={{
+                            width: '26px',
+                            height: '26px',
+                            borderRadius: '7px',
+                            backgroundColor: `${sMeta.color}18`,
+                            border: `1px solid ${sMeta.color}44`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {MODEL_ICONS[sId]?.(14, sMeta.color)}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: isSel ? '#ffffff' : '#f1f5f9' }}>
+                            {sMeta.label}
+                          </span>
+                          <span style={{ fontSize: '10px', color: '#94a3b8', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {sMeta.tagline}
+                          </span>
+                        </div>
+                        <span className="lx-tabular" style={{ fontSize: '9.5px', color: '#64748b', fontFamily: 'var(--lx-font-mono)' }}>
+                          T:{sMeta.temperature}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Capability badges */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
