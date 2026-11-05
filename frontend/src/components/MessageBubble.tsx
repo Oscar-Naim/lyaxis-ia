@@ -3,6 +3,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import type { KatexOptions } from 'katex';
+import type { PluggableList } from 'unified';
 
 import { 
   Copy, Check, FileDown, ChevronDown, ChevronRight, ChevronUp, Sparkles, BookOpen, 
@@ -18,70 +20,65 @@ const SlideDeckViewer = lazy(() =>
   import('../SlideDeckViewer').then((m) => ({ default: m.SlideDeckViewer }))
 );
 
-function splitStreamingMarkdownBlocks(text: string): { frozen: string[]; active: string } {
+/**
+ * Normaliza y repara determinísticamente estructuras incompletas de Markdown
+ * en la frontera de streaming SSE (fences de código, bloques KaTeX $$ y backticks inline).
+ */
+export function normalizeStreamingMarkdown(raw: string, isStreaming?: boolean): string {
+  if (!isStreaming || !raw) return raw;
+  let text = raw;
+
+  // 1. Detectar y cerrar bloques de código no terminados (``` o ~~~)
   const lines = text.split('\n');
-  const blocks: string[] = [];
-  let buf: string[] = [];
-  let inFence = false;
-  let inDisplayMath = false;
-
-  const isListStart = (s: string) => /^(\d+[.)]|[-*+])\s+/.test(s);
-  const isTableRow = (s: string) => s.startsWith('|') || (s.includes('|') && s.endsWith('|'));
-
-  const peekNextNonEmpty = (fromIdx: number): string => {
-    for (let j = fromIdx; j < lines.length; j++) {
-      if (lines[j].trim() !== '') return lines[j];
-    }
-    return '';
-  };
-
+  let openFence: string | null = null;
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trimStart();
-    if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
-      inFence = !inFence;
-    } else if (!inFence && trimmed.startsWith('$$')) {
-      const count = (trimmed.match(/\$\$/g) || []).length;
-      if (count % 2 === 1) inDisplayMath = !inDisplayMath;
-    }
-
-    if (!inFence && !inDisplayMath && line.trim() === '' && buf.length > 0) {
-      const nextRaw = peekNextNonEmpty(i + 1);
-      const nextTrimmed = nextRaw.trimStart();
-      const bufFirst = (buf.find((l) => l.trim() !== '') || '').trimStart();
-      const bufLast = (buf[buf.length - 1] || '').trimStart();
-
-      // Mantener unidas listas multipárrafo (evita que 1., 2., 3. se reinicien a 1.), citas y tablas
-      const keepTogether =
-        (isListStart(bufFirst) && (isListStart(nextTrimmed) || /^ {2,}\S/.test(nextRaw) || nextRaw.startsWith('\t'))) ||
-        (bufLast.startsWith('>') && nextTrimmed.startsWith('>')) ||
-        (isTableRow(bufLast) && isTableRow(nextTrimmed));
-
-      if (keepTogether) {
-        buf.push(line);
-      } else {
-        const blockText = buf.join('\n').trim();
-        if (blockText) blocks.push(blockText);
-        buf = [];
+    const trimmed = lines[i].trimStart();
+    const match = trimmed.match(/^(```+|~~~+)/);
+    if (match) {
+      const fenceChars = match[1];
+      if (!openFence) {
+        openFence = fenceChars;
+      } else if (fenceChars[0] === openFence[0] && fenceChars.length >= openFence.length) {
+        openFence = null;
       }
-    } else {
-      buf.push(line);
     }
   }
 
-  const tail = buf.join('\n').trim();
-  if (tail) {
-    return { frozen: blocks, active: tail };
+  if (openFence) {
+    return text.endsWith('\n') ? text + openFence : text + '\n' + openFence;
   }
-  if (blocks.length > 0) {
-    const active = blocks.pop() as string;
-    return { frozen: blocks, active };
+
+  // 2. Descartar bloques de código cerrados para evitar falsos positivos
+  const textWithoutCode = text.replace(/(```+|~~~+)[\s\S]*?\1/g, '');
+
+  // 3. Detectar y cerrar bloques de matemáticas KaTeX ($$)
+  const mathMatches = textWithoutCode.match(/(?<!\\)\$\$/g);
+  if (mathMatches && mathMatches.length % 2 !== 0) {
+    text += ' $$';
+    return text;
   }
-  return { frozen: [], active: text };
+
+  // 4. Detectar y cerrar backticks inline abiertos
+  const inlineTicks = textWithoutCode.match(/(?<!\\)`/g);
+  if (inlineTicks && inlineTicks.length % 2 !== 0) {
+    text += '`';
+  }
+
+  return text;
 }
 
-const REMARK_PLUGINS = [remarkGfm, remarkMath];
-const REHYPE_PLUGINS = [rehypeKatex];
+const KATEX_OPTIONS: KatexOptions = {
+  throwOnError: false,
+  errorColor: '#f87171',
+  strict: false,
+  output: 'htmlAndMathml',
+  maxSize: 500,
+  maxExpand: 1000,
+  trust: false,
+};
+
+const REMARK_PLUGINS: PluggableList = [remarkGfm, remarkMath];
+const REHYPE_PLUGINS: PluggableList = [[rehypeKatex, KATEX_OPTIONS]];
 
 const MemoizedMarkdownChunk = React.memo(
   ({ text, modelColor }: { text: string; modelColor: string }) => (
@@ -552,8 +549,8 @@ const ThinkingAccordion: React.FC<{ thoughtText: string; isStreamingThought?: bo
           }}
         >
           <ReactMarkdown
-            remarkPlugins={[remarkGfm, remarkMath]}
-            rehypePlugins={[rehypeKatex]}
+            remarkPlugins={REMARK_PLUGINS}
+            rehypePlugins={REHYPE_PLUGINS}
             components={{
               p({ children }: any) {
                 return <p style={{ margin: '4px 0' }}>{children}</p>;
@@ -817,19 +814,17 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
       <div
         className="lyaxis-triad-card"
         style={{
-          backgroundColor: '#000000',
+          backgroundColor: 'rgba(8, 12, 24, 0.95)',
           borderWidth: '2px 1px 1px 1px',
           borderStyle: 'solid',
           borderColor: `${color} rgba(255, 255, 255, 0.08) rgba(255, 255, 255, 0.08) rgba(255, 255, 255, 0.08)`,
           borderRadius: '14px',
           padding: isMobile ? '13px' : '15px 17px',
-          boxShadow: `0 8px 30px rgba(0, 0, 0, 0.95), 0 0 20px ${accentGlow}`,
+          boxShadow: `0 8px 30px rgba(0, 0, 0, 0.95), 0 0 20px ${accentGlow}, inset 0 1px 0 rgba(255, 255, 255, 0.05)`,
           width: '100%',
           boxSizing: 'border-box',
           display: 'flex',
           flexDirection: 'column',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
           transition: 'all 0.25s ease',
         }}
       >
@@ -1262,18 +1257,12 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   };
 
   const renderMarkdown = (text: string) => {
-    if (message.isStreaming && text.length >= 500) {
-      const { frozen, active } = splitStreamingMarkdownBlocks(text);
-      return (
-        <>
-          {frozen.map((blk, i) => (
-            <MemoizedMarkdownChunk key={i} text={blk} modelColor={modelColor} />
-          ))}
-          {active && <MemoizedMarkdownChunk text={active} modelColor={modelColor} />}
-        </>
-      );
-    }
-    return <MemoizedMarkdownChunk text={text} modelColor={modelColor} />;
+    const safeText = normalizeStreamingMarkdown(text, message.isStreaming);
+    return (
+      <div className="lyaxis-markdown-root" style={{ width: '100%', minWidth: 0 }}>
+        <MemoizedMarkdownChunk text={safeText} modelColor={modelColor} />
+      </div>
+    );
   };
 
   return (
@@ -1285,15 +1274,15 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
         alignSelf: isUser && !isTriad ? 'flex-end' : 'flex-start',
         maxWidth: '100%',
         width: '100%',
-        backgroundColor: isTriad ? 'transparent' : (isUser ? '#0c101c' : 'rgba(9, 13, 24, 0.78)'),
-        backdropFilter: isTriad ? 'none' : 'blur(16px)',
-        WebkitBackdropFilter: isTriad ? 'none' : 'blur(16px)',
+        backgroundColor: isTriad 
+          ? 'transparent' 
+          : (isUser ? 'rgba(12, 16, 28, 0.95)' : 'rgba(8, 12, 24, 0.95)'),
         border: isTriad 
           ? 'none' 
-          : (isUser ? '1px solid rgba(255, 255, 255, 0.09)' : '1px solid rgba(255, 255, 255, 0.08)'),
+          : (isUser ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(255, 255, 255, 0.07)'),
         borderLeft: isTriad
           ? 'none'
-          : (isUser ? '1px solid rgba(255, 255, 255, 0.09)' : `3px solid ${modelColor}`),
+          : (isUser ? '1px solid rgba(255, 255, 255, 0.08)' : `3px solid ${modelColor}`),
         borderRadius: '14px',
         padding: isTriad ? 0 : (isMobile ? '12px 14px' : '16px 20px'),
         fontSize: isMobile ? '13.5px' : '14.5px',
@@ -1301,8 +1290,8 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
         boxShadow: isTriad 
           ? 'none' 
           : (isUser 
-              ? '0 4px 18px rgba(0,0,0,0.5)' 
-              : `0 8px 30px rgba(0,0,0,0.8), 0 0 20px ${modelColor}14`),
+              ? '0 4px 18px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04)' 
+              : `0 8px 32px rgba(0, 0, 0, 0.75), 0 0 24px ${modelColor}14, inset 0 1px 0 rgba(255, 255, 255, 0.06), inset 0 0 0 1px rgba(255, 255, 255, 0.02)`),
         overflowWrap: 'break-word',
         position: 'relative',
         boxSizing: 'border-box',

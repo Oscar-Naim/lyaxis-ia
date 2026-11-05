@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import hljs from 'highlight.js/lib/common';
 import 'highlight.js/styles/atom-one-dark.css';
+import mermaid from 'mermaid';
 import {
   Copy,
   Check,
@@ -14,14 +15,223 @@ import {
   ZoomOut,
   RotateCcw,
   Columns,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { LiveCanvasWorkspace } from './components/LiveCanvasWorkspace';
-import { playCyberClick } from './sound';
+import { playCyberClick, playCyberSuccess } from './sound';
 
 export interface CodeBlockProps {
   language?: any;
   codeString?: string;
   value?: string;
+}
+
+let isMermaidInitialized = false;
+
+function initMermaidOnce(): void {
+  if (isMermaidInitialized || typeof window === 'undefined') return;
+  mermaid.initialize({
+    startOnLoad: false,
+    suppressErrorRendering: true,
+    securityLevel: 'loose',
+    theme: 'dark',
+    darkMode: true,
+    fontFamily: 'var(--lx-font-mono, "JetBrains Mono", monospace)',
+    themeVariables: {
+      primaryColor: '#0f172a',
+      primaryTextColor: '#f8fafc',
+      primaryBorderColor: '#38bdf8',
+      lineColor: '#38bdf8',
+      secondaryColor: '#1e1b4b',
+      tertiaryColor: '#090d16',
+      mainBkg: '#090d16',
+      nodeBorder: '#38bdf8',
+      clusterBkg: 'rgba(15, 23, 42, 0.65)',
+      clusterBorder: 'rgba(56, 189, 248, 0.4)',
+      titleColor: '#38bdf8',
+      edgeLabelBackground: '#090d16',
+      actorBorder: '#38bdf8',
+      actorBkg: '#0f172a',
+      actorTextColor: '#f8fafc',
+      signalColor: '#38bdf8',
+      signalTextColor: '#f8fafc',
+    },
+  });
+  isMermaidInitialized = true;
+}
+
+const MERMAID_DIAGRAM_TYPES = [
+  'graph', 'flowchart', 'sequencediagram', 'classdiagram',
+  'statediagram', 'erdiagram', 'gantt', 'pie', 'gitgraph',
+  'journey', 'mindmap', 'timeline', 'quadrantchart', 'c4context', 'zenuml', 'block-beta',
+  'sankey-beta', 'packet-beta', 'kanban', 'architecture-beta',
+];
+
+export function isLikelyValidMermaidSyntax(code: string): boolean {
+  const trimmed = code.trim();
+  if (!trimmed) return false;
+  const firstLine = trimmed.split('\n')[0].replace(/%%.*$/, '').trim().toLowerCase();
+  const isValidStart = MERMAID_DIAGRAM_TYPES.some((t) => firstLine.startsWith(t));
+  if (!isValidStart) return false;
+
+  let square = 0;
+  let paren = 0;
+  let curly = 0;
+  for (let i = 0; i < trimmed.length; i++) {
+    const char = trimmed[i];
+    if (char === '[') square++;
+    else if (char === ']') square--;
+    else if (char === '(') paren++;
+    else if (char === ')') paren--;
+    else if (char === '{') curly++;
+    else if (char === '}') curly--;
+    if (square < 0 || paren < 0 || curly < 0) return false;
+  }
+  return square === 0 && paren === 0 && curly === 0;
+}
+
+export function namespaceMermaidSvg(svg: string, uniquePrefix: string): string {
+  if (!svg) return svg;
+
+  const idRegex = /\bid=["']([^"']+)["']/g;
+  const idMap = new Map<string, string>();
+  let match: RegExpExecArray | null;
+
+  while ((match = idRegex.exec(svg)) !== null) {
+    const originalId = match[1];
+    if (!originalId.startsWith(`${uniquePrefix}_`)) {
+      idMap.set(originalId, `${uniquePrefix}_${originalId}`);
+    }
+  }
+
+  if (idMap.size === 0) return svg;
+
+  let namespaced = svg;
+
+  namespaced = namespaced.replace(/\bid=(["'])([^"']+)\1/g, (fullMatch, quote, id) => {
+    const newId = idMap.get(id);
+    return newId ? `id=${quote}${newId}${quote}` : fullMatch;
+  });
+
+  namespaced = namespaced.replace(/\b(href|xlink:href)=(["'])#([^"']+)\2/g, (fullMatch, attr, quote, id) => {
+    const newId = idMap.get(id);
+    return newId ? `${attr}=${quote}#${newId}${quote}` : fullMatch;
+  });
+
+  namespaced = namespaced.replace(/url\((["']?)#([^"')]+)\1\)/g, (fullMatch, quote, id) => {
+    const newId = idMap.get(id);
+    return newId ? `url(${quote}#${newId}${quote})` : fullMatch;
+  });
+
+  namespaced = namespaced.replace(/\b(aria-labelledby|aria-describedby)=(["'])([^"']+)\2/g, (_fullMatch, attr, quote, ids) => {
+    const newIds = ids.split(/\s+/).map((id: string) => idMap.get(id) || id).join(' ');
+    return `${attr}=${quote}${newIds}${quote}`;
+  });
+
+  return namespaced;
+}
+
+export function splitHighlightedHtml(html: string): string[] {
+  const rawLines = html.split('\n');
+  const openTags: Array<{ name: string; full: string }> = [];
+  const output: string[] = [];
+
+  for (const line of rawLines) {
+    let lineOut = openTags.map((t) => t.full).join('') + line;
+
+    const tagRegex = /<\/?([a-zA-Z0-9-]+)(?:\s+[^>]*)?>/g;
+    let match: RegExpExecArray | null;
+    while ((match = tagRegex.exec(line)) !== null) {
+      const full = match[0];
+      const name = match[1];
+      if (full.startsWith('</')) {
+        const idx = openTags.map((t) => t.name).lastIndexOf(name);
+        if (idx !== -1) {
+          openTags.splice(idx, 1);
+        }
+      } else if (!full.endsWith('/>')) {
+        openTags.push({ name, full });
+      }
+    }
+
+    for (let i = openTags.length - 1; i >= 0; i--) {
+      lineOut += `</${openTags[i].name}>`;
+    }
+    output.push(lineOut || '&nbsp;');
+  }
+  return output;
+}
+
+interface MermaidErrorBoundaryProps {
+  fallback?: React.ReactNode;
+  children: React.ReactNode;
+}
+
+interface MermaidErrorBoundaryState {
+  hasError: boolean;
+  errorMessage: string | null;
+  prevChildren?: React.ReactNode;
+}
+
+export class MermaidErrorBoundary extends React.Component<
+  MermaidErrorBoundaryProps,
+  MermaidErrorBoundaryState
+> {
+  constructor(props: MermaidErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, errorMessage: null, prevChildren: props.children };
+  }
+
+  static getDerivedStateFromError(error: Error): Partial<MermaidErrorBoundaryState> {
+    return { hasError: true, errorMessage: error?.message || 'Error al renderizar diagrama Mermaid' };
+  }
+
+  static getDerivedStateFromProps(
+    props: MermaidErrorBoundaryProps,
+    state: MermaidErrorBoundaryState
+  ): Partial<MermaidErrorBoundaryState> | null {
+    if (props.children !== state.prevChildren) {
+      return {
+        hasError: false,
+        errorMessage: null,
+        prevChildren: props.children,
+      };
+    }
+    return null;
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.warn('Mermaid rendering caught by MermaidErrorBoundary:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      if (this.props.fallback) return this.props.fallback;
+      return (
+        <div
+          style={{
+            padding: '12px 16px',
+            backgroundColor: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
+            borderRadius: '8px',
+            color: '#f87171',
+            fontSize: '12px',
+            fontFamily: 'var(--lx-font-mono, monospace)',
+            margin: '8px 0',
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+            ⚠ Error al renderizar diagrama arquitectónico Mermaid
+          </div>
+          <div style={{ opacity: 0.85, fontSize: '11px' }}>
+            {this.state.errorMessage}
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 const EXT_MAP: Record<string, string> = {
@@ -86,59 +296,116 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
   const [mermaidError, setMermaidError] = useState<string | null>(null);
   const [showMermaidSource, setShowMermaidSource] = useState(false);
   const [mermaidZoom, setMermaidZoom] = useState<number>(1);
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Normalize code content from either codeString or value prop
-  const rawCode = (codeString !== undefined ? codeString : value !== undefined ? value : '').replace(/\r\n/g, '\n');
+  const rawCode = useMemo(() => {
+    return (codeString !== undefined ? codeString : value !== undefined ? value : '').replace(/\r\n/g, '\n');
+  }, [codeString, value]);
 
   // Normalize language name to clean lowercase string
-  let langStr = 'plaintext';
-  if (typeof language === 'string' && language.trim()) {
-    langStr = language.trim().replace(/^language-/, '').split(',')[0].trim().toLowerCase();
-  } else if (Array.isArray(language) && language.length > 0 && language[0]) {
-    langStr = String(language[0]).replace(/^language-/, '').split(',')[0].trim().toLowerCase();
-  }
-  const langAccent = getLanguageAccent(langStr);
+  const langStr = useMemo(() => {
+    if (typeof language === 'string' && language.trim()) {
+      return language.trim().replace(/^language-/, '').split(',')[0].trim().toLowerCase();
+    } else if (Array.isArray(language) && language.length > 0 && language[0]) {
+      return String(language[0]).replace(/^language-/, '').split(',')[0].trim().toLowerCase();
+    }
+    return 'plaintext';
+  }, [language]);
+
+  const langAccent = useMemo(() => getLanguageAccent(langStr), [langStr]);
 
   // Check if code is runnable in live canvas sandbox
-  const isRunnable =
-    ['html', 'xml', 'svg', 'react', 'jsx', 'tsx', 'javascript', 'js', 'css', 'vue'].includes(langStr) ||
-    rawCode.trim().startsWith('<!DOCTYPE') ||
-    rawCode.trim().startsWith('<html') ||
-    rawCode.trim().startsWith('<svg');
+  const isRunnable = useMemo(() => {
+    return (
+      ['html', 'xml', 'svg', 'react', 'jsx', 'tsx', 'javascript', 'js', 'css', 'vue'].includes(langStr) ||
+      rawCode.trim().startsWith('<!DOCTYPE') ||
+      rawCode.trim().startsWith('<html') ||
+      rawCode.trim().startsWith('<svg')
+    );
+  }, [langStr, rawCode]);
 
-  // Render Mermaid diagrams dynamically (Zero-Glitch Engine: debounced + suppressErrorRendering)
+  // Handle pointer drag for panning
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    setIsDragging(true);
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    panStartRef.current = { ...pan };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore if unsupported
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    setPan({
+      x: panStartRef.current.x + (e.clientX - dragStartRef.current.x),
+      y: panStartRef.current.y + (e.clientY - dragStartRef.current.y),
+    });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isDragging) {
+      setIsDragging(false);
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        // Ignore
+      }
+    }
+  };
+
+  const handleResetTransform = () => {
+    setMermaidZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
+
+  // Close fullscreen on Escape
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
+
+  // Render Mermaid diagrams dynamically (Zero-Glitch Engine: debounced + isLikelyValidMermaidSyntax + namespaceMermaidSvg)
   useEffect(() => {
     if (langStr !== 'mermaid') return;
     const trimmedCode = rawCode.trim();
-    if (!trimmedCode) return;
+    if (!trimmedCode) {
+      setMermaidSvg(null);
+      setMermaidLoading(false);
+      setMermaidError(null);
+      return;
+    }
+
+    if (!isLikelyValidMermaidSyntax(trimmedCode)) {
+      setMermaidLoading(false);
+      setMermaidError('Vista de código activa (diagrama en transmisión o sintaxis incompleta)');
+      return;
+    }
 
     let isMounted = true;
     setMermaidLoading(true);
     setMermaidError(null);
 
     const timer = setTimeout(async () => {
-      const id = `mermaid-${Math.random().toString(36).substring(2, 9)}`;
+      const uniqueSuffix = Math.random().toString(36).substring(2, 9);
+      const id = `mermaid-${uniqueSuffix}`;
+      const prefix = `lx_m_${uniqueSuffix}`;
       try {
-        const mermaidCdnUrl = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-        const mermaidModule = await import(/* @vite-ignore */ mermaidCdnUrl);
-        const mermaid = mermaidModule.default;
-        mermaid.initialize({
-          startOnLoad: false,
-          suppressErrorRendering: true,
-          securityLevel: 'loose',
-          theme: 'dark',
-          darkMode: true,
-          themeVariables: {
-            primaryColor: '#0f172a',
-            primaryTextColor: '#f8fafc',
-            primaryBorderColor: '#38bdf8',
-            lineColor: '#38bdf8',
-            secondaryColor: '#1e1b4b',
-            tertiaryColor: '#090d16',
-            mainBkg: '#090d16',
-          },
-        });
-
+        initMermaidOnce();
         const isValid = await mermaid.parse(trimmedCode, { suppressErrors: true });
         if (isValid === false) {
           if (isMounted) {
@@ -149,22 +416,26 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
         }
 
         const { svg } = await mermaid.render(id, trimmedCode);
+        const namespacedSvg = namespaceMermaidSvg(svg, prefix);
         if (isMounted) {
-          setMermaidSvg(svg);
+          setMermaidSvg(namespacedSvg);
           setMermaidError(null);
           setMermaidLoading(false);
         }
-      } catch {
+      } catch (err: any) {
         if (isMounted) {
           setMermaidLoading(false);
-          setMermaidError('Vista de código activa (sintaxis Mermaid no renderizable)');
+          setMermaidError(err?.message || 'Vista de código activa (sintaxis Mermaid no renderizable)');
         }
       } finally {
-        // Limpiar cualquier nodo temporal huérfano que Mermaid v11 haya podido crear
         if (typeof document !== 'undefined') {
-          const stray = document.getElementById(`d${id}`) || document.getElementById(id);
-          if (stray && stray.parentElement === document.body) {
-            stray.remove();
+          try {
+            const stray = document.getElementById(`d${id}`) || document.getElementById(id);
+            if (stray && stray.parentElement === document.body) {
+              stray.remove();
+            }
+          } catch {
+            // Silently ignore
           }
         }
       }
@@ -176,32 +447,36 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
     };
   }, [langStr, rawCode]);
 
-  // Highlight code
-  let highlightedCode = '';
-  const hljsLang = HLJS_ALIAS[langStr] || langStr;
-  try {
-    if (hljsLang !== 'plaintext' && hljs.getLanguage(hljsLang)) {
-      highlightedCode = hljs.highlight(rawCode, { language: hljsLang, ignoreIllegals: true }).value;
-    } else if (hljsLang === 'plaintext') {
-      highlightedCode = rawCode
+  // Memoized syntax highlighting
+  const highlightedCode = useMemo(() => {
+    const hljsLang = HLJS_ALIAS[langStr] || langStr;
+    try {
+      if (hljsLang !== 'plaintext' && hljs.getLanguage(hljsLang)) {
+        return hljs.highlight(rawCode, { language: hljsLang, ignoreIllegals: true }).value;
+      } else if (hljsLang === 'plaintext') {
+        return rawCode
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      } else {
+        return hljs.highlightAuto(rawCode).value;
+      }
+    } catch {
+      return rawCode
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
-    } else {
-      highlightedCode = hljs.highlightAuto(rawCode).value;
     }
-  } catch {
-    highlightedCode = rawCode
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-  }
+  }, [rawCode, langStr]);
 
+  const highlightedLines = useMemo(() => {
+    return splitHighlightedHtml(highlightedCode);
+  }, [highlightedCode]);
+
+  // Tactile copy with Web Audio and haptic vibration
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(rawCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     } catch {
       const textArea = document.createElement('textarea');
       textArea.value = rawCode;
@@ -209,9 +484,17 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
       textArea.select();
       document.execCommand('copy');
       document.body.removeChild(textArea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     }
+    playCyberSuccess();
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(15);
+      } catch {
+        // Ignore
+      }
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDownloadCode = () => {
@@ -258,11 +541,12 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
   };
 
   // Compute lines for discrete line numbering
-  const codeLines = rawCode.split('\n');
-  const displayLines =
-    codeLines.length > 1 && codeLines[codeLines.length - 1] === ''
+  const codeLines = useMemo(() => rawCode.split('\n'), [rawCode]);
+  const displayLines = useMemo(() => {
+    return codeLines.length > 1 && codeLines[codeLines.length - 1] === ''
       ? codeLines.slice(0, -1)
       : codeLines;
+  }, [codeLines]);
   const isLongCode = displayLines.length > 35;
 
   return (
@@ -422,7 +706,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
                 >
                   <button
                     type="button"
-                    onClick={() => setMermaidZoom((z) => Math.max(0.5, +(z - 0.2).toFixed(1)))}
+                    onClick={() => setMermaidZoom((z) => Math.max(0.25, +(z - 0.25).toFixed(2)))}
                     title="Alejar diagrama"
                     style={{
                       background: 'none',
@@ -436,12 +720,12 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
                   >
                     <ZoomOut size={12} />
                   </button>
-                  <span style={{ fontSize: '10px', fontFamily: 'monospace', color: '#cbd5e1', padding: '0 4px' }}>
+                  <span style={{ fontSize: '10px', fontFamily: 'monospace', color: '#cbd5e1', padding: '0 4px', minWidth: '38px', textAlign: 'center' }}>
                     {Math.round(mermaidZoom * 100)}%
                   </span>
                   <button
                     type="button"
-                    onClick={() => setMermaidZoom((z) => Math.min(2.5, +(z + 0.2).toFixed(1)))}
+                    onClick={() => setMermaidZoom((z) => Math.min(4.0, +(z + 0.25).toFixed(2)))}
                     title="Acercar diagrama"
                     style={{
                       background: 'none',
@@ -457,8 +741,8 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
                   </button>
                   <button
                     type="button"
-                    onClick={() => setMermaidZoom(1)}
-                    title="Restablecer zoom"
+                    onClick={handleResetTransform}
+                    title="Restablecer vista (1:1)"
                     style={{
                       background: 'none',
                       border: 'none',
@@ -470,6 +754,22 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
                     }}
                   >
                     <RotateCcw size={11} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsFullscreen(true)}
+                    title="Pantalla Completa"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                      padding: '2px 5px',
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Maximize2 size={11} />
                   </button>
                 </div>
               )}
@@ -574,14 +874,14 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
             <Download size={12} />
           </button>
 
-          {/* Copy Button */}
+          {/* Copy Button with tactile emerald feedback */}
           <button
             type="button"
             onClick={handleCopy}
             title="Copiar código al portapapeles"
             style={{
-              background: copied ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-              border: copied ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+              background: copied ? 'rgba(16, 185, 129, 0.16)' : 'rgba(255, 255, 255, 0.04)',
+              border: copied ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
               color: copied ? '#10b981' : '#a1a1aa',
               cursor: 'pointer',
               display: 'flex',
@@ -591,8 +891,8 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
               fontWeight: 600,
               padding: '4px 10px',
               borderRadius: '6px',
-              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-              boxShadow: copied ? '0 0 10px rgba(16, 185, 129, 0.25)' : 'none',
+              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+              boxShadow: copied ? '0 0 14px rgba(16, 185, 129, 0.35)' : 'none',
             }}
           >
             {copied ? <Check size={13} color="#10b981" /> : <Copy size={13} />}
@@ -602,166 +902,330 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
       </div>
 
       {/* Mermaid Diagram Render View (Zero-Glitch Engine) */}
-      {langStr === 'mermaid' && mermaidLoading && !mermaidSvg && !showMermaidSource ? (
-        <div style={{ padding: '18px 16px', backgroundColor: '#040711' }}>
-          <div className="lyaxis-mermaid-skeleton" />
+      <MermaidErrorBoundary
+        fallback={
           <div
             style={{
-              marginTop: '10px',
-              fontSize: '11px',
-              fontFamily: 'var(--lx-font-mono)',
-              color: '#a78bfa',
-              textAlign: 'center',
+              padding: '12px 16px',
+              backgroundColor: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              borderRadius: '8px',
+              color: '#f87171',
+              fontSize: '12px',
+              fontFamily: 'var(--lx-font-mono, monospace)',
+              margin: '8px',
             }}
           >
-            Sincronizando diagrama arquitectónico...
+            ⚠ Error inesperado al renderizar diagrama Mermaid. Mostrando código fuente.
           </div>
-        </div>
-      ) : mermaidSvg && !showMermaidSource ? (
+        }
+      >
+        {langStr === 'mermaid' && mermaidLoading && !mermaidSvg && !showMermaidSource ? (
+          <div style={{ padding: '18px 16px', backgroundColor: '#040711' }}>
+            <div className="lyaxis-mermaid-skeleton" />
+            <div
+              style={{
+                marginTop: '10px',
+                fontSize: '11px',
+                fontFamily: 'var(--lx-font-mono)',
+                color: '#a78bfa',
+                textAlign: 'center',
+              }}
+            >
+              Sincronizando diagrama arquitectónico...
+            </div>
+          </div>
+        ) : mermaidSvg && !showMermaidSource ? (
+          <div
+            className="lyaxis-mermaid-viewport"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            style={{
+              position: 'relative',
+              padding: '24px 16px',
+              backgroundColor: '#040711',
+              backgroundImage: 'radial-gradient(rgba(56, 189, 248, 0.12) 1px, transparent 1px)',
+              backgroundSize: '20px 20px',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              overflow: 'hidden',
+              height: '420px',
+              cursor: isDragging ? 'grabbing' : 'grab',
+              userSelect: 'none',
+              touchAction: 'none',
+            }}
+          >
+            <div
+              style={{
+                transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${mermaidZoom})`,
+                transformOrigin: 'center center',
+                transition: isDragging ? 'none' : 'transform 0.15s ease-out',
+                maxWidth: '100%',
+                pointerEvents: 'none',
+              }}
+              dangerouslySetInnerHTML={{ __html: mermaidSvg }}
+            />
+          </div>
+        ) : (
+          /* Code Body with CSS Grid Line Numbers & Collapse Overlay */
+          <>
+            {langStr === 'mermaid' && mermaidError && !mermaidSvg && (
+              <div
+                style={{
+                  padding: '6px 14px',
+                  fontSize: '11px',
+                  fontFamily: 'var(--lx-font-mono)',
+                  color: '#c084fc',
+                  backgroundColor: 'rgba(168, 85, 247, 0.08)',
+                  borderBottom: '1px solid rgba(168, 85, 247, 0.18)',
+                }}
+              >
+                ◇ {mermaidError}
+              </div>
+            )}
+            <div
+              className="lyaxis-code-grid-wrapper"
+              style={{
+                position: 'relative',
+                overflowX: wordWrap ? 'hidden' : 'auto',
+                overflowY: 'hidden',
+                maxHeight: isCollapsed ? '210px' : 'none',
+                backgroundColor: '#030306',
+              }}
+            >
+              <div
+                className="lyaxis-code-grid"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'auto 1fr',
+                  width: '100%',
+                  minWidth: '100%',
+                  fontFamily: 'var(--lx-font-mono, monospace)',
+                  fontSize: '13px',
+                  lineHeight: '1.65',
+                  backgroundColor: '#030306',
+                }}
+              >
+                {displayLines.map((_, i) => (
+                  <div key={i} className="lyaxis-code-line-row" style={{ display: 'contents' }}>
+                    <div
+                      className="lyaxis-code-gutter-cell lx-tabular"
+                      style={{
+                        gridColumn: 1,
+                        userSelect: 'none',
+                        textAlign: 'right',
+                        padding: '0 12px 0 14px',
+                        color: 'rgba(255, 255, 255, 0.28)',
+                        borderRight: '1px solid rgba(255, 255, 255, 0.06)',
+                        backgroundColor: '#030306',
+                        position: 'sticky',
+                        left: 0,
+                        zIndex: 2,
+                        alignSelf: 'start',
+                        whiteSpace: 'nowrap',
+                        fontFamily: 'inherit',
+                        fontSize: 'inherit',
+                        lineHeight: 'inherit',
+                      }}
+                    >
+                      {i + 1}
+                    </div>
+                    <div
+                      className="lyaxis-code-content-cell"
+                      style={{
+                        gridColumn: 2,
+                        padding: '0 16px',
+                        color: '#f8fafc',
+                        whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
+                        wordBreak: wordWrap ? 'break-word' : 'normal',
+                        overflowWrap: wordWrap ? 'break-word' : 'normal',
+                        minWidth: 0,
+                        fontFamily: 'inherit',
+                        fontSize: 'inherit',
+                        lineHeight: 'inherit',
+                      }}
+                      dangerouslySetInnerHTML={{ __html: highlightedLines[i] || '&nbsp;' }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Bottom Gradient Expand Bar when Collapsed */}
+              {isCollapsed && (
+                <div
+                  onClick={() => setIsCollapsed(false)}
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: '64px',
+                    background: 'linear-gradient(to bottom, transparent, rgba(3, 3, 6, 0.96) 70%)',
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    justifyContent: 'center',
+                    paddingBottom: '10px',
+                    cursor: 'pointer',
+                    zIndex: 10,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '11.5px',
+                      fontWeight: 700,
+                      color: '#00D9FF',
+                      backgroundColor: 'rgba(0, 217, 255, 0.12)',
+                      border: '1px solid rgba(0, 217, 255, 0.35)',
+                      padding: '4px 12px',
+                      borderRadius: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <ChevronDown size={13} />
+                    Mostrar las {displayLines.length} líneas completas
+                  </span>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </MermaidErrorBoundary>
+
+      {/* Fullscreen Interactive Diagram Modal */}
+      {isFullscreen && mermaidSvg && (
         <div
           style={{
-            padding: '24px 16px',
-            backgroundColor: '#040711',
-            backgroundImage: 'radial-gradient(rgba(56, 189, 248, 0.12) 1px, transparent 1px)',
-            backgroundSize: '20px 20px',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(3, 7, 18, 0.96)',
+            zIndex: 99999,
             display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            overflow: 'auto',
-            maxHeight: '540px',
+            flexDirection: 'column',
           }}
         >
           <div
             style={{
-              transform: `scale(${mermaidZoom})`,
-              transformOrigin: 'center center',
-              transition: 'transform 0.2s ease',
-              maxWidth: '100%',
-            }}
-            dangerouslySetInnerHTML={{ __html: mermaidSvg }}
-          />
-        </div>
-      ) : (
-        /* Code Body with Line Numbers & Collapse Overlay */
-        <>
-          {langStr === 'mermaid' && mermaidError && !mermaidSvg && (
-            <div
-              style={{
-                padding: '6px 14px',
-                fontSize: '11px',
-                fontFamily: 'var(--lx-font-mono)',
-                color: '#c084fc',
-                backgroundColor: 'rgba(168, 85, 247, 0.08)',
-                borderBottom: '1px solid rgba(168, 85, 247, 0.18)',
-              }}
-            >
-              ◇ {mermaidError}
-            </div>
-          )}
-          <div
-            style={{
               display: 'flex',
-              position: 'relative',
-              overflow: 'hidden',
-              maxHeight: isCollapsed ? '210px' : 'none',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px 20px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+              backgroundColor: '#070b14',
             }}
           >
-            {/* Discrete Line Numbers Gutter */}
-            {!wordWrap && (
-              <div
-                className="lyaxis-code-gutter lx-tabular"
-                style={{
-                  userSelect: 'none',
-                  textAlign: 'right',
-                  padding: '14px 12px 14px 14px',
-                  color: 'rgba(255, 255, 255, 0.24)',
-                  fontSize: '13px',
-                  fontFamily: 'var(--lx-font-mono)',
-                  lineHeight: '1.65',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.06)',
-                  backgroundColor: '#030306',
-                  flexShrink: 0,
-                  minWidth: '40px',
-                }}
-              >
-                {displayLines.map((_, i) => (
-                  <div key={i}>{i + 1}</div>
-                ))}
-              </div>
-            )}
-
-            {/* Code Content — Deep OLED Black with zero grey boxes */}
-            <pre
-              className="lyaxis-code-pre"
-              style={{
-                margin: 0,
-                padding: '14px 16px',
-                overflowX: wordWrap ? 'hidden' : 'auto',
-                flex: 1,
-                minWidth: 0,
-                fontSize: '13px',
-                lineHeight: '1.65',
-                fontFamily: 'var(--lx-font-mono)',
-                backgroundColor: '#030306',
-                color: '#f8fafc',
-                whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
-                wordBreak: wordWrap ? 'break-word' : 'normal',
-              }}
-            >
-              <code
-                className={`hljs language-${hljsLang}`}
-                style={{
-                  background: 'transparent !important',
-                  backgroundColor: 'transparent !important',
-                  padding: 0,
-                  fontFamily: 'inherit',
-                  fontSize: 'inherit',
-                  lineHeight: 'inherit',
-                  whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
-                }}
-                dangerouslySetInnerHTML={{ __html: highlightedCode }}
-              />
-            </pre>
-
-            {/* Bottom Gradient Expand Bar when Collapsed */}
-            {isCollapsed && (
-              <div
-                onClick={() => setIsCollapsed(false)}
-              style={{
-                position: 'absolute',
-                bottom: 0,
-                left: 0,
-                right: 0,
-                height: '64px',
-                background: 'linear-gradient(to bottom, transparent, rgba(3, 3, 6, 0.96) 70%)',
-                display: 'flex',
-                alignItems: 'flex-end',
-                justifyContent: 'center',
-                paddingBottom: '10px',
-                cursor: 'pointer',
-              }}
-            >
-              <span
-                style={{
-                  fontSize: '11.5px',
-                  fontWeight: 700,
-                  color: '#00D9FF',
-                  backgroundColor: 'rgba(0, 217, 255, 0.12)',
-                  border: '1px solid rgba(0, 217, 255, 0.35)',
-                  padding: '4px 12px',
-                  borderRadius: '14px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
-              >
-                <ChevronDown size={13} />
-                Mostrar las {displayLines.length} líneas completas
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc' }}>
+                Diagrama Arquitectónico Mermaid
+              </span>
+              <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+                {Math.round(mermaidZoom * 100)}%
               </span>
             </div>
-          )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setMermaidZoom((z) => Math.max(0.25, +(z - 0.25).toFixed(2)))}
+                title="Alejar"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: '#f8fafc',
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                }}
+              >
+                <ZoomOut size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setMermaidZoom((z) => Math.min(4.0, +(z + 0.25).toFixed(2)))}
+                title="Acercar"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: '#f8fafc',
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                }}
+              >
+                <ZoomIn size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={handleResetTransform}
+                title="Restablecer vista"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: '#f8fafc',
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                }}
+              >
+                <RotateCcw size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(false)}
+                title="Salir de pantalla completa (Esc)"
+                style={{
+                  background: 'rgba(239, 68, 68, 0.2)',
+                  border: '1px solid rgba(239, 68, 68, 0.5)',
+                  color: '#f87171',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '12px',
+                }}
+              >
+                <Minimize2 size={14} />
+                <span>Cerrar</span>
+              </button>
+            </div>
           </div>
-        </>
+          <div
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            style={{
+              flex: 1,
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              cursor: isDragging ? 'grabbing' : 'grab',
+              touchAction: 'none',
+              backgroundImage: 'radial-gradient(rgba(56, 189, 248, 0.12) 1px, transparent 1px)',
+              backgroundSize: '24px 24px',
+            }}
+          >
+            <div
+              style={{
+                transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${mermaidZoom})`,
+                transformOrigin: 'center center',
+                transition: isDragging ? 'none' : 'transform 0.15s ease-out',
+                pointerEvents: 'none',
+              }}
+              dangerouslySetInnerHTML={{ __html: mermaidSvg }}
+            />
+          </div>
+        </div>
       )}
 
       {/* Inline Artifacts Live Canvas Studio */}
