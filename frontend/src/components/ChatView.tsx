@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, Suspense, lazy } from 'react';
 import {
   Send,
   Square,
@@ -40,26 +40,25 @@ import {
   Download,
   Sliders,
   FileCode,
-  Check,
   Bookmark,
-  Columns,
 } from 'lucide-react';
 import type { Message, ModelType, User } from '../types';
 import { useSSEStream } from '../useSSEStream';
 import { useTriadQuota } from '../useTriadQuota';
 import { MessageBubble } from './MessageBubble';
-import { ClarificationModal } from './ClarificationModal';
-import type { ClarificationData, ClarificationSubmitPayload } from './ClarificationModal';
-import { NotebookStudio } from './NotebookStudio';
 import { LiveCanvasWorkspace } from './LiveCanvasWorkspace';
 import { PromptVaultModal } from './PromptVaultModal';
 import { TriadQuotaModal } from './TriadQuotaModal';
 import { isSoundMuted, setSoundMuted, playCyberClick as globalPlayCyberClick } from '../sound';
-import { API_BASE, ALL_MODELS, CORE_MODELS, MODEL_META, MODEL_QUICK_ACTIONS, THEMES } from '../config';
+import { API_BASE, CORE_MODELS, MODEL_META, MODEL_QUICK_ACTIONS, THEMES } from '../config';
 import { exportChatToPDF } from '../pdfExporter';
 import { exportChatToMarkdown, exportChatToJSON } from '../utils/chatExporter';
 import { routePromptToModel } from '../utils/neuralRouter';
-import { CustomInstructionsModal, getStoredInstructions } from './CustomInstructionsModal';
+import { getStoredInstructions } from './CustomInstructionsModal';
+
+const NotebookStudio = lazy(() =>
+  import('./NotebookStudio').then((m) => ({ default: m.NotebookStudio }))
+);
 
 export interface ChatViewProps {
   messages: Message[];
@@ -71,6 +70,7 @@ export interface ChatViewProps {
   activeUserId?: string;
   isMobile?: boolean;
   soundEnabled?: boolean;
+  onToggleSound?: () => void;
   playCyberClick?: () => void;
   onConversationUpdated?: () => void;
   onExportPDF?: (title: string, label: string, color: string, msgs: Message[]) => void;
@@ -84,11 +84,13 @@ export interface ChatViewProps {
   onLogout?: () => void;
   onOpenDashboard?: () => void;
   onOpenInfoDrawer?: (tab?: 'manifesto' | 'ecosystem' | 'security' | 'terms') => void;
+  onOpenDirectives?: () => void;
   isScanlineActive?: boolean;
   isChromaticActive?: boolean;
   onOpenCommandPalette?: () => void;
-  userTier?: string | null;
   onForkConversation?: (messagesUpToHere: Message[]) => void;
+  initialPrompt?: string | null;
+  onInitialPromptConsumed?: () => void;
 }
 
 const MODEL_ICONS: Record<ModelType, (size: number, color?: string) => React.ReactNode> = {
@@ -114,6 +116,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   activeUserId,
   isMobile = false,
   soundEnabled,
+  onToggleSound,
   playCyberClick,
   onConversationUpdated,
   onExportPDF,
@@ -126,18 +129,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onLogout,
   onOpenDashboard,
   onOpenInfoDrawer,
+  onOpenDirectives,
   isScanlineActive = false,
   isChromaticActive = false,
   onOpenCommandPalette,
-  userTier = null,
   onForkConversation,
+  initialPrompt = null,
+  onInitialPromptConsumed,
 }) => {
   const [currentActiveModel, setCurrentActiveModel] = useState<ModelType>(selectedModel || 'speed');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showZenithNotice, setShowZenithNotice] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
-  const [isDirectivesModalOpen, setIsDirectivesModalOpen] = useState(false);
   const [isPromptVaultOpen, setIsPromptVaultOpen] = useState(false);
   const [splitCanvasData, setSplitCanvasData] = useState<{ code: string; language: string; title?: string } | null>(null);
   const [isAutoRouterActive, setIsAutoRouterActive] = useState<boolean>(() => {
@@ -149,7 +153,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
   });
   const [routerNotice, setRouterNotice] = useState<string | null>(null);
   const [attachedFiles, setAttachedFiles] = useState<{ name: string; content: string; size: string }[]>([]);
-  const [chatCopied, setChatCopied] = useState(false);
 
   // Listen for Split Canvas custom event dispatched from CodeBlock Pro
   useEffect(() => {
@@ -188,9 +191,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   // LYAXIS TRIAD™ Quota Rate Limiting (3 consultas / ventana 6h)
   const {
-    allowed: isTriadAllowed,
     remaining: triadRemaining,
-    nextResetInMs: triadNextResetInMs,
     consumeTriadSlot,
     syncServerQuota,
     canExecuteTriad,
@@ -234,10 +235,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
       syncServerQuota(retryMs, reason);
 
       if (reason === 'COOLDOWN') {
-        // Enfriamiento de 2 minutos: solo mostrar advertencia sin desmontar el modo TRIAD
         setServerErrorBanner(message || '⏳ Enfriamiento de LYAXIS TRIAD™ activo (1 uso cada 2 minutos). Espera unos instantes.');
       } else {
-        // Cuota de 6 horas agotada
         setIsTriadActive(false);
         try {
           localStorage.setItem('lyaxis_triad_active', 'false');
@@ -260,16 +259,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const speechRecognitionRef = useRef<any>(null);
   const speechBaseTextRef = useRef<string>('');
 
-  // Drag and Drop Image Overlay
-  const [isDraggingOver, setIsDraggingOver] = useState(false);
-
-  // Clarification modal state (Task 4 — Human-in-the-Loop)
-  const [clarificationData, setClarificationData] = useState<ClarificationData | null>(null);
-  const pendingMessagesRef = useRef<Message[]>([]);
-  const pendingPlaceholderIdRef = useRef<string>('');
-
   const toggleTriad = () => {
-    // Si la cuota llegó a 0 y no está activo, bloquear e invocar modal Dark Void
     if (!isTriadActive && triadRemaining === 0) {
       setIsTriadQuotaModalOpen(true);
       triggerSound();
@@ -286,9 +276,31 @@ export const ChatView: React.FC<ChatViewProps> = ({
     });
   };
 
+  // Listen to global Notebook & Triad custom events dispatched from Sidebar / CommandPalette
+  useEffect(() => {
+    const onOpenNb = () => setIsNotebookOpen(true);
+    const onToggleTr = () => toggleTriad();
+    window.addEventListener('lyaxis_open_notebook', onOpenNb);
+    window.addEventListener('lyaxis_toggle_triad', onToggleTr);
+    return () => {
+      window.removeEventListener('lyaxis_open_notebook', onOpenNb);
+      window.removeEventListener('lyaxis_toggle_triad', onToggleTr);
+    };
+  }, [isTriadActive, triadRemaining]);
+
+  // Consume initialPrompt passed from LandingPage Showcase
+  useEffect(() => {
+    if (initialPrompt && initialPrompt.trim()) {
+      setInputValue(initialPrompt);
+      onInitialPromptConsumed?.();
+      setTimeout(() => textareaRef.current?.focus(), 80);
+    }
+  }, [initialPrompt, onInitialPromptConsumed]);
+
   // Mobile Actions Dropdown state (3. HEADER COMPACTO Y LIMPIO EN MÓVIL)
   const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
   const mobileActionsRef = useRef<HTMLDivElement | null>(null);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
 
   // Focus state for bottom input box chromatic glow
   const [isInputFocused, setIsInputFocused] = useState(false);
@@ -311,13 +323,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setCurrentActiveModel(selectedModel);
   }, [selectedModel]);
 
-  // Global Keyboard Shortcuts (Cmd/Ctrl + K => Model Selector, Cmd/Ctrl + / => Focus Input)
+  // Global Keyboard Shortcut: Cmd/Ctrl + / => Focus Input (Cmd/Ctrl + K is handled globally in App.tsx for CommandPalette)
   useEffect(() => {
     const handleGlobalKeys = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setIsModelDropdownOpen((prev) => !prev);
-      }
       if ((e.metaKey || e.ctrlKey) && e.key === '/') {
         e.preventDefault();
         textareaRef.current?.focus();
@@ -430,28 +438,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   };
 
-  // Enhance Prompt using Architect's engineering principles
+  // Enhance Prompt using concise Architect directives (token-optimized)
   const handleEnhancePrompt = () => {
     if (!inputValue.trim()) return;
     triggerSound();
     const original = inputValue.trim();
-    const enhanced = `Actúa como un arquitecto técnico e ingeniero senior. Desarrolla la siguiente solución de forma modular, robusta, blindada para producción y explicando la lógica paso a paso:\n\n${original}\n\nRequisitos clave:\n- Código 100% funcional y completo (sin placeholders ni omisiones).\n- Manejo riguroso de excepciones y casos de borde.\n- Enfoque moderno, legible y con alta eficiencia de ejecución.`;
+    const enhanced = `${original}\n\n[Requisitos: código 100% funcional sin placeholders, manejo de casos borde y arquitectura limpia de producción.]`;
     setInputValue(enhanced);
   };
 
-  // Slash commands registry con todos los 10 modelos neuronales y utilidades
+  // Slash commands registry con todos los modelos neuronales activos y utilidades
   const SLASH_COMMANDS = [
     { cmd: '/speed', label: 'LYAXIS Speed', desc: 'Motor ágil de respuestas inmediatas (~14ms)', action: () => handleModelSwitch('speed') },
     { cmd: '/cortex', label: 'LYAXIS Cortex', desc: 'Razonamiento profundo paso a paso y lógica matemática', action: () => handleModelSwitch('cortex') },
     { cmd: '/zenith', label: 'LYAXIS Zenith', desc: 'Cerebro superior, visión multimodal y arquitectura', action: () => handleModelSwitch('zenith') },
-    { cmd: '/architect', label: 'LYAXIS Architect', desc: 'Ingeniería de software, arquitectura de sistemas y bases de datos', action: () => handleModelSwitch('architect') },
-    { cmd: '/classic', label: 'LYAXIS Classic', desc: 'Asistente general, redacción, resúmenes y charla cotidiana', action: () => handleModelSwitch('classic') },
+    { cmd: '/architect', label: 'LYAXIS Architect', desc: 'Ingeniería de software, arquitectura de sistemas y prompts', action: () => handleModelSwitch('architect') },
     { cmd: '/phantom', label: 'LYAXIS Phantom', desc: 'Auditoría de código, ciberseguridad y análisis de fallos', action: () => handleModelSwitch('phantom') },
     { cmd: '/nexus', label: 'LYAXIS Nexus', desc: 'Pensador interdisciplinario y síntesis creativa transversal', action: () => handleModelSwitch('nexus') },
     { cmd: '/forge', label: 'LYAXIS Forge', desc: 'Constructor pragmático, MVP y modelos de negocio', action: () => handleModelSwitch('forge') },
     { cmd: '/magister', label: 'LYAXIS Magister', desc: 'Planeación docente SEP y secuencias didácticas NEM', action: () => handleModelSwitch('magister') },
-    { cmd: '/root', label: 'LYAXIS Root', desc: 'Kernel de gobernanza, código de bajo nivel y ejecución total', action: () => handleModelSwitch('root') },
-    { cmd: '/triad', label: 'LYAXIS TRIAD™', desc: 'Activa o desactiva la inferencia simultánea Create || Break || Rebuild', action: () => toggleTriad() },
+    { cmd: '/root', label: 'LYAXIS Root', desc: 'Ingeniería de sistemas, código completo y ejecución total', action: () => handleModelSwitch('root') },
+    { cmd: '/triad', label: 'LYAXIS TRIAD™', desc: 'Activa o desactiva la inferencia conectada Create + Break ➔ Rebuild', action: () => toggleTriad() },
     { cmd: '/cmd', label: 'Paleta de Comandos (Ctrl+K)', desc: 'Abre el HUD de búsqueda y atajos rápidos', action: () => onOpenCommandPalette?.() },
     { cmd: '/vault', label: 'Bóveda de Prompts', desc: 'Abre la librería táctica de prompts reutilizables', action: () => setIsPromptVaultOpen(true) },
     { cmd: '/clear', label: 'Limpiar Chat', desc: 'Vacía la vista de mensajes de la conversación actual', action: () => setMessages([]) },
@@ -462,7 +469,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     ? SLASH_COMMANDS.filter((sc) => sc.cmd.toLowerCase().startsWith(inputValue.toLowerCase().split(' ')[0]))
     : [];
 
-  // Click outside to close model dropdown and mobile actions
+  // Click outside to close model dropdown, export menu, and mobile actions
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -471,6 +478,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
       }
       if (mobileActionsRef.current && !mobileActionsRef.current.contains(target)) {
         setIsMobileActionsOpen(false);
+      }
+      if (exportMenuRef.current && !exportMenuRef.current.contains(target)) {
+        setIsExportMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -501,6 +511,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
 
   const toggleSoundMute = () => {
+    if (onToggleSound) {
+      onToggleSound();
+      return;
+    }
     const next = !isMuted;
     setIsMuted(next);
     setSoundMuted(next);
@@ -662,12 +676,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
             alert(`El archivo "${file.name}" supera el límite de 2 MB.`);
             continue;
           }
-          const textContent = await new Promise<string>((resolve, reject) => {
+          const rawTextContent = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (ev) => resolve(String(ev.target?.result || ''));
             reader.onerror = () => reject(new Error(`Error al leer ${file.name}`));
             reader.readAsText(file);
           });
+          // Limitar a ~16,000 caracteres (~4,000 tokens) por archivo para evitar desbordamiento de TPM / HTTP 413
+          const MAX_FILE_CHARS = 16000;
+          const textContent =
+            rawTextContent.length > MAX_FILE_CHARS
+              ? `${rawTextContent.slice(0, MAX_FILE_CHARS)}\n\n/* [...Archivo truncado a ${MAX_FILE_CHARS} caracteres para optimizar tokens...] */`
+              : rawTextContent;
           const sizeKb = (file.size / 1024).toFixed(1) + ' KB';
           loadedItems.push({ name: file.name, content: textContent, size: sizeKb });
 
@@ -791,50 +811,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
     };
 
     const updatedMessages = [...messages, userMessage];
-
-    // ———————————————————————————————————————————————————————————————————
-    // Task 4: Pre-send clarify check for zenith model (Human-in-the-Loop tool calling)
-    // Only fires for the zenith model; SKIP response falls through to normal stream.
-    if (currentActiveModel === 'zenith' && userText.trim().length > 40) {
-      try {
-        const clarifyPayload = {
-          messages: updatedMessages.map((m) => ({
-            role: m.role,
-            content: m.content || '',
-          })),
-          model: currentActiveModel,
-          conversation_id: targetChatId,
-          user_id: activeUserId || null,
-        };
-        const clarifyRes = await fetch(`${API_BASE}/api/v1/chat/clarify`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(clarifyPayload),
-        });
-        if (clarifyRes.ok) {
-          const clarifyJson = await clarifyRes.json();
-          if (clarifyJson.type === 'CLARIFICATION_REQUIRED') {
-            // Store pending context and show modal — do NOT start streaming yet
-            pendingMessagesRef.current = updatedMessages;
-            pendingPlaceholderIdRef.current = assistantPlaceholderId;
-            setMessages([...updatedMessages]); // add user msg without placeholder
-            setClarificationData({
-              motivo: clarifyJson.data?.motivo || '',
-              campos_faltantes: clarifyJson.data?.campos_faltantes || [],
-              opciones_rapidas: clarifyJson.data?.opciones_rapidas || [],
-              toolCallId: clarifyJson.tool_call_id || '',
-            });
-            return; // pause — resume in handleClarificationSubmit
-          }
-          // type === 'MESSAGE': model answered inline via tool call flow (rare); fall through to stream
-        }
-      } catch (clarifyErr) {
-        // Network or parse error — silently fall through to normal streaming
-        console.warn('[clarify] pre-check failed, falling through to stream:', clarifyErr);
-      }
-    }
-    // ———————————————————————————————————————————————————————————————————
-
     setMessages([...updatedMessages, assistantMessage]);
 
     // Active model individual temperature
@@ -917,74 +893,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setMessages(remaining);
     // Enviar el nuevo texto directamente
     handleSend(newContent);
-  };
-
-  // Task 4: Resume streaming after user fills clarification modal
-  const handleClarificationSubmit = async (payload: ClarificationSubmitPayload) => {
-    setClarificationData(null);
-
-    const baseMessages = pendingMessagesRef.current;
-    const assistantPlaceholderId = `model-${Date.now()}`;
-    const assistantMessage: Message = {
-      id: assistantPlaceholderId,
-      role: 'model',
-      content: '',
-      timestamp: new Date().toISOString(),
-      model: currentActiveModel,
-      isStreaming: true,
-    };
-
-    // Inject tool result into messages so the model has context
-    const toolResultMessage: Message = {
-      id: `tool-${Date.now()}`,
-      role: 'user',
-      content: `[Aclaración del usuario]: ${payload.respuesta}`,
-      timestamp: new Date().toISOString(),
-      model: currentActiveModel,
-    };
-
-    const updatedMessages = [...baseMessages, toolResultMessage];
-    setMessages([...updatedMessages, assistantMessage]);
-
-    const activeMeta = modelMeta[currentActiveModel] || MODEL_META[currentActiveModel] || MODEL_META.speed;
-    const activeTemp = activeMeta.temperature ?? 0.3;
-
-    let targetChatId = currentChatId;
-    if (!targetChatId) {
-      targetChatId = `chat-${Date.now()}`;
-      if (setCurrentChatId) setCurrentChatId(targetChatId);
-    }
-
-    await sendMessage(
-      updatedMessages,
-      currentActiveModel,
-      targetChatId,
-      activeUserId,
-      (accumulatedText) => {
-        if (!isMuted && Math.random() > 0.45) triggerSound();
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantPlaceholderId ? { ...msg, content: accumulatedText } : msg
-          )
-        );
-      },
-      {
-        temperature: activeTemp,
-        triad_mode: isTriadActive,
-        onError: (err) => handleStreamError(err),
-        onDone: () => {
-          setServerErrorBanner(null);
-          setLastFailedUserText(null);
-          onConversationUpdated?.();
-        },
-      }
-    );
-
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === assistantPlaceholderId ? { ...msg, isStreaming: false } : msg
-      )
-    );
   };
 
   const handleRetry = () => {
@@ -1099,7 +1007,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         <div className="lyaxis-chromatic-overlay" />
       )}
       
-      {/* Header with 3 Zones (PC) / Compact Mobile Header (Mobile) */}
+      {/* Header with 3 Zones (PC) / Compact Mobile Header (Mobile) — Zero Overflow */}
       <div
         className="lyaxis-header-bar"
         style={{
@@ -1108,20 +1016,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: isMobile ? '10px 12px' : '12px 24px',
+          padding: isMobile ? '8px 10px' : '10px 18px',
           borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
           backgroundColor: 'rgba(5, 8, 17, 0.90)',
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
           zIndex: 35,
           flexShrink: 0,
-          gap: '12px',
+          gap: isMobile ? '8px' : '10px',
+          minWidth: 0,
+          width: '100%',
+          boxSizing: 'border-box',
         }}
       >
         {/* Zone 1 (Left): Hamburger (Mobile) or PanelLeft (Desktop) + Model Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: isMobile ? 1 : '0 1 auto' }}>
           {isMobile ? (
-            /* Botón hamburguesa táctil (☰) en la esquina superior izquierda */
             <button
               type="button"
               onClick={onToggleSidebar}
@@ -1131,10 +1041,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '44px',
-                height: '44px',
-                minWidth: '44px',
-                minHeight: '44px',
+                width: '40px',
+                height: '40px',
+                minWidth: '40px',
+                minHeight: '40px',
                 borderRadius: '10px',
                 backgroundColor: 'rgba(255, 255, 255, 0.04)',
                 border: '1px solid rgba(255, 255, 255, 0.12)',
@@ -1144,7 +1054,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 flexShrink: 0,
               }}
             >
-              <Menu size={20} color={currentTheme.primary} />
+              <Menu size={19} color={currentTheme.primary} />
             </button>
           ) : (
             !isSidebarOpen && onToggleSidebar && (
@@ -1168,15 +1078,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   boxShadow: `0 0 12px ${currentTheme.glow}`,
                   transition: 'all 0.2s ease',
                   flexShrink: 0,
+                  whiteSpace: 'nowrap',
                 }}
               >
-                <PanelLeft size={17} color={currentTheme.primary} />
-                <span>Historial</span>
+                <PanelLeft size={16} color={currentTheme.primary} />
+                <span className="lyaxis-btn-label">Historial</span>
               </button>
             )
           )}
 
-          {/* Barra de Selección de Modelos (Solo Speed, Cortex y Zenith) */}
+          {/* Barra de Selección de Modelos (Solo Speed, Cortex y Zenith + Especialista Activo) */}
           {!isMobile ? (
             <div
               className="lyaxis-model-bar"
@@ -1187,7 +1098,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 border: '1px solid rgba(255, 255, 255, 0.09)',
                 borderRadius: '11px',
                 padding: '3px',
-                gap: '4px',
+                gap: '3px',
+                minWidth: 0,
               }}
             >
               {visibleModels.map((m) => {
@@ -1200,21 +1112,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     key={m}
                     type="button"
                     onClick={() => handleModelSwitch(m)}
-                    title={`LYAXIS ${itemMeta.label}: ${itemMeta.tagline}`}
+                    title={`LYAXIS ${itemMeta.label}: ${itemMeta.tagline} (T:${itemMeta.temperature})`}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '7px',
-                      padding: '6px 13px',
+                      gap: '6px',
+                      padding: '6px 11px',
                       borderRadius: '8px',
                       border: isSelected ? `1px solid ${theme.primary}77` : '1px solid transparent',
                       backgroundColor: isSelected ? `${theme.primary}20` : 'transparent',
                       color: isSelected ? '#ffffff' : '#94a3b8',
-                      fontSize: '13px',
+                      fontSize: '12.5px',
                       fontWeight: isSelected ? 700 : 500,
                       cursor: 'pointer',
-                      boxShadow: isSelected ? `0 0 16px ${theme.glow}` : 'none',
+                      boxShadow: isSelected ? `0 0 14px ${theme.glow}` : 'none',
                       transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
                     }}
                     onMouseEnter={(e) => {
                       if (!isSelected) {
@@ -1237,15 +1151,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         backgroundColor: theme.primary,
                         boxShadow: isSelected ? `0 0 8px ${theme.primary}` : 'none',
                         display: 'inline-block',
+                        flexShrink: 0,
                       }}
                     />
-                    <span>LYAXIS {itemMeta.label}</span>
+                    <span>
+                      <span className="lyaxis-brand-prefix">LYAXIS </span>
+                      {itemMeta.label}
+                    </span>
                     {isAdvancedSpecialist && (
                       <span style={{ fontSize: '9px', backgroundColor: `${theme.primary}33`, color: theme.primary, padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>
                         ACTIVO
                       </span>
                     )}
-                    <span style={{ fontSize: '10.5px', color: isSelected ? `${theme.primary}` : '#64748b', fontFamily: 'monospace' }}>
+                    <span className="lyaxis-temp-tag" style={{ fontSize: '10px', color: isSelected ? `${theme.primary}` : '#64748b', fontFamily: 'monospace' }}>
                       T:{itemMeta.temperature}
                     </span>
                   </button>
@@ -1254,7 +1172,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
           ) : (
             /* Interactive In-Chat Model Selector con Identidad Cromática en Celular */
-            <div style={{ position: 'relative' }} ref={dropdownRef}>
+            <div style={{ position: 'relative', minWidth: 0, flex: '0 1 auto' }} ref={dropdownRef}>
               <button
                 type="button"
                 onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
@@ -1262,16 +1180,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
+                  gap: '7px',
                   backgroundColor: `${currentTheme.primary}12`,
                   border: `1px solid ${currentTheme.primary}55`,
                   borderRadius: '10px',
-                  padding: '8px 12px',
-                  minHeight: '44px',
+                  padding: '6px 10px',
+                  minHeight: '40px',
+                  maxWidth: '100%',
                   color: '#ffffff',
                   cursor: 'pointer',
-                  boxShadow: `0 0 18px ${currentTheme.glow}`,
+                  boxShadow: `0 0 16px ${currentTheme.glow}`,
                   transition: 'all 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 <span
@@ -1282,10 +1202,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     backgroundColor: currentTheme.primary,
                     boxShadow: `0 0 10px ${currentTheme.primary}`,
                     display: 'inline-block',
-                    transition: 'all 300ms ease',
+                    flexShrink: 0,
                   }}
                 />
-                <span style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '0.3px', color: '#ffffff' }}>
+                <span
+                  style={{
+                    fontSize: '13.5px',
+                    fontWeight: 700,
+                    letterSpacing: '0.2px',
+                    color: '#ffffff',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   LYAXIS {meta.label}
                 </span>
                 <ChevronDown
@@ -1293,7 +1223,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   color={currentTheme.primary}
                   style={{
                     transform: isModelDropdownOpen ? 'rotate(180deg)' : 'none',
-                    transition: 'transform 0.2s ease, color 0.3s ease',
+                    transition: 'transform 0.2s ease',
+                    flexShrink: 0,
                   }}
                 />
               </button>
@@ -1309,8 +1240,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       position: 'absolute',
                       top: 'calc(100% + 6px)',
                       left: 0,
-                      width: 'calc(100vw - 28px)',
-                      maxWidth: '300px',
+                      width: 'min(290px, calc(100vw - 24px))',
                       backgroundColor: '#0a0a0f',
                       border: '1px solid #22222e',
                       borderRadius: '12px',
@@ -1363,7 +1293,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                   </span>
                                 )}
                               </div>
-                              <span style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              <span style={{ fontSize: '11.5px', color: '#94a3b8', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {itemMeta.tagline}
                               </span>
                             </div>
@@ -1376,7 +1306,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     })}
                     <div style={{ padding: '8px 10px', fontSize: '11px', color: '#94a3b8', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Command size={12} color="#00D9FF" />
-                      <span>Escribe <b>/</b> en el chat para modelos avanzados</span>
+                      <span>Escribe <b>/</b> o abre Comandos para los 10 motores</span>
                     </div>
                   </div>
                 </>
@@ -1385,18 +1315,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
           )}
         </div>
 
-        {/* Zone 2 (Center): Telemetría en PC (>= 768px) */}
+        {/* Zone 2 (Center): Compact Unified Telemetry Pill on Wide Monitors (>= 1420px via CSS) */}
         {!isMobile && (
           <div
             className="lyaxis-header-telemetry"
+            title="LYAXIS Neural Stream Online • Acceso Público Activo"
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              padding: '5px 14px',
-              borderRadius: '16px',
-              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+              gap: '7px',
+              padding: '4px 12px',
+              borderRadius: '14px',
+              backgroundColor: 'rgba(255, 255, 255, 0.025)',
               border: '1px solid rgba(255, 255, 255, 0.07)',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
           >
             <span
@@ -1404,71 +1337,43 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 width: '6px',
                 height: '6px',
                 borderRadius: '50%',
-                backgroundColor: meta.color,
-                boxShadow: `0 0 8px ${meta.color}`,
+                backgroundColor: '#00ff66',
+                boxShadow: '0 0 8px #00ff66',
+                flexShrink: 0,
               }}
             />
             <span
               style={{
-                fontSize: '11px',
+                fontSize: '10.5px',
                 fontFamily: 'monospace',
                 color: '#94a3b8',
-                letterSpacing: '0.6px',
+                letterSpacing: '0.5px',
                 fontWeight: 600,
+                whiteSpace: 'nowrap',
               }}
             >
-              LYAXIS NEURAL STREAM // ONLINE • ~14ms
+              ONLINE • ~14ms
             </span>
           </div>
         )}
 
-        {/* Zone 3 (Right): Acciones Desktop o Menú Móvil Compacto (⋮) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Zone 3 (Right): Streamlined Non-Clipping Actions (PC & Mobile) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           {isMobile ? (
             <>
-              {/* Indicador táctico de Estado Abierto / Acceso Público en Móvil */}
-              <div
-                title="LYAXIS IA • Public Access (Acceso Público Activo)"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  padding: '3px 8px',
-                  borderRadius: '6px',
-                  backgroundColor: 'rgba(0, 255, 102, 0.08)',
-                  border: '1px solid rgba(0, 255, 102, 0.25)',
-                  fontSize: '10.5px',
-                  fontFamily: 'monospace',
-                  fontWeight: 700,
-                  color: '#00ff66',
-                  letterSpacing: '0.5px',
-                  flexShrink: 0,
-                }}
-              >
-                <span
-                  style={{
-                    width: '5px',
-                    height: '5px',
-                    borderRadius: '50%',
-                    backgroundColor: '#00ff66',
-                    boxShadow: '0 0 6px #00ff66',
-                    display: 'inline-block',
-                  }}
-                />
-                <span>PUBLIC</span>
-              </div>
-
-              {/* Acceder / Usuario en móvil */}
+              {/* Usuario / Acceder compacto en móvil */}
               {user ? (
-                user.avatar ? (
+                user.picture ? (
                   <img
-                    src={user.avatar}
+                    src={user.picture}
                     alt={user.name || 'Usuario'}
                     style={{
                       width: '32px',
                       height: '32px',
                       borderRadius: '50%',
-                      border: '1px solid rgba(0, 217, 255, 0.4)',
+                      border: '1px solid rgba(0, 217, 255, 0.45)',
+                      objectFit: 'cover',
+                      flexShrink: 0,
                     }}
                   />
                 ) : (
@@ -1485,6 +1390,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       fontSize: '12px',
                       fontWeight: 700,
                       color: '#00D9FF',
+                      flexShrink: 0,
                     }}
                   >
                     {(user.name || user.email || 'U').charAt(0).toUpperCase()}
@@ -1505,35 +1411,37 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     gap: '5px',
                     backgroundColor: 'rgba(0, 217, 255, 0.1)',
                     border: '1px solid rgba(0, 217, 255, 0.3)',
-                    borderRadius: '8px',
-                    padding: '8px 12px',
-                    minHeight: '44px',
+                    borderRadius: '10px',
+                    padding: '6px 10px',
+                    minHeight: '40px',
                     color: '#00D9FF',
-                    fontSize: '12.5px',
+                    fontSize: '12px',
                     fontWeight: 600,
                     cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
                   }}
                 >
-                  <LogIn size={15} color="#00D9FF" />
+                  <LogIn size={14} color="#00D9FF" />
                   <span>Acceder</span>
                 </button>
               ) : null}
 
-              {/* Menú Desplegable de Tres Puntos (⋮) en Celular */}
+              {/* Menú Desplegable Completo de Tres Puntos (⋮) en Celular */}
               <div style={{ position: 'relative' }} ref={mobileActionsRef}>
                 <button
                   type="button"
                   onClick={() => setIsMobileActionsOpen(!isMobileActionsOpen)}
-                  title="Más opciones"
-                  aria-label="Más opciones"
+                  title="Más herramientas"
+                  aria-label="Más herramientas"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: '44px',
-                    height: '44px',
-                    minWidth: '44px',
-                    minHeight: '44px',
+                    width: '40px',
+                    height: '40px',
+                    minWidth: '40px',
+                    minHeight: '40px',
                     borderRadius: '10px',
                     backgroundColor: isMobileActionsOpen ? 'rgba(0, 217, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
                     border: isMobileActionsOpen ? '1px solid rgba(0, 217, 255, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
@@ -1542,7 +1450,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  <MoreVertical size={20} />
+                  <MoreVertical size={19} />
                 </button>
 
                 {isMobileActionsOpen && (
@@ -1551,7 +1459,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       position: 'absolute',
                       top: 'calc(100% + 8px)',
                       right: 0,
-                      width: '220px',
+                      width: '236px',
+                      maxHeight: 'calc(100dvh - 80px)',
+                      overflowY: 'auto',
                       backgroundColor: '#0b0b12',
                       border: '1px solid #222232',
                       borderRadius: '12px',
@@ -1561,13 +1471,46 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       backdropFilter: 'blur(16px)',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '3px',
+                      gap: '2px',
                       animation: 'fadeIn 0.2s ease-out',
                     }}
                   >
                     <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 800, color: '#71717a', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
                       Herramientas LYAXIS
                     </div>
+
+                    {/* Auto-Router Mobile */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerSound();
+                        setIsAutoRouterActive((prev) => {
+                          const next = !prev;
+                          try { localStorage.setItem('lyaxis_auto_router', String(next)); } catch {}
+                          return next;
+                        });
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        backgroundColor: isAutoRouterActive ? 'rgba(0, 255, 102, 0.1)' : 'transparent',
+                        color: isAutoRouterActive ? '#00FF66' : '#f1f5f9',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Zap size={16} color={isAutoRouterActive ? '#00FF66' : '#00D9FF'} />
+                        <span>Auto-Router</span>
+                      </span>
+                      <span style={{ fontSize: '10.5px', fontFamily: 'monospace' }}>{isAutoRouterActive ? 'ON' : 'OFF'}</span>
+                    </button>
 
                     {/* Notebook */}
                     <button
@@ -1603,14 +1546,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       <span>Notebook Studio</span>
                     </button>
 
-                    {/* Export PDF */}
-                    {onExportPDF && messages.length > 0 && (
+                    {/* Memoria y Directivas */}
+                    {onOpenDirectives && (
                       <button
                         type="button"
                         onClick={() => {
                           setIsMobileActionsOpen(false);
                           triggerSound();
-                          onExportPDF('Conversación LYAXIS', meta.label, meta.color, messages);
+                          onOpenDirectives();
                         }}
                         style={{
                           display: 'flex',
@@ -1627,10 +1570,37 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           textAlign: 'left',
                         }}
                       >
-                        <FileDown size={16} color="#00D9FF" />
-                        <span>Exportar a PDF</span>
+                        <Sliders size={16} color="#00D9FF" />
+                        <span>Memoria y Directivas</span>
                       </button>
                     )}
+
+                    {/* Bóveda de Prompts */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileActionsOpen(false);
+                        triggerSound();
+                        setIsPromptVaultOpen(true);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        color: '#f1f5f9',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <Bookmark size={16} color="#00D9FF" />
+                      <span>Bóveda de Prompts</span>
+                    </button>
 
                     {/* Command Palette Mobile */}
                     {onOpenCommandPalette && (
@@ -1657,8 +1627,93 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         }}
                       >
                         <Command size={16} color="#00D9FF" />
-                        <span>Comandos Rápidos (Ctrl+K)</span>
+                        <span>Todos los Motores / Cmd</span>
                       </button>
+                    )}
+
+                    {/* Export Options */}
+                    {messages.length > 0 && (
+                      <>
+                        <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.06)', margin: '3px 6px' }} />
+                        {onExportPDF && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsMobileActionsOpen(false);
+                              triggerSound();
+                              onExportPDF('Conversación LYAXIS', meta.label, meta.color, messages);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              padding: '9px 12px',
+                              borderRadius: '8px',
+                              border: 'none',
+                              backgroundColor: 'transparent',
+                              color: '#f1f5f9',
+                              fontSize: '12.5px',
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                            }}
+                          >
+                            <FileDown size={15} color="#00D9FF" />
+                            <span>Exportar PDF (.pdf)</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobileActionsOpen(false);
+                            triggerSound();
+                            exportChatToMarkdown('Sesión LYAXIS', currentActiveModel, messages);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '9px 12px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            backgroundColor: 'transparent',
+                            color: '#f1f5f9',
+                            fontSize: '12.5px',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                          }}
+                        >
+                          <FileText size={15} color="#10B981" />
+                          <span>Exportar Markdown (.md)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobileActionsOpen(false);
+                            triggerSound();
+                            exportChatToJSON('Sesión LYAXIS', currentActiveModel, messages);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '9px 12px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            backgroundColor: 'transparent',
+                            color: '#f1f5f9',
+                            fontSize: '12.5px',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                          }}
+                        >
+                          <FileCode size={15} color="#F59E0B" />
+                          <span>Exportar JSON (.json)</span>
+                        </button>
+                        <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.06)', margin: '3px 6px' }} />
+                      </>
                     )}
 
                     {/* Dashboard */}
@@ -1686,7 +1741,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         }}
                       >
                         <LayoutDashboard size={16} color="#00D9FF" />
-                        <span>Dashboard Métricas</span>
+                        <span>Dashboard y Temas</span>
                       </button>
                     )}
 
@@ -1722,9 +1777,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     {/* Sound */}
                     <button
                       type="button"
-                      onClick={() => {
-                        toggleSoundMute();
-                      }}
+                      onClick={toggleSoundMute}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -1778,67 +1831,41 @@ export const ChatView: React.FC<ChatViewProps> = ({
               </div>
             </>
           ) : (
-            /* Botones en PC (>= 768px) */
+            /* Botones en PC (>= 768px) — Deduplicados, sin desborde en laptops ni monitores */
             <>
-              {/* Indicador táctico de Estado Abierto / Acceso Público en Escritorio */}
-              <div
-                title="LYAXIS IA • Public Access (Acceso Público Activo)"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '4px 10px',
-                  borderRadius: '8px',
-                  backgroundColor: 'rgba(0, 255, 102, 0.08)',
-                  border: '1px solid rgba(0, 255, 102, 0.25)',
-                  color: '#e2e8f0',
-                  fontSize: '11px',
-                  fontFamily: 'monospace',
-                  fontWeight: 700,
-                  letterSpacing: '0.8px',
-                  boxShadow: '0 0 10px rgba(0, 255, 102, 0.12)',
-                  flexShrink: 0,
-                  marginRight: '4px',
-                }}
-              >
-                <span
-                  style={{
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '50%',
-                    backgroundColor: '#00ff66',
-                    boxShadow: '0 0 8px #00ff66',
-                    display: 'inline-block',
-                  }}
-                />
-                <span style={{ color: '#00ff66' }}>LYAXIS IA</span>
-                <span style={{ color: '#64748b' }}>•</span>
-                <span style={{ color: '#00d9ff' }}>Public Access</span>
-              </div>
-
-              {/* Sound Mute Toggle */}
+              {/* Auto-Router Inteligente */}
               <button
                 type="button"
-                onClick={toggleSoundMute}
-                title={isMuted ? 'Activar efectos de audio' : 'Silenciar efectos de audio'}
+                onClick={() => {
+                  triggerSound();
+                  setIsAutoRouterActive((prev) => {
+                    const next = !prev;
+                    try { localStorage.setItem('lyaxis_auto_router', String(next)); } catch {}
+                    return next;
+                  });
+                }}
+                title={isAutoRouterActive ? 'Auto-Router Activado: conmuta automáticamente al modelo óptimo' : 'Activar Auto-Router neuronal'}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  minWidth: '32px',
-                  minHeight: '32px',
-                  width: '32px',
-                  height: '32px',
+                  gap: '5px',
+                  backgroundColor: isAutoRouterActive ? 'rgba(0, 255, 102, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+                  border: isAutoRouterActive ? '1px solid rgba(0, 255, 102, 0.45)' : '1px solid rgba(255, 255, 255, 0.12)',
                   borderRadius: '8px',
-                  backgroundColor: isMuted ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 217, 255, 0.08)',
-                  border: isMuted ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 217, 255, 0.25)',
-                  color: isMuted ? '#71717a' : '#00D9FF',
+                  padding: '6px 9px',
+                  minHeight: '32px',
+                  color: isAutoRouterActive ? '#00FF66' : '#94a3b8',
+                  fontSize: '11.5px',
+                  fontWeight: 600,
                   cursor: 'pointer',
-                  boxShadow: isMuted ? 'none' : '0 0 10px rgba(0, 217, 255, 0.2)',
                   transition: 'all 0.2s ease',
+                  boxShadow: isAutoRouterActive ? '0 0 10px rgba(0, 255, 102, 0.25)' : 'none',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                <Zap size={14} color={isAutoRouterActive ? '#00FF66' : '#94a3b8'} />
+                <span className="lyaxis-btn-label">Auto</span>
               </button>
 
               {/* LYAXIS Notebook Canvas Studio Button */}
@@ -1864,21 +1891,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   backgroundColor: isNotebookOpen ? 'rgba(0, 217, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)',
                   border: isNotebookOpen ? '1px solid rgba(0, 217, 255, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
                   borderRadius: '8px',
-                  padding: '6px 10px',
+                  padding: '6px 9px',
                   minHeight: '32px',
                   color: isNotebookOpen ? '#00D9FF' : '#ffffff',
                   fontSize: '11.5px',
                   fontWeight: 600,
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 <BookOpen size={15} color="#00D9FF" />
-                <span>Notebook</span>
+                <span className="lyaxis-btn-label">Notebook</span>
               </button>
 
+              {/* Export Dropdown (cuando hay mensajes) */}
               {messages.length > 0 && (
-                <div style={{ position: 'relative' }}>
+                <div style={{ position: 'relative' }} ref={exportMenuRef}>
                   <button
                     type="button"
                     onClick={() => {
@@ -1894,17 +1923,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       backgroundColor: isExportMenuOpen ? 'rgba(0, 217, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)',
                       border: isExportMenuOpen ? '1px solid rgba(0, 217, 255, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
                       borderRadius: '8px',
-                      padding: '6px 10px',
+                      padding: '6px 9px',
                       minHeight: '32px',
                       color: '#ffffff',
                       fontSize: '11.5px',
                       fontWeight: 600,
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     <Download size={14} color="#00D9FF" />
-                    <span>Exportar</span>
+                    <span className="lyaxis-btn-label">Exportar</span>
                     <ChevronDown size={12} />
                   </button>
 
@@ -1923,8 +1953,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         flexDirection: 'column',
                         gap: '4px',
                         zIndex: 100,
-                        minWidth: '170px',
-                        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.8), 0 0 15px rgba(0, 217, 255, 0.15)',
+                        minWidth: '175px',
+                        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.85), 0 0 15px rgba(0, 217, 255, 0.15)',
                         animation: 'fadeIn 0.15s ease-out',
                       }}
                     >
@@ -2010,68 +2040,56 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 </div>
               )}
 
-              {/* Botón de Memoria y Directivas Personales */}
-              <button
-                type="button"
-                onClick={() => {
-                  triggerSound();
-                  setIsDirectivesModalOpen(true);
-                }}
-                title="Configurar Directivas y Memoria Personal de LYAXIS"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '8px',
-                  padding: '6px 10px',
-                  minHeight: '32px',
-                  color: '#ffffff',
-                  fontSize: '11.5px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                <Sliders size={14} color="#00D9FF" />
-                <span className="hidden sm:inline">Memoria</span>
-              </button>
-
-              {/* Botón de Auto-Router Inteligente */}
-              <button
-                type="button"
-                onClick={() => {
-                  triggerSound();
-                  setIsAutoRouterActive((prev) => {
-                    const next = !prev;
-                    try { localStorage.setItem('lyaxis_auto_router', String(next)); } catch {}
-                    return next;
-                  });
-                }}
-                title={isAutoRouterActive ? 'Auto-Router Activado: conmuta automáticamente al modelo óptimo' : 'Activar Auto-Router neuronal'}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '5px',
-                  backgroundColor: isAutoRouterActive ? 'rgba(0, 255, 102, 0.12)' : 'rgba(255, 255, 255, 0.05)',
-                  border: isAutoRouterActive ? '1px solid rgba(0, 255, 102, 0.45)' : '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '8px',
-                  padding: '6px 10px',
-                  minHeight: '32px',
-                  color: isAutoRouterActive ? '#00FF66' : '#94a3b8',
-                  fontSize: '11.5px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  boxShadow: isAutoRouterActive ? '0 0 10px rgba(0, 255, 102, 0.25)' : 'none',
-                }}
-              >
-                <Zap size={14} color={isAutoRouterActive ? '#00FF66' : '#94a3b8'} />
-                <span className="hidden sm:inline">Auto</span>
-              </button>
+              {/* Cuando el Sidebar está oculto, mostrar accesos compactos a Memoria y Audio */}
+              {!isSidebarOpen && (
+                <>
+                  {onOpenDirectives && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerSound();
+                        onOpenDirectives();
+                      }}
+                      title="Configurar Directivas y Memoria Personal"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '32px',
+                        height: '32px',
+                        minWidth: '32px',
+                        borderRadius: '8px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        color: '#00D9FF',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Sliders size={15} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={toggleSoundMute}
+                    title={isMuted ? 'Activar efectos de audio' : 'Silenciar efectos de audio'}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '32px',
+                      height: '32px',
+                      minWidth: '32px',
+                      borderRadius: '8px',
+                      backgroundColor: isMuted ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 217, 255, 0.08)',
+                      border: isMuted ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 217, 255, 0.25)',
+                      color: isMuted ? '#71717a' : '#00D9FF',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                  </button>
+                </>
+              )}
 
               {/* Command Palette Button */}
               {onOpenCommandPalette && (
@@ -2081,7 +2099,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     triggerSound();
                     onOpenCommandPalette();
                   }}
-                  title="Paleta de Comandos (Ctrl+K)"
+                  title="Paleta de Comandos y Todos los Motores (Ctrl+K)"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -2090,7 +2108,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     backgroundColor: 'rgba(0, 217, 255, 0.08)',
                     border: '1px solid rgba(0, 217, 255, 0.3)',
                     borderRadius: '8px',
-                    padding: '6px 10px',
+                    padding: '6px 9px',
                     minHeight: '32px',
                     color: '#ffffff',
                     fontSize: '11.5px',
@@ -2098,19 +2116,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
                     boxShadow: '0 0 10px rgba(0, 217, 255, 0.1)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.16)';
-                    e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.6)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.08)';
-                    e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.3)';
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   <Command size={14} color="#00D9FF" />
-                  <span className="hidden sm:inline">Comandos</span>
-                  <kbd style={{ fontSize: '10px', opacity: 0.7, backgroundColor: 'rgba(255,255,255,0.1)', padding: '1px 4px', borderRadius: '4px' }}>Ctrl+K</kbd>
+                  <span className="lyaxis-btn-label">Comandos</span>
+                  <kbd className="lyaxis-kbd-hint" style={{ fontSize: '9.5px', opacity: 0.75, backgroundColor: 'rgba(255,255,255,0.1)', padding: '1px 4px', borderRadius: '4px' }}>Ctrl+K</kbd>
                 </button>
               )}
 
@@ -2122,7 +2133,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     triggerSound();
                     onOpenDashboard();
                   }}
-                  title="Métricas y Dashboard de Modelos"
+                  title="Métricas, Telemetría y Temas Visuales"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -2131,21 +2142,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     backgroundColor: 'rgba(255, 255, 255, 0.05)',
                     border: '1px solid rgba(255, 255, 255, 0.12)',
                     borderRadius: '8px',
-                    padding: '6px 10px',
+                    padding: '6px 9px',
                     minHeight: '32px',
                     color: '#ffffff',
                     fontSize: '11.5px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   <LayoutDashboard size={15} color="#00D9FF" />
-                  <span>Dashboard</span>
+                  <span className="lyaxis-btn-label">Dashboard</span>
                 </button>
               )}
 
-              {/* Info Drawer Button */}
+              {/* Info Drawer Compact Icon Button */}
               {onOpenInfoDrawer && (
                 <button
                   type="button"
@@ -2153,50 +2165,56 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     triggerSound();
                     onOpenInfoDrawer('manifesto');
                   }}
-                  title="Información y Manifiesto LYAXIS"
+                  title="Información y Manifiesto LYAXIS labs™"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '6px',
+                    width: '32px',
+                    height: '32px',
+                    minWidth: '32px',
                     backgroundColor: 'rgba(255, 255, 255, 0.05)',
                     border: '1px solid rgba(255, 255, 255, 0.12)',
                     borderRadius: '8px',
-                    padding: '6px 10px',
-                    minHeight: '32px',
                     color: '#ffffff',
-                    fontSize: '11.5px',
-                    fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
+                    flexShrink: 0,
                   }}
                 >
                   <Info size={15} color="#00D9FF" />
-                  <span>Info</span>
                 </button>
               )}
 
-              {/* User Profile / Login Button */}
+              {/* User Profile / Login Button — Always Visible on Right Edge */}
               {user ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  {user.avatar ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                  {user.picture ? (
                     <img
-                      src={user.avatar}
+                      src={user.picture}
                       alt={user.name || 'Usuario'}
-                      style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid rgba(0, 217, 255, 0.4)' }}
+                      title={user.name || user.email || 'Usuario'}
+                      style={{
+                        width: '30px',
+                        height: '30px',
+                        borderRadius: '50%',
+                        border: '1px solid rgba(0, 217, 255, 0.45)',
+                        objectFit: 'cover',
+                      }}
                     />
                   ) : (
                     <div
+                      title={user.name || user.email || 'Usuario'}
                       style={{
-                        width: '28px',
-                        height: '28px',
+                        width: '30px',
+                        height: '30px',
                         borderRadius: '50%',
                         backgroundColor: 'rgba(0, 217, 255, 0.2)',
                         border: '1px solid rgba(0, 217, 255, 0.4)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontSize: '11px',
+                        fontSize: '11.5px',
                         fontWeight: 700,
                         color: '#00D9FF',
                       }}
@@ -2216,12 +2234,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        padding: '6px',
+                        width: '32px',
+                        height: '32px',
                         backgroundColor: 'rgba(239, 68, 68, 0.1)',
                         border: '1px solid rgba(239, 68, 68, 0.25)',
-                        borderRadius: '6px',
+                        borderRadius: '8px',
                         color: '#EF4444',
                         cursor: 'pointer',
+                        flexShrink: 0,
                       }}
                     >
                       <LogOut size={14} />
@@ -2241,8 +2261,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '6px',
-                    backgroundColor: 'rgba(0, 217, 255, 0.1)',
-                    border: '1px solid rgba(0, 217, 255, 0.3)',
+                    backgroundColor: 'rgba(0, 217, 255, 0.12)',
+                    border: '1px solid rgba(0, 217, 255, 0.35)',
                     borderRadius: '8px',
                     padding: '6px 12px',
                     minHeight: '32px',
@@ -2250,6 +2270,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     fontSize: '12px',
                     fontWeight: 600,
                     cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
                   }}
                 >
                   <LogIn size={14} color="#00D9FF" />
@@ -2375,6 +2397,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           {messages.length === 0 ? (
             /* 1. Tarjetas de Acción Rápida por Modelo (Eliminar pantalla vacía) */
             <div
+              className="lyaxis-empty-state"
               style={{
                 flex: 1,
                 display: 'flex',
@@ -2382,10 +2405,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#71717a',
-                gap: '22px',
+                gap: '20px',
                 textAlign: 'center',
-                minHeight: '60vh',
-                padding: '16px 12px',
+                minHeight: '52vh',
+                padding: '12px',
                 animation: 'fadeIn 0.3s ease-out',
               }}
             >
@@ -2403,9 +2426,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   }}
                 />
                 <div
+                  className="lyaxis-empty-emblem"
                   style={{
-                    width: '68px',
-                    height: '68px',
+                    width: '64px',
+                    height: '64px',
                     borderRadius: '20px',
                     background: `linear-gradient(135deg, ${meta.color}, #00D9FF)`,
                     display: 'flex',
@@ -2417,15 +2441,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     zIndex: 1,
                   }}
                 >
-                  {MODEL_ICONS[currentActiveModel]?.(32, '#ffffff')}
+                  {MODEL_ICONS[currentActiveModel]?.(30, '#ffffff')}
                 </div>
               </div>
 
               {/* Title & Philosophy */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <h1
+                  className="lyaxis-empty-title"
                   style={{
-                    fontSize: isMobile ? '28px' : '36px',
+                    fontSize: isMobile ? '28px' : '34px',
                     fontWeight: 800,
                     letterSpacing: '-0.025em',
                     background: 'linear-gradient(to right, #ffffff, #e2e8f0, #67e8f9)',
@@ -2433,7 +2458,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     backgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     color: 'transparent',
-                    margin: '12px 0 4px 0',
+                    margin: '8px 0 4px 0',
                     display: 'inline-block',
                     textAlign: 'center',
                   }}
@@ -2979,8 +3004,57 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       display: 'inline-block',
                     }}
                   />
-                  <span>TRIAD ENGAGED // 3 CORES SYNCED</span>
+                  <span>TRIAD ENGAGED // 3 CORES</span>
                 </div>
+              )}
+            </div>
+
+            {/* Indicador de tokens estimados en vivo + botón Continuar si la última respuesta fue extensa */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              {!isStreaming &&
+                messages.length > 0 &&
+                messages[messages.length - 1]?.role === 'model' &&
+                (messages[messages.length - 1]?.content?.length || 0) > 2600 &&
+                !inputValue.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => handleSend('Continúa exactamente desde donde te quedaste sin repetir lo anterior.')}
+                    title="Continuar respuesta desde el punto exacto donde terminó"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '3px 9px',
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(0, 217, 255, 0.1)',
+                      border: '1px solid rgba(0, 217, 255, 0.35)',
+                      color: '#00D9FF',
+                      fontSize: '10.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <span>Continuar ➔</span>
+                  </button>
+                )}
+
+              {(inputValue.trim().length > 0 || attachedFiles.length > 0) && (
+                <span
+                  title="Estimación de tokens de entrada para este mensaje"
+                  style={{
+                    fontSize: '10.5px',
+                    fontFamily: 'monospace',
+                    color: '#94a3b8',
+                    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.09)',
+                    padding: '2px 8px',
+                    borderRadius: '8px',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  ~{Math.max(1, Math.ceil((inputValue.length + attachedFiles.reduce((acc, f) => acc + f.content.length, 0)) / 4))} tok
+                </span>
               )}
             </div>
           </div>
@@ -3331,18 +3405,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
       </div>
         </div>
 
-        {/* Docked Right-Hand Split Canvas Workspace (Desktop) */}
-        {splitCanvasData && !isMobile && (
+        {/* Docked Right-Hand Split Canvas Workspace (Desktop) or Fullscreen Overlay (Mobile) */}
+        {splitCanvasData && (
           <div
-            style={{
-              width: '45%',
-              minWidth: '380px',
-              maxWidth: '720px',
-              height: '100%',
-              flexShrink: 0,
-              borderLeft: '1px solid rgba(0, 217, 255, 0.22)',
-              animation: 'fadeIn 0.2s ease-out',
-            }}
+            style={
+              isMobile
+                ? {
+                    position: 'fixed',
+                    inset: 0,
+                    zIndex: 99990,
+                    backgroundColor: '#050811',
+                  }
+                : {
+                    width: '45%',
+                    minWidth: '360px',
+                    maxWidth: '720px',
+                    height: '100%',
+                    flexShrink: 0,
+                    borderLeft: '1px solid rgba(0, 217, 255, 0.22)',
+                    animation: 'fadeIn 0.2s ease-out',
+                  }
+            }
           >
             <LiveCanvasWorkspace
               isOpen={true}
@@ -3356,35 +3439,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
         )}
       </div>
 
-      {/* LYAXIS NOTEBOOK STUDIO VISOR / DRAWER */}
-      <NotebookStudio
-        isOpen={isNotebookOpen}
-        onClose={() => setIsNotebookOpen(false)}
-        initialContent={notebookContent}
-        initialTitle={notebookTitle}
-        activeModel={currentActiveModel}
-        isMobile={isMobile}
-      />
-
-      {/* Task 4: Human-in-the-Loop Clarification Modal */}
-      {clarificationData && (
-        <ClarificationModal
-          data={clarificationData}
-          onSubmit={handleClarificationSubmit}
-          onClose={() => {
-            setClarificationData(null);
-            // Remove empty pending state — user dismissed without answering
-            setMessages((prev) => prev.filter((m) => m.role === 'user' || m.content.trim()));
-          }}
-        />
+      {/* LYAXIS NOTEBOOK STUDIO VISOR / DRAWER (Lazy-loaded) */}
+      {isNotebookOpen && (
+        <Suspense fallback={null}>
+          <NotebookStudio
+            isOpen={isNotebookOpen}
+            onClose={() => setIsNotebookOpen(false)}
+            initialContent={notebookContent}
+            initialTitle={notebookTitle}
+            activeModel={currentActiveModel}
+            isMobile={isMobile}
+          />
+        </Suspense>
       )}
 
       {/* Modal Glassmorphic Dark Void (#050505) — Alerta de Cuota LYAXIS TRIAD™ */}
       <TriadQuotaModal
         isOpen={isTriadQuotaModalOpen}
         onClose={() => setIsTriadQuotaModalOpen(false)}
-        timeRemainingFormatted={triadTimeFormatted}
-        onSwitchToSpeed={() => {
+        triadTimeFormatted={triadTimeFormatted}
+        onContinueWithSpeed={() => {
           handleModelSwitch('speed');
           setIsTriadActive(false);
           setIsTriadQuotaModalOpen(false);
@@ -3402,13 +3476,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
           triggerSound();
           setTimeout(() => textareaRef.current?.focus(), 60);
         }}
-      />
-
-      {/* Directivas y Memoria Personal Modal */}
-      <CustomInstructionsModal
-        isOpen={isDirectivesModalOpen}
-        onClose={() => setIsDirectivesModalOpen(false)}
-        accentColor={meta.color}
       />
     </div>
   );

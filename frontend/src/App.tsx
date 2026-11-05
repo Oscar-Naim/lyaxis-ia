@@ -1,60 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import type { ModelType, ModelId, Message, Conversation, User, ContrastTheme } from './types';
-import { ALL_MODELS, API_BASE, GOOGLE_CLIENT_ID, THEMES, MODEL_META } from './config';
+import { ALL_MODELS, API_BASE, GOOGLE_CLIENT_ID, THEMES, MODEL_META, getAuthHeaders } from './config';
 import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/ChatView';
 import { AuthModal } from './AuthModal';
-import { FuturisticDashboardModal } from './FuturisticDashboardModal';
-import { LyaxisInfoDrawer } from './LyaxisInfoDrawer';
 import { InstallPwaPrompt } from './InstallPwaPrompt';
 import { BootSplash } from './components/BootSplash';
 import { exportChatToPDF } from './pdfExporter';
 import { isSoundMuted, setSoundMuted, playCyberClick } from './sound';
-import { LandingPage } from './LandingPage';
 import { CommandPalette } from './components/CommandPalette';
 import { exportChatToMarkdown, exportChatToJSON } from './utils/chatExporter';
 import { CustomInstructionsModal } from './components/CustomInstructionsModal';
-// Componente GatekeeperModal desacoplado del flujo principal para acceso 100% público
+
+const FuturisticDashboardModal = lazy(() =>
+  import('./FuturisticDashboardModal').then((m) => ({ default: m.FuturisticDashboardModal }))
+);
+const LyaxisInfoDrawer = lazy(() =>
+  import('./LyaxisInfoDrawer').then((m) => ({ default: m.LyaxisInfoDrawer }))
+);
+const LandingPage = lazy(() =>
+  import('./LandingPage').then((m) => ({ default: m.LandingPage }))
+);
 
 export default function App() {
-  // Protocolo ZERO VIP Gatekeeper removido: Plataforma 100% de acceso público e inmediato
-  const [isUnlocked, setIsUnlocked] = useState<boolean>(true);
-  const [accessGranted, setAccessGranted] = useState<boolean>(true);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
-
-  // Nivel de acceso predeterminado como "public" / "open_core" para montaje inmediato
-  const [userTier, setUserTier] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return 'public';
-    const saved = localStorage.getItem('lyaxis_user_tier');
-    return saved && saved !== 'VIP' ? saved : 'public';
-  });
-
-  const handleGatekeeperUnlock = (_token: string = 'LYX-PUBLIC-CORE', tier: string = 'public') => {
-    setIsUnlocked(true);
-    setAccessGranted(true);
-    setIsAuthenticated(true);
-    setUserTier(tier);
-    if (soundEnabled) playCyberClick();
-  };
-
-  useEffect(() => {
-    // Inicialización no bloqueante: se remueve la verificación forzada de lyaxis_access_token en localStorage
-    try {
-      const savedTier = localStorage.getItem('lyaxis_user_tier');
-      if (!savedTier || savedTier === 'VIP') {
-        localStorage.setItem('lyaxis_user_tier', 'public');
-        setUserTier('public');
-      }
-    } catch {
-      // Ignorar fallos de storage
-    }
-
-    if (!isAuthenticated || !isUnlocked || !accessGranted) {
-      handleGatekeeperUnlock();
-    }
-  }, [isAuthenticated, isUnlocked, accessGranted]);
-
   const [showBoot, setShowBoot] = useState(() =>
     typeof window !== 'undefined' ? sessionStorage.getItem('lyaxis_boot_seen') !== 'true' : false
   );
@@ -64,9 +33,12 @@ export default function App() {
   const [isShowcaseOpen, setIsShowcaseOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isDirectivesOpen, setIsDirectivesOpen] = useState(false);
+  const [pendingShowcasePrompt, setPendingShowcasePrompt] = useState<string | null>(null);
   const [infoDrawerTab, setInfoDrawerTab] = useState<'manifesto' | 'ecosystem' | 'security' | 'terms'>('manifesto');
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 768));
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() =>
+    typeof window === 'undefined' ? true : window.innerWidth >= 1024
+  );
 
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     return typeof window !== 'undefined' ? !isSoundMuted() : true;
@@ -92,8 +64,12 @@ export default function App() {
   };
 
   const [user, setUser] = useState<User | null>(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('lyaxis_user') : null;
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('lyaxis_user') : null;
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
 
   const [guestId] = useState<string>(() => {
@@ -158,10 +134,10 @@ export default function App() {
     const handleResize = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      if (!mobile) {
-        setIsSidebarOpen(true);
-      } else {
+      if (mobile) {
         setIsSidebarOpen(false);
+      } else if (window.innerWidth >= 1024) {
+        setIsSidebarOpen(true);
       }
     };
     handleResize();
@@ -194,6 +170,14 @@ export default function App() {
     if (soundEnabled) playCyberClick();
   };
 
+  const triggerOpenNotebook = () => {
+    window.dispatchEvent(new CustomEvent('lyaxis_open_notebook'));
+  };
+
+  const triggerToggleTriad = () => {
+    window.dispatchEvent(new CustomEvent('lyaxis_toggle_triad'));
+  };
+
   const handleLoginSuccess = (loggedInUser: User) => {
     setUser(loggedInUser);
     localStorage.setItem('lyaxis_user', JSON.stringify(loggedInUser));
@@ -217,7 +201,7 @@ export default function App() {
         return;
       }
       const url = `${API_BASE}/api/v1/conversations?user_id=${encodeURIComponent(uid)}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: getAuthHeaders(uid) });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -228,7 +212,7 @@ export default function App() {
               userId: c.user_id || uid,
               title: c.title || 'Nueva conversación',
               createdAt: c.created_at || new Date().toISOString(),
-              model: c.model || 'speed',
+              model: c.model === 'classic' ? 'speed' : (c.model || 'speed'),
               pinned: Boolean(c.pinned),
               folder: c.folder || undefined,
             }));
@@ -236,7 +220,6 @@ export default function App() {
           setCurrentChatId((curr) => {
             if (!curr && loaded.length > 0) {
               loadMessages(loaded[0].id);
-              // Always maintain 'speed' as the default model when opening the app
               return loaded[0].id;
             }
             return curr;
@@ -254,7 +237,9 @@ export default function App() {
       if (saved) {
         setMessages(JSON.parse(saved));
       }
-      const res = await fetch(`${API_BASE}/api/v1/conversations/${chatId}/messages`);
+      const res = await fetch(`${API_BASE}/api/v1/conversations/${chatId}/messages`, {
+        headers: getAuthHeaders(activeUserId),
+      });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -297,7 +282,7 @@ export default function App() {
       try {
         await fetch(`${API_BASE}/api/v1/conversations`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders(activeUserId, true),
           body: JSON.stringify({
             id: currentChatId,
             user_id: activeUserId,
@@ -313,10 +298,10 @@ export default function App() {
   const handleNewConversation = async (modelOverride?: ModelType) => {
     const cid = `chat-${Date.now()}`;
     const modelToUse = modelOverride || 'speed';
-    setSelectedModel('speed');
+    setSelectedModel(modelToUse);
     try {
-      localStorage.setItem('lyaxis_active_model', 'speed');
-      localStorage.setItem('lyaxis_selected_model', 'speed');
+      localStorage.setItem('lyaxis_active_model', modelToUse);
+      localStorage.setItem('lyaxis_selected_model', modelToUse);
     } catch {}
     const uid = activeUserId;
     const newChat: Conversation = {
@@ -334,7 +319,7 @@ export default function App() {
     try {
       await fetch(`${API_BASE}/api/v1/conversations`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(uid, true),
         body: JSON.stringify({
           id: cid,
           user_id: uid,
@@ -350,7 +335,10 @@ export default function App() {
   const handleDeleteConversation = async (chatId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     try {
-      await fetch(`${API_BASE}/api/v1/conversations/${chatId}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/api/v1/conversations/${chatId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(activeUserId),
+      });
     } catch (err) {
       console.error('Error eliminando conversación en backend:', err);
     }
@@ -367,7 +355,10 @@ export default function App() {
 
   const deleteAllConversations = async () => {
     try {
-      await fetch(`${API_BASE}/api/v1/conversations/all?user_id=${activeUserId}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/api/v1/conversations/all?user_id=${encodeURIComponent(activeUserId)}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(activeUserId),
+      });
       setConversations([]);
       setMessages([]);
       setCurrentChatId(null);
@@ -392,7 +383,7 @@ export default function App() {
     try {
       await fetch(`${API_BASE}/api/v1/conversations/${chatId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(activeUserId, true),
         body: JSON.stringify({ pinned: nextPinned }),
       });
     } catch (err) {
@@ -412,7 +403,7 @@ export default function App() {
     try {
       await fetch(`${API_BASE}/api/v1/conversations/${chatId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(activeUserId, true),
         body: JSON.stringify({ title: clean }),
       });
     } catch (err) {
@@ -445,7 +436,7 @@ export default function App() {
     try {
       await fetch(`${API_BASE}/api/v1/conversations`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(uid, true),
         body: JSON.stringify({
           id: cid,
           user_id: uid,
@@ -496,6 +487,7 @@ export default function App() {
           onSelectModel={(m) => switchModel(m)}
           soundMuted={!soundEnabled}
           onToggleSoundMute={toggleSound}
+          onOpenNotebook={triggerOpenNotebook}
           onOpenShowcase={() => setIsShowcaseOpen(true)}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
           onOpenDirectives={() => setIsDirectivesOpen(true)}
@@ -511,6 +503,7 @@ export default function App() {
           activeUserId={activeUserId}
           isMobile={isMobile}
           soundEnabled={soundEnabled}
+          onToggleSound={toggleSound}
           playCyberClick={playCyberClick}
           onConversationUpdated={() => fetchConversations(activeUserId)}
           onExportPDF={exportChatToPDF}
@@ -521,11 +514,13 @@ export default function App() {
           onLogout={handleLogout}
           onOpenDashboard={() => setIsDashboardOpen(true)}
           onOpenInfoDrawer={openInfoDrawer}
+          onOpenDirectives={() => setIsDirectivesOpen(true)}
           isScanlineActive={isScanlineActive}
           isChromaticActive={isChromaticActive}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-          userTier={userTier}
           onForkConversation={handleForkConversation}
+          initialPrompt={pendingShowcasePrompt}
+          onInitialPromptConsumed={() => setPendingShowcasePrompt(null)}
         />
 
         <CommandPalette
@@ -564,8 +559,10 @@ export default function App() {
               );
             }
           }}
+          onOpenNotebook={triggerOpenNotebook}
           onOpenDirectives={() => setIsDirectivesOpen(true)}
           onOpenDashboard={() => setIsDashboardOpen(true)}
+          onToggleTriad={triggerToggleTriad}
           isScanlineActive={isScanlineActive}
           onToggleScanline={() => setIsScanlineActive((p) => !p)}
           isChromaticActive={isChromaticActive}
@@ -582,51 +579,62 @@ export default function App() {
           onLoginSuccess={handleLoginSuccess}
         />
 
-        <FuturisticDashboardModal
-          isOpen={isDashboardOpen}
-          onClose={() => setIsDashboardOpen(false)}
-          selectedModel={selectedModel}
-          onSelectModel={(m) => {
-            switchModel(m);
-            if (soundEnabled) playCyberClick();
-          }}
-          soundEnabled={soundEnabled}
-          onToggleSound={toggleSound}
-          messageCount={messages.length}
-          conversationCount={conversations.length}
-          activeUserId={activeUserId}
-          contrastTheme={contrastTheme}
-          onChangeContrastTheme={handleChangeContrastTheme}
-        />
+        {isDashboardOpen && (
+          <Suspense fallback={null}>
+            <FuturisticDashboardModal
+              isOpen={isDashboardOpen}
+              onClose={() => setIsDashboardOpen(false)}
+              selectedModel={selectedModel}
+              onSelectModel={(m) => {
+                switchModel(m);
+                if (soundEnabled) playCyberClick();
+              }}
+              soundEnabled={soundEnabled}
+              onToggleSound={toggleSound}
+              messageCount={messages.length}
+              conversationCount={conversations.length}
+              activeUserId={activeUserId}
+              contrastTheme={contrastTheme}
+              onChangeContrastTheme={handleChangeContrastTheme}
+            />
+          </Suspense>
+        )}
 
-        <LyaxisInfoDrawer
-          isOpen={isInfoDrawerOpen}
-          onClose={() => setIsInfoDrawerOpen(false)}
-          initialTab={infoDrawerTab}
-        />
+        {isInfoDrawerOpen && (
+          <Suspense fallback={null}>
+            <LyaxisInfoDrawer
+              isOpen={isInfoDrawerOpen}
+              onClose={() => setIsInfoDrawerOpen(false)}
+              initialTab={infoDrawerTab}
+            />
+          </Suspense>
+        )}
 
         <InstallPwaPrompt />
 
         {isShowcaseOpen && (
-          <LandingPage
-            onEnterChat={() => setIsShowcaseOpen(false)}
-            onEnterChatWithModel={(model, prompt) => {
-              setIsShowcaseOpen(false);
-              switchModel(model);
-            }}
-            onOpenAuth={() => setIsAuthOpen(true)}
-            onOpenInfo={(tab) => openInfoDrawer(tab)}
-          />
+          <Suspense fallback={null}>
+            <LandingPage
+              onEnterChat={() => setIsShowcaseOpen(false)}
+              onEnterChatWithModel={(model, prompt) => {
+                setIsShowcaseOpen(false);
+                switchModel(model);
+                if (prompt && prompt.trim()) {
+                  setPendingShowcasePrompt(prompt.trim());
+                }
+              }}
+              onOpenAuth={() => setIsAuthOpen(true)}
+              onOpenInfo={(tab) => openInfoDrawer(tab)}
+            />
+          </Suspense>
         )}
 
-        {/* Directivas y Memoria Personal */}
+        {/* Directivas y Memoria Personal (Instancia Única Global) */}
         <CustomInstructionsModal
           isOpen={isDirectivesOpen}
           onClose={() => setIsDirectivesOpen(false)}
           accentColor={currentTheme.primary}
         />
-
-        {/* Protocolo Gatekeeper desacoplado: acceso público irrestricto sin modal bloqueante */}
       </div>
     </GoogleOAuthProvider>
   );

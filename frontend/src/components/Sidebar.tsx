@@ -89,7 +89,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onTogglePinConversation,
   onRenameConversation,
   selectedModel,
-  onSelectModel,
   soundMuted: soundMutedProp,
   onToggleSoundMute,
   onOpenNotebook,
@@ -178,17 +177,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
           bottom: 0,
           height: '100dvh',
           maxHeight: '100dvh',
+          boxSizing: 'border-box',
           zIndex: 10001,
-          width: isMobile ? '288px' : (isOpen ? '280px' : '0px'),
-          maxWidth: isMobile ? '85vw' : '280px',
+          width: isMobile ? '288px' : (isOpen ? '276px' : '0px'),
+          maxWidth: isMobile ? '85vw' : '276px',
           display: 'flex',
           transform: isMobile ? (isOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
           visibility: isMobile ? (isOpen ? 'visible' : 'hidden') : (isOpen ? 'visible' : 'hidden'),
           pointerEvents: !isOpen ? 'none' : 'auto',
           backgroundColor: '#0A0A10',
-          borderRight: '1px solid #1E1E2C',
+          borderRight: !isMobile && !isOpen ? 'none' : '1px solid #1E1E2C',
           flexDirection: 'column',
-          padding: !isMobile && !isOpen ? '0px' : '16px',
+          padding: !isMobile && !isOpen
+            ? '0px'
+            : isMobile
+              ? '14px 14px calc(14px + env(safe-area-inset-bottom, 8px))'
+              : '14px',
           flexShrink: 0,
           boxShadow: isMobile && isOpen ? '16px 0 50px rgba(0,0,0,0.95), 0 0 30px rgba(0, 217, 255, 0.1)' : 'none',
           transition: 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), width 0.25s cubic-bezier(0.16, 1, 0.3, 1), padding 0.25s ease',
@@ -201,9 +205,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: '16px',
-          paddingBottom: '12px',
+          marginBottom: '12px',
+          paddingBottom: '10px',
           borderBottom: '1px solid #141418',
+          flexShrink: 0,
         }}
       >
         <div
@@ -575,7 +580,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       {/* Conversation List with Instant Filter */}
-      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
           <span style={{ fontSize: '11px', color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
             Historial {conversations.length > 0 && `(${filteredConversations.length}${searchQuery ? `/${conversations.length}` : ''})`}
@@ -952,16 +957,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* 5. Barra Inferior del Sidebar con Interruptor de Sonido Discreto (Mute Toggle) */}
       <div
         style={{
-          paddingTop: '12px',
+          paddingTop: '10px',
           borderTop: '1px solid #141418',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: '6px',
           marginTop: '8px',
+          flexShrink: 0,
         }}
       >
-        <span style={{ fontSize: '11px', color: '#52525b', letterSpacing: '0.3px' }}>
-          Create. Break. Rebuild. • 2026
+        <span
+          style={{
+            fontSize: '10.5px',
+            color: '#52525b',
+            letterSpacing: '0.2px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            minWidth: 0,
+          }}
+        >
+          Create. Break. Rebuild.
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {onOpenDirectives && (

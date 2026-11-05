@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ShieldCheck, BookOpen, Layers, Lock, Cpu, Sparkles, Terminal, Flame, Zap, CheckCircle2, AlertCircle, FileText, GraduationCap, Presentation } from 'lucide-react';
+import { X, ShieldCheck, BookOpen, Layers, Lock, Cpu, Sparkles, Terminal, Zap, CheckCircle2, AlertCircle, FileText, GraduationCap } from 'lucide-react';
 
 interface LyaxisInfoDrawerProps {
   isOpen: boolean;

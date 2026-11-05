@@ -16,10 +16,8 @@ import {
   Terminal as TerminalIcon,
   ChevronDown,
   ChevronUp,
-  AlertCircle,
-  ExternalLink,
 } from 'lucide-react';
-import { playCyberClick, playCyberBeep } from '../sound';
+import { playCyberClick } from '../sound';
 
 export interface LiveCanvasWorkspaceProps {
   isOpen: boolean;
@@ -40,8 +38,6 @@ export const LiveCanvasWorkspace: React.FC<LiveCanvasWorkspaceProps> = ({
   language = 'html',
   title = 'LYAXIS Live Canvas Studio',
   accentColor = '#00d9ff',
-  _isDocked = true,
-  _onToggleDock,
   onCodeChange,
 }) => {
   const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');

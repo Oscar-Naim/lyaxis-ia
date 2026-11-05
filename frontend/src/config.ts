@@ -7,11 +7,35 @@ export const API_BASE =
 export const GOOGLE_CLIENT_ID = "1073688660808-amgupffpqddmmo89vemaaupje20531t6.apps.googleusercontent.com";
 export const APP_URL = "https://lyaxis-ia.vercel.app";
 
-// Protocolo ZERO VIP Gatekeeper deshabilitado: Fallbacks seguros sin requerir variables en local o Vercel
-export const GATEKEEPER_API_URL: string =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GATEKEEPER_API_URL) || '';
-export const GATEKEEPER_MASTER_KEY: string =
-  (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_GATEKEEPER_MASTER_KEY || import.meta.env?.GATEKEEPER_MASTER_KEY)) || '';
+/**
+ * Construye encabezados autenticados (HMAC Bearer + X-Lyaxis-Uid) de forma retrocompatible.
+ */
+export function getAuthHeaders(fallbackUid?: string, includeJson: boolean = false): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (includeJson) {
+    headers['Content-Type'] = 'application/json';
+  }
+  try {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('lyaxis_user');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.token) {
+          headers['Authorization'] = `Bearer ${parsed.token}`;
+        }
+        if (parsed?.id) {
+          headers['X-Lyaxis-Uid'] = String(parsed.id);
+        }
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
+  if (fallbackUid && !headers['X-Lyaxis-Uid']) {
+    headers['X-Lyaxis-Uid'] = fallbackUid;
+  }
+  return headers;
+}
 
 import type { ModelType } from './types';
 
@@ -103,7 +127,6 @@ export const ALL_MODELS: ModelType[] = [
   'cortex',
   'zenith',
   'architect',
-  'classic',
   'phantom',
   'nexus',
   'forge',

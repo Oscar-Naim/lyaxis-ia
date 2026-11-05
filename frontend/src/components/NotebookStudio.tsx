@@ -3,7 +3,6 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import 'katex/dist/katex.min.css';
 import html2pdf from 'html2pdf.js';
 import {
   BookOpen,
@@ -18,9 +17,7 @@ import {
   Trash2,
   Plus,
   Folder,
-  Calendar,
   Clock,
-  Share2,
   Copy,
 } from 'lucide-react';
 import type { ModelType } from '../types';

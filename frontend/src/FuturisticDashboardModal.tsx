@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Activity, Cpu, ShieldCheck, Zap, Radio, BarChart3, Sliders, RefreshCw, CheckCircle2, Database } from 'lucide-react';
+import { X, Activity, Cpu, Zap, Radio, BarChart3, Sliders, CheckCircle2, Database } from 'lucide-react';
 import { API_BASE } from './config';
 import type { ModelType, ContrastTheme } from './types';
 
@@ -371,7 +371,7 @@ export const FuturisticDashboardModal: React.FC<FuturisticDashboardModalProps> =
           {activeTab === 'engine' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <span style={{ fontSize: '12px', color: '#a1a1aa', fontWeight: 600 }}>SELECCIONAR MOTOR DE RAZONAMIENTO ACTIVADO</span>
-              {(['speed', 'cortex', 'zenith', 'architect', 'classic', 'phantom', 'nexus', 'forge', 'magister', 'root'] as const).map((m) => {
+              {(['speed', 'cortex', 'zenith', 'architect', 'phantom', 'nexus', 'forge', 'magister', 'root'] as const).map((m) => {
                 const isCurrent = selectedModel === m;
                 const info = modelMetrics[m];
                 const color = info.color;

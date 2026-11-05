@@ -2,11 +2,11 @@
 
 Plataforma de inteligencia artificial multi-motor especializada en código, algoritmos y razonamiento determinista.
 
-🌐 **Sitio Web Oficial:** [https://lyaxis-ia.vercel.app/](https://lyaxis-ia.vercel.app/)
+ **Sitio Web Oficial:** [https://lyaxis-ia.vercel.app/](https://lyaxis-ia.vercel.app/)
 
 ---
 
-## ⚡ Modelos y Capacidades
+##  Modelos y Capacidades
 
 - **Speed (Flash Engine)**: Respuestas ultrarrápidas y fluidas para consultas cotidianas y tareas ágiles.
 - **Cortex (Thought Engine)**: Razonamiento estructurado y análisis profundo paso a paso.
@@ -14,7 +14,7 @@ Plataforma de inteligencia artificial multi-motor especializada en código, algo
 
 ---
 
-## 🚀 Tecnologías
+##  Tecnologías
 
 - **Frontend:** React 19 + TypeScript + Vite + KaTeX + Highlight.js
 - **Backend:** FastAPI + SQLite / Python

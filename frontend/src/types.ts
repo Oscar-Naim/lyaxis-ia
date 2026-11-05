@@ -4,6 +4,7 @@ export interface User {
   phone?: string;
   name: string;
   picture: string;
+  token?: string;
 }
 
 export type ModelType = 'speed' | 'cortex' | 'zenith' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'root';

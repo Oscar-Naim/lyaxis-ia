@@ -4,6 +4,12 @@
   --current-primary: #3b82f6;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 html, body, #root {
   margin: 0;
   padding: 0;
@@ -1539,5 +1545,74 @@ pre {
 }
 .lyaxis-tts-bar:nth-child(2) { animation-delay: 0.15s; }
 .lyaxis-tts-bar:nth-child(3) { animation-delay: 0.3s; }
+
+/* 5. Global Utility Spin & Non-Clipping Responsive Header Rules */
+@keyframes lyaxisSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: lyaxisSpin 0.9s linear infinite;
+}
+
+.lyaxis-header-bar {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.lyaxis-header-bar button,
+.lyaxis-model-bar button {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Hide telemetry pill on medium laptops (< 1420px) so action buttons never clip */
+@media (max-width: 1420px) {
+  .lyaxis-header-telemetry {
+    display: none !important;
+  }
+}
+
+/* Compact model switcher & hide secondary text labels on laptops/tablets (< 1220px) */
+@media (max-width: 1220px) {
+  .lyaxis-btn-label {
+    display: none !important;
+  }
+  .lyaxis-kbd-hint {
+    display: none !important;
+  }
+  .lyaxis-model-bar .lyaxis-brand-prefix {
+    display: none !important;
+  }
+}
+
+@media (max-width: 960px) {
+  .lyaxis-model-bar .lyaxis-temp-tag {
+    display: none !important;
+  }
+}
+
+/* Compact Empty State on shorter laptop screens (e.g. 1366x768 / 1280x720) */
+@media (max-height: 780px) and (min-width: 768px) {
+  .lyaxis-empty-state {
+    min-height: auto !important;
+    gap: 14px !important;
+    padding: 8px 12px !important;
+  }
+  .lyaxis-empty-emblem {
+    width: 54px !important;
+    height: 54px !important;
+    border-radius: 16px !important;
+  }
+  .lyaxis-empty-title {
+    font-size: 28px !important;
+    margin: 6px 0 2px 0 !important;
+  }
+}
+
 
 

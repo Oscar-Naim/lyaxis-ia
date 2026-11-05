@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Terminal, Sparkles, Brain, Compass, ShieldCheck, ArrowRight, MessageCircle, Crosshair, Waypoints, Hammer, GraduationCap, Zap, Cpu, Activity, Send, Layers } from 'lucide-react';
-
-type ModelType = 'speed' | 'cortex' | 'zenith' | 'architect' | 'classic' | 'phantom' | 'nexus' | 'forge' | 'magister' | 'root';
+import { Terminal, Sparkles, Brain, Compass, ArrowRight, Crosshair, Waypoints, Hammer, GraduationCap, Send } from 'lucide-react';
+import type { ModelType } from './types';
 
 interface LandingPageProps {
   onEnterChat: () => void;
@@ -67,18 +66,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       desc: 'Diseñador de System Prompts estructurados, mentoría técnica paso a paso y patrones.',
       prompt: 'Diseña un System Prompt para un agente de soporte técnico en producción',
       badge: 'Arquitectura',
-    },
-    {
-      id: 'classic' as ModelType,
-      name: 'LYAXIS Classic',
-      version: 'v2.4 Daily',
-      color: '#F59E0B',
-      icon: <MessageCircle size={20} color="#F59E0B" />,
-      tps: '135 t/s',
-      latency: '~14ms',
-      desc: 'Compañero inteligente para uso diario. Conversación fluida, asistencia general y redacción.',
-      prompt: 'Dame un plan de estudio estructurado para aprender Rust en 30 días',
-      badge: 'Uso Diario',
     },
     {
       id: 'phantom' as ModelType,

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import type { Message } from './types';
-import { API_BASE } from './config';
+import { API_BASE, getAuthHeaders } from './config';
 
 export type TriadCoreType = 'create' | 'break' | 'rebuild';
 
@@ -87,11 +87,19 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
           .filter((m) => m && ((m.content && String(m.content).trim()) || m.image) && !String(m.content || '').startsWith('⚠️') && !String(m.content || '').startsWith('❌'))
           .map((m, idx) => {
             let contentStr = String(m.content || '').trim();
+            const isPriorAssistant =
+              (m.role === 'model' || (m.role as string) === 'assistant') &&
+              idx < trimmedHistory.length - 1;
+            // Limpiar bloques internos <thought>...</thought> en turnos previos para ahorrar tokens de entrada
+            if (isPriorAssistant && contentStr.includes('<thought>')) {
+              contentStr = contentStr.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
+            }
             // Si es un mensaje previo de TRIAD en el historial, sintetizarlo para no reenviar miles de tokens
             if (contentStr.includes('[TRIAD_CORE:rebuild]')) {
               const matchRebuild = contentStr.match(/\[TRIAD_CORE:rebuild\]([\s\S]*?)\[\/TRIAD_CORE:rebuild\]/);
               if (matchRebuild && matchRebuild[1]) {
-                contentStr = `[Síntesis de turno previo]: ${matchRebuild[1].trim().slice(0, 350)}...`;
+                const cleanRebuild = matchRebuild[1].replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
+                contentStr = `[Síntesis de turno previo]: ${cleanRebuild.slice(0, 350)}...`;
               }
             } else if (contentStr.length > 700 && idx < trimmedHistory.length - 1) {
               contentStr = `${contentStr.slice(0, 700)}...`;
@@ -143,7 +151,6 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
           conversation_id: conversationId || null,
           user_id: userId || null,
           messages: sanitizedMessages,
-          conversationHistory: sanitizedMessages,
           model: String(model || 'speed'),
           temperature: resolvedTemp,
           triad_mode: Boolean(options?.triad_mode),
@@ -152,7 +159,7 @@ export function useSSEStream({ onDone: hookOnDone, onError: hookOnError }: UseSS
         const response = await fetch(`${API_BASE}/api/v1/chat/stream`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
+            ...getAuthHeaders(userId || undefined, true),
             'Accept': 'text/event-stream',
           },
           body: JSON.stringify(payload),

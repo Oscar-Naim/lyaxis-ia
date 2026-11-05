@@ -40,9 +40,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
 
   if (!isOpen) return null;
 
-  // Direct login with email (Zero friction, no Google origin_mismatch block)
-  const handleDirectEmailLogin = () => {
-    const email = target.trim();
+  // Direct login with email (Zero friction + deterministic cross-device sync + HMAC token)
+  const handleDirectEmailLogin = async () => {
+    const email = target.trim().toLowerCase();
     if (!email || !email.includes('@')) {
       setError('Por favor escribe un correo electrónico válido (ej. tu@gmail.com)');
       return;
@@ -51,30 +51,39 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
     setLoading(true);
     setError(null);
 
-    const verifiedUser: User = {
-      id: `user-${Date.now()}`,
-      email: email,
+    const fallbackUser: User = {
+      id: `email-${email.replace(/[^a-z0-9]/g, '_')}`,
+      email,
       name: email.split('@')[0].toUpperCase(),
-      picture: `https://api.dicebear.com/7.x/bottts/svg?seed=${email}`
+      picture: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(email)}`
     };
 
-    onLoginSuccess(verifiedUser);
-    onClose();
-    setLoading(false);
-
-    // Optional background sync
     try {
-      fetch(`${API_BASE}/api/v1/auth/otp/verify`, {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 3000);
+      const res = await fetch(`${API_BASE}/api/v1/auth/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contact: email,
-          target: email,
-          code: 'direct',
-          auth_type: 'email'
-        })
-      }).catch(() => {});
-    } catch {}
+        body: JSON.stringify({ contact: email, target: email, auth_type: 'email' }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.user) {
+          onLoginSuccess(data.user);
+          onClose();
+          setLoading(false);
+          return;
+        }
+      }
+    } catch {
+      // Fallback instantáneo si el servidor está despertando
+    }
+
+    onLoginSuccess(fallbackUser);
+    onClose();
+    setLoading(false);
   };
 
   // Instant Guest Access (1-click)
@@ -180,7 +189,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
           body: JSON.stringify({ 
             credential: credentialResponse.credential
           })
-        }).catch(() => {});
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (data?.user) {
+              onLoginSuccess(data.user);
+            }
+          })
+          .catch(() => {});
       } else {
         setError('No se pudo leer la respuesta de Google');
       }

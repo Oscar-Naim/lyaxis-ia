@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, X, Check, Save, UserCircle, Sliders, Shield, Zap } from 'lucide-react';
+import { X, Check, Save, Sliders } from 'lucide-react';
 import { playCyberClick } from '../sound';
 
 export interface CustomInstructions {

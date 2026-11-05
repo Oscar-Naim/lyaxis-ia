@@ -1,5 +1,9 @@
-import html2pdf from 'html2pdf.js';
 import type { Message } from './types';
+
+async function loadHtml2Pdf() {
+  const mod = await import('html2pdf.js');
+  return mod.default || mod;
+}
 
 function markdownToPdfHtml(markdownText: string): string {
   if (!markdownText) return '';
@@ -232,6 +236,7 @@ export const exportChatToPDF = async (
   };
 
   try {
+    const html2pdf = await loadHtml2Pdf();
     await html2pdf().set(opt).from(container).save();
   } catch (err) {
     console.error("Error al exportar PDF:", err);
@@ -371,6 +376,7 @@ export const exportSlidesToPDF = async (
   };
 
   try {
+    const html2pdf = await loadHtml2Pdf();
     await html2pdf().set(opt).from(container).save();
   } catch (err) {
     console.error("Error exportando diapositivas en PDF:", err);

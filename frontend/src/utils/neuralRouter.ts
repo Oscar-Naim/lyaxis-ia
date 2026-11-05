@@ -135,10 +135,10 @@ export function routePromptToModel(prompt: string, hasImage: boolean = false): R
     };
   }
 
-  // Default: Mantener el modelo actual o usar Classic si no hay nada especializado
+  // Default: Motor ágil integral sin restricciones (Speed)
   return {
-    model: 'classic',
-    confidence: 0.60,
-    reason: 'Consulta de propósito general: asignado a Classic.',
+    model: 'speed',
+    confidence: 0.72,
+    reason: 'Consulta general o desarrollo ágil: asignado a Speed.',
   };
 }

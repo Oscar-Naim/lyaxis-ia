@@ -6,7 +6,7 @@ A continuación, se detalla todo lo que compone y es capaz de hacer LYAXIS IA en
 
 ---
 
-## 🎨 1. Experiencia de Usuario y Estética (UI/UX)
+##  1. Experiencia de Usuario y Estética (UI/UX)
 El frontend no es solo una interfaz de chat genérica, está diseñado para sentirse como una terminal futurista de alto nivel:
 
 - **Auras Ambientales Dinámicas:** El fondo de la aplicación reacciona al modelo que selecciones. Si eliges *Cortex*, el ambiente brilla con un tono púrpura suave. Si eliges *Forge*, cambia a un tono naranja industrial, creando una experiencia inmersiva.
@@ -19,13 +19,13 @@ El frontend no es solo una interfaz de chat genérica, está diseñado para sent
 
 ---
 
-## 🧠 2. Personas e Inteligencia (Modelos Especializados)
+##  2. Personas e Inteligencia (Modelos Especializados)
 En lugar de tener una IA genérica que lo haga todo a medias, LYAXIS divide su "cerebro" (impulsado por la arquitectura **LYAXIS Neural Engine**) en entidades especializadas. Cada modelo cuenta con "Límites de Dominio" (*Boundaries*): si le pides a uno que haga el trabajo de otro, se negará educadamente y te dirá a qué modelo debes acudir.
 
-1. **⚡ Speed (Cyan):** 
+1. ** Speed (Cyan):** 
    - *Rol:* Asistente ultrarrápido y directo. 
    - *Uso:* Respuestas concisas, sin relleno. Ideal para dudas rápidas.
-2. **🧠 Cortex (Púrpura):** 
+2. ** Cortex (Púrpura):** 
    - *Rol:* Analista profundo y pensador complejo.
    - *Uso:* Resolución de problemas matemáticos, lógicos, rompecabezas o análisis de datos.
 3. **🏗️ Architect (Verde Esmeralda):** 

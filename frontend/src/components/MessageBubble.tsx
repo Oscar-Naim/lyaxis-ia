@@ -1,20 +1,227 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import 'katex/dist/katex.min.css';
 
 import { 
   Copy, Check, FileDown, ChevronDown, ChevronRight, ChevronUp, Sparkles, BookOpen, 
   Zap, Crosshair, Brain, Compass, MessageCircle, Waypoints, Hammer, 
-  GraduationCap, Terminal, User as UserIcon, ShieldAlert, Cpu, Pencil, Save, X,
+  GraduationCap, Terminal, User as UserIcon, Pencil, Save,
   Volume2, Square, GitFork, ArrowUpRight
 } from 'lucide-react';
 import type { Message, ModelType } from '../types';
 import { CodeBlock } from '../CodeBlock';
-import { SlideDeckViewer } from '../SlideDeckViewer';
 import { MODEL_META } from '../config';
+
+const SlideDeckViewer = lazy(() =>
+  import('../SlideDeckViewer').then((m) => ({ default: m.SlideDeckViewer }))
+);
+
+function splitStreamingMarkdownBlocks(text: string): { frozen: string[]; active: string } {
+  const lines = text.split('\n');
+  const blocks: string[] = [];
+  let buf: string[] = [];
+  let inFence = false;
+  let inDisplayMath = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith('```')) {
+      inFence = !inFence;
+    } else if (!inFence && trimmed.startsWith('$$')) {
+      const count = (trimmed.match(/\$\$/g) || []).length;
+      if (count % 2 === 1) inDisplayMath = !inDisplayMath;
+    }
+
+    if (!inFence && !inDisplayMath && line.trim() === '' && buf.length > 0) {
+      const blockText = buf.join('\n').trim();
+      if (blockText) blocks.push(blockText);
+      buf = [];
+    } else {
+      buf.push(line);
+    }
+  }
+
+  const tail = buf.join('\n').trim();
+  if (tail) {
+    return { frozen: blocks, active: tail };
+  }
+  if (blocks.length > 0) {
+    const active = blocks.pop() as string;
+    return { frozen: blocks, active };
+  }
+  return { frozen: [], active: text };
+}
+
+const REMARK_PLUGINS = [remarkGfm, remarkMath];
+const REHYPE_PLUGINS = [rehypeKatex];
+
+const MemoizedMarkdownChunk = React.memo(
+  ({ text, modelColor }: { text: string; modelColor: string }) => (
+    <ReactMarkdown
+      remarkPlugins={REMARK_PLUGINS}
+      rehypePlugins={REHYPE_PLUGINS}
+      components={{
+        img({ src, alt, title }: any) {
+          return <AiEnrichedImage src={src} alt={alt} title={title} />;
+        },
+        table({ children, ...props }: any) {
+          return (
+            <div
+              className="lyaxis-markdown-table-wrapper"
+              style={{
+                overflowX: 'auto',
+                margin: '14px 0',
+                borderRadius: '10px',
+                border: '1px solid #2A2A3E',
+                backgroundColor: 'rgba(8, 8, 14, 0.85)',
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
+              }}
+            >
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }} {...props}>
+                {children}
+              </table>
+            </div>
+          );
+        },
+        thead({ children, ...props }: any) {
+          return (
+            <thead style={{ backgroundColor: 'rgba(42, 42, 62, 0.45)', borderBottom: '2px solid #2A2A3E' }} {...props}>
+              {children}
+            </thead>
+          );
+        },
+        th({ children, ...props }: any) {
+          return (
+            <th
+              style={{
+                padding: '10px 14px',
+                fontWeight: 700,
+                color: '#00D9FF',
+                textAlign: 'left',
+                borderRight: '1px solid #2A2A3E',
+                letterSpacing: '0.3px',
+              }}
+              {...props}
+            >
+              {children}
+            </th>
+          );
+        },
+        td({ children, ...props }: any) {
+          return (
+            <td
+              style={{
+                padding: '9px 14px',
+                borderBottom: '1px solid rgba(42, 42, 62, 0.7)',
+                borderRight: '1px solid rgba(42, 42, 62, 0.4)',
+                color: '#e4e4e7',
+              }}
+              {...props}
+            >
+              {children}
+            </td>
+          );
+        },
+        tr({ children, ...props }: any) {
+          return (
+            <tr style={{ transition: 'background-color 0.15s ease' }} {...props}>
+              {children}
+            </tr>
+          );
+        },
+        pre({ children }: any) {
+          return (
+            <div
+              style={{
+                overflowX: 'auto',
+                width: '100%',
+                maxWidth: '100%',
+                margin: '8px 0',
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
+              {children}
+            </div>
+          );
+        },
+        code({ className, children, ...props }: any) {
+          const match = /language-(\w+)/.exec(className || '');
+          const codeString = String(children || '').replace(/\n$/, '');
+
+          if (match) {
+            return <CodeBlock language={match[1]} codeString={codeString} />;
+          }
+          return (
+            <code
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                color: '#ffffff',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.14)',
+                fontFamily: "'JetBrains Mono', Consolas, monospace",
+                fontWeight: 600,
+                letterSpacing: '0.2px',
+              }}
+              {...props}
+            >
+              {children}
+            </code>
+          );
+        },
+        blockquote({ children, ...props }: any) {
+          return (
+            <blockquote
+              style={{
+                borderLeft: `3px solid ${modelColor}`,
+                margin: '12px 0',
+                padding: '8px 16px',
+                backgroundColor: `${modelColor}0d`,
+                borderRadius: '0 8px 8px 0',
+                color: '#cbd5e1',
+                fontStyle: 'italic',
+              }}
+              {...props}
+            >
+              {children}
+            </blockquote>
+          );
+        },
+        a({ href, children, ...props }: any) {
+          return (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: '#00D9FF',
+                textDecoration: 'none',
+                borderBottom: '1px solid rgba(0, 217, 255, 0.4)',
+                fontWeight: 500,
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderBottomColor = '#00D9FF';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderBottomColor = 'rgba(0, 217, 255, 0.4)';
+              }}
+              {...props}
+            >
+              {children}
+            </a>
+          );
+        },
+      }}
+    >
+      {text}
+    </ReactMarkdown>
+  )
+);
 
 export const MODEL_ROLE_DETAILS: Record<ModelType, {
   roleTag: string;
@@ -109,7 +316,7 @@ export interface MessageBubbleProps {
   renderPresentation?: (content: string) => React.ReactNode;
   onEditMessage?: (newContent: string) => void;
   onForkMessage?: () => void;
-  onAdoptTriadCore?: (coreName: string, coreContent: string) => void;
+  onAdoptTriadCore?: (coreModel: ModelType, coreContent: string) => void;
 }
 
 export interface ParsedTriad {
@@ -451,14 +658,6 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     }
   };
 
-  const renderConnector = () => (
-    <div style={{ padding: '3px 0', display: 'flex', justifyContent: 'center' }}>
-      <div className="lyaxis-triad-connector-line">
-        <div className="lyaxis-triad-connector-pulse" />
-      </div>
-    </div>
-  );
-
   const renderTriadCard = (
     coreNum: string,
     title: string,
@@ -606,7 +805,9 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
               type="button"
               onClick={() => {
                 const cleanBody = body.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
-                onAdoptTriadCore(modelTag, cleanBody);
+                const mappedModel: ModelType =
+                  coreNum === '2' ? 'phantom' : coreNum === '3' ? 'cortex' : 'speed';
+                onAdoptTriadCore(mappedModel, cleanBody);
               }}
               title={`Continuar conversación a partir de la versión de ${modelTag}`}
               style={{
@@ -877,10 +1078,12 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     if (content.includes('<slide')) {
       if (renderPresentation) return renderPresentation(content);
       return (
-        <SlideDeckViewer
-          rawContent={content}
-          presentationTitle={`Presentación LYAXIS ${modelLabel}`}
-        />
+        <Suspense fallback={<div style={{ padding: '12px', color: '#94a3b8', fontSize: '12px' }}>Cargando presentación...</div>}>
+          <SlideDeckViewer
+            rawContent={content}
+            presentationTitle={`Presentación LYAXIS ${modelLabel}`}
+          />
+        </Suspense>
       );
     }
 
@@ -896,7 +1099,9 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
           {finalContent ? (
             finalContent.includes('<slide') ? (
               renderPresentation ? renderPresentation(finalContent) : (
-                <SlideDeckViewer rawContent={finalContent} presentationTitle={`Presentación LYAXIS ${modelLabel}`} />
+                <Suspense fallback={<div style={{ padding: '12px', color: '#94a3b8', fontSize: '12px' }}>Cargando presentación...</div>}>
+                  <SlideDeckViewer rawContent={finalContent} presentationTitle={`Presentación LYAXIS ${modelLabel}`} />
+                </Suspense>
               )
             ) : (
               renderMarkdown(finalContent)
@@ -914,162 +1119,18 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   };
 
   const renderMarkdown = (text: string) => {
-    return (
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
-        components={{
-          img({ src, alt, title }: any) {
-            return <AiEnrichedImage src={src} alt={alt} title={title} />;
-          },
-          table({ children, ...props }: any) {
-            return (
-              <div className="lyaxis-markdown-table-wrapper" style={{
-                overflowX: 'auto',
-                margin: '14px 0',
-                borderRadius: '10px',
-                border: '1px solid #2A2A3E',
-                backgroundColor: 'rgba(8, 8, 14, 0.85)',
-                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
-              }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }} {...props}>
-                  {children}
-                </table>
-              </div>
-            );
-          },
-          thead({ children, ...props }: any) {
-            return (
-              <thead style={{ backgroundColor: 'rgba(42, 42, 62, 0.45)', borderBottom: '2px solid #2A2A3E' }} {...props}>
-                {children}
-              </thead>
-            );
-          },
-          th({ children, ...props }: any) {
-            return (
-              <th
-                style={{
-                  padding: '10px 14px',
-                  fontWeight: 700,
-                  color: '#00D9FF',
-                  textAlign: 'left',
-                  borderRight: '1px solid #2A2A3E',
-                  letterSpacing: '0.3px',
-                }}
-                {...props}
-              >
-                {children}
-              </th>
-            );
-          },
-          td({ children, ...props }: any) {
-            return (
-              <td
-                style={{
-                  padding: '9px 14px',
-                  borderBottom: '1px solid rgba(42, 42, 62, 0.7)',
-                  borderRight: '1px solid rgba(42, 42, 62, 0.4)',
-                  color: '#e4e4e7',
-                }}
-                {...props}
-              >
-                {children}
-              </td>
-            );
-          },
-          tr({ children, ...props }: any) {
-            return (
-              <tr style={{ transition: 'background-color 0.15s ease' }} {...props}>
-                {children}
-              </tr>
-            );
-          },
-          pre({ children }: any) {
-            return (
-              <div
-                style={{
-                  overflowX: 'auto',
-                  width: '100%',
-                  maxWidth: '100%',
-                  margin: '8px 0',
-                  WebkitOverflowScrolling: 'touch',
-                }}
-              >
-                {children}
-              </div>
-            );
-          },
-          code({ className, children, ...props }: any) {
-            const match = /language-(\w+)/.exec(className || '');
-            const codeString = String(children || '').replace(/\n$/, '');
-
-            if (match) {
-              return <CodeBlock language={match[1]} codeString={codeString} />;
-            }
-            // Inline code — High contrast OLED styling
-            return (
-              <code
-                style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                  color: '#ffffff',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  fontSize: '12px',
-                  border: '1px solid rgba(255, 255, 255, 0.14)',
-                  fontFamily: "'JetBrains Mono', Consolas, monospace",
-                  fontWeight: 600,
-                  letterSpacing: '0.2px',
-                }}
-                {...props}
-              >
-                {children}
-              </code>
-            );
-          },
-          blockquote({ children, ...props }: any) {
-            return (
-              <blockquote
-                style={{
-                  borderLeft: `3px solid ${modelColor}`,
-                  margin: '12px 0',
-                  padding: '8px 16px',
-                  backgroundColor: `${modelColor}0d`,
-                  borderRadius: '0 8px 8px 0',
-                  color: '#cbd5e1',
-                  fontStyle: 'italic',
-                }}
-                {...props}
-              >
-                {children}
-              </blockquote>
-            );
-          },
-          a({ href, children, ...props }: any) {
-            return (
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  color: '#00D9FF',
-                  textDecoration: 'none',
-                  borderBottom: '1px solid rgba(0, 217, 255, 0.4)',
-                  fontWeight: 500,
-                  transition: 'all 0.15s ease',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderBottomColor = '#00D9FF'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderBottomColor = 'rgba(0, 217, 255, 0.4)'; }}
-                {...props}
-              >
-                {children}
-              </a>
-            );
-          },
-        }}
-      >
-        {text}
-      </ReactMarkdown>
-    );
+    if (message.isStreaming && text.length >= 500) {
+      const { frozen, active } = splitStreamingMarkdownBlocks(text);
+      return (
+        <>
+          {frozen.map((blk, i) => (
+            <MemoizedMarkdownChunk key={i} text={blk} modelColor={modelColor} />
+          ))}
+          {active && <MemoizedMarkdownChunk text={active} modelColor={modelColor} />}
+        </>
+      );
+    }
+    return <MemoizedMarkdownChunk text={text} modelColor={modelColor} />;
   };
 
   return (

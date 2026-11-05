@@ -18,10 +18,10 @@ export function generateChatMarkdown(
   md += `> **Identidad:** Cyber-Premium Multi-Layer Neural System  \n\n`;
   md += `---\n\n`;
 
-  messages.forEach((msg, idx) => {
+  messages.forEach((msg) => {
     const isUser = msg.role === 'user';
     const roleTitle = isUser ? '👤 Usuario' : `⚡ LYAXIS [${meta.label}]`;
-    const time = msg.timestamp || msg.created_at || '';
+    const time = msg.timestamp || '';
     const timeFormatted = time ? ` *(${new Date(time).toLocaleTimeString()})*` : '';
 
     md += `### ${roleTitle}${timeFormatted}\n\n`;
@@ -92,7 +92,7 @@ export function exportChatToJSON(
       role: m.role,
       content: m.content,
       image: m.image ? '[BASE64_IMAGE_DATA]' : undefined,
-      timestamp: m.timestamp || m.created_at || new Date().toISOString(),
+      timestamp: m.timestamp || new Date().toISOString(),
     })),
   };
 

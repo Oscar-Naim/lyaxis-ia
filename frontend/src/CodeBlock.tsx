@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import hljs from 'highlight.js';
+import hljs from 'highlight.js/lib/common';
 import 'highlight.js/styles/atom-one-dark.css';
 import {
   Copy,
@@ -83,9 +83,8 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, codeString, valu
       let isMounted = true;
       (async () => {
         try {
-          const mermaidModule = await import(
-            /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'
-          );
+          const mermaidCdnUrl = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+          const mermaidModule = await import(/* @vite-ignore */ mermaidCdnUrl);
           const mermaid = mermaidModule.default;
           mermaid.initialize({
             startOnLoad: false,
