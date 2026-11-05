@@ -35,7 +35,6 @@ import {
   MicOff,
   Wand2,
   Command,
-  Clock,
   FileText,
   Download,
   Sliders,
@@ -44,6 +43,7 @@ import {
   ArrowDown,
   Globe,
   ArrowUpRight,
+  MoreHorizontal,
 } from 'lucide-react';
 import type { Message, ModelType, User } from '../types';
 import { useSSEStream } from '../useSSEStream';
@@ -309,6 +309,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   }, [initialPrompt, onInitialPromptConsumed]);
 
+  // Secondary Tools Dropdown State (Menú ···)
+  const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
+  const toolsMenuRef = useRef<HTMLDivElement | null>(null);
+
   // Mobile Actions Dropdown state (3. HEADER COMPACTO Y LIMPIO EN MÓVIL)
   const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
   const mobileActionsRef = useRef<HTMLDivElement | null>(null);
@@ -490,6 +494,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
       const target = event.target as Node;
       if (dropdownRef.current && !dropdownRef.current.contains(target)) {
         setIsModelDropdownOpen(false);
+      }
+      if (toolsMenuRef.current && !toolsMenuRef.current.contains(target)) {
+        setIsToolsMenuOpen(false);
       }
       if (mobileActionsRef.current && !mobileActionsRef.current.contains(target)) {
         setIsMobileActionsOpen(false);
@@ -1165,285 +1172,56 @@ export const ChatView: React.FC<ChatViewProps> = ({
             )
           )}
 
-          {/* Barra de Selección de Modelos (Solo Speed, Cortex y Zenith + Especialista Activo) */}
-          {!isMobile ? (
-            <div
-              className="lyaxis-model-bar"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.09)',
-                borderRadius: '11px',
-                padding: '3px',
-                gap: '3px',
-                minWidth: 0,
-              }}
-            >
-              {/* 1. Solo a la vista los 3 Modelos Principales (Speed, Cortex, Zenith) */}
-              {CORE_MODELS.map((m) => {
-                const itemMeta = MODEL_META[m] || MODEL_META.speed;
-                const isSelected = currentActiveModel === m;
-                const theme = THEMES[m] || THEMES.speed;
-                return (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => handleModelSwitch(m)}
-                    title={`LYAXIS ${itemMeta.label}: ${itemMeta.tagline} (T:${itemMeta.temperature})`}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '6px 12px',
-                      borderRadius: '8px',
-                      border: isSelected ? `1px solid ${theme.primary}88` : '1px solid transparent',
-                      backgroundColor: isSelected ? `${theme.primary}22` : 'transparent',
-                      color: isSelected ? '#ffffff' : '#94a3b8',
-                      fontSize: '12.5px',
-                      fontWeight: isSelected ? 800 : 500,
-                      cursor: 'pointer',
-                      boxShadow: isSelected ? `0 0 16px ${theme.glow}` : 'none',
-                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isSelected) {
-                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                        e.currentTarget.style.color = '#e2e8f0';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isSelected) {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                        e.currentTarget.style.color = '#94a3b8';
-                      }
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: '7px',
-                        height: '7px',
-                        borderRadius: '50%',
-                        backgroundColor: theme.primary,
-                        boxShadow: isSelected ? `0 0 10px ${theme.primary}` : 'none',
-                        display: 'inline-block',
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span>
-                      <span className="lyaxis-brand-prefix">LYAXIS </span>
-                      {itemMeta.label}
-                    </span>
-                    <span className="lyaxis-temp-tag lx-tabular" style={{ fontSize: '10px', color: isSelected ? `${theme.primary}` : '#64748b', fontFamily: 'var(--lx-font-mono)' }}>
-                      T:{itemMeta.temperature}
-                    </span>
-                  </button>
-                );
-              })}
-
-              {/* 2. Si un especialista está activo, mostrarlo con badge */}
-              {!CORE_MODELS.includes(currentActiveModel) && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 11px',
-                    borderRadius: '8px',
-                    border: `1px solid ${currentTheme.primary}88`,
-                    backgroundColor: `${currentTheme.primary}22`,
-                    color: '#ffffff',
-                    fontSize: '12.5px',
-                    fontWeight: 800,
-                    boxShadow: `0 0 14px ${currentTheme.glow}`,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <span
-                    style={{
-                      width: '7px',
-                      height: '7px',
-                      borderRadius: '50%',
-                      backgroundColor: currentTheme.primary,
-                      boxShadow: `0 0 8px ${currentTheme.primary}`,
-                      display: 'inline-block',
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span>LYAXIS {meta.label}</span>
-                  <span style={{ fontSize: '9px', backgroundColor: `${currentTheme.primary}44`, color: currentTheme.primary, padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>
-                    ESPECIALISTA
-                  </span>
-                </div>
-              )}
-
-              {/* 3. Botón y Menú Desplegable de Motores Especializados Ocultos */}
-              <div style={{ position: 'relative' }} ref={specialistsMenuRef}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerSound();
-                    setIsSpecialistsMenuOpen((prev) => !prev);
-                  }}
-                  title="Ver motores especializados (Architect, Phantom, Root, Forge, Magister...)"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    padding: '6px 10px',
-                    borderRadius: '8px',
-                    border: isSpecialistsMenuOpen ? '1px solid rgba(0, 217, 255, 0.45)' : '1px solid transparent',
-                    backgroundColor: isSpecialistsMenuOpen ? 'rgba(0, 217, 255, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-                    color: isSpecialistsMenuOpen ? '#00d9ff' : '#94a3b8',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.18s var(--lx-ease-out)',
-                    whiteSpace: 'nowrap',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isSpecialistsMenuOpen) {
-                      e.currentTarget.style.color = '#ffffff';
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSpecialistsMenuOpen) {
-                      e.currentTarget.style.color = '#94a3b8';
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.03)';
-                    }
-                  }}
-                >
-                  <Sliders size={12} color={isSpecialistsMenuOpen ? '#00d9ff' : '#71717a'} />
-                  <span>+ Especialistas</span>
-                  <ChevronDown
-                    size={11}
-                    style={{
-                      transform: isSpecialistsMenuOpen ? 'rotate(180deg)' : 'none',
-                      transition: 'transform 0.2s ease',
-                    }}
-                  />
-                </button>
-
-                {isSpecialistsMenuOpen && (
-                  <div className="lyaxis-specialists-popover">
-                    <div style={{ padding: '6px 8px 6px', borderBottom: '1px solid rgba(255, 255, 255, 0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#00d9ff', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'var(--lx-font-mono)' }}>
-                        Motores Especializados
-                      </span>
-                      <span style={{ fontSize: '10px', color: '#64748b' }}>7 disponibles</span>
-                    </div>
-
-                    <div style={{ maxHeight: '290px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '3px', padding: '4px 0' }}>
-                      {SPECIALIST_MODELS.map((sId) => {
-                        const sMeta = MODEL_META[sId];
-                        const isSel = currentActiveModel === sId;
-                        return (
-                          <button
-                            key={sId}
-                            type="button"
-                            onClick={() => {
-                              handleModelSwitch(sId);
-                              setIsSpecialistsMenuOpen(false);
-                            }}
-                            className={`lyaxis-specialist-item${isSel ? ' active' : ''}`}
-                            style={{ '--lx-item-color': sMeta.color } as React.CSSProperties}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0, flex: 1 }}>
-                              <div
-                                style={{
-                                  width: '26px',
-                                  height: '26px',
-                                  borderRadius: '6px',
-                                  backgroundColor: `${sMeta.color}18`,
-                                  border: `1px solid ${sMeta.color}44`,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  flexShrink: 0,
-                                }}
-                              >
-                                {MODEL_ICONS[sId]?.(13, sMeta.color)}
-                              </div>
-                              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span style={{ fontSize: '12.5px', fontWeight: 700, color: isSel ? '#ffffff' : '#e2e8f0' }}>
-                                    LYAXIS {sMeta.label}
-                                  </span>
-                                  {isSel && (
-                                    <span style={{ fontSize: '8.5px', padding: '1px 5px', borderRadius: '4px', backgroundColor: `${sMeta.color}33`, color: sMeta.color, fontWeight: 800 }}>
-                                      ACTIVO
-                                    </span>
-                                  )}
-                                </div>
-                                <span style={{ fontSize: '11px', color: '#94a3b8', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {sMeta.tagline}
-                                </span>
-                              </div>
-                            </div>
-                            <span className="lx-tabular" style={{ fontSize: '10px', color: '#64748b', fontFamily: 'var(--lx-font-mono)' }}>
-                              T:{sMeta.temperature}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            /* Interactive In-Chat Model Selector con Identidad Cromática en Celular */
+          {/* Selector Unificado de Modelo Activo */}
             <div style={{ position: 'relative', minWidth: 0, flex: '0 1 auto' }} ref={dropdownRef}>
               <button
                 type="button"
-                onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-                title="Cambiar modelo de IA"
+                onClick={() => {
+                  triggerSound();
+                  setIsModelDropdownOpen(!isModelDropdownOpen);
+                }}
+                title="Cambiar motor de IA"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '7px',
-                  backgroundColor: `${currentTheme.primary}12`,
+                  backgroundColor: `${currentTheme.primary}18`,
                   border: `1px solid ${currentTheme.primary}55`,
-                  borderRadius: '10px',
-                  padding: '6px 10px',
-                  minHeight: '40px',
-                  maxWidth: '100%',
+                  borderRadius: '9px',
+                  padding: '6px 12px',
                   color: '#ffffff',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
                   cursor: 'pointer',
-                  boxShadow: `0 0 16px ${currentTheme.glow}`,
-                  transition: 'all 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: `0 0 12px ${currentTheme.glow}`,
+                  transition: 'all 0.2s ease',
                   whiteSpace: 'nowrap',
                 }}
               >
                 <span
                   style={{
-                    width: '8px',
-                    height: '8px',
+                    width: '7px',
+                    height: '7px',
                     borderRadius: '50%',
                     backgroundColor: currentTheme.primary,
-                    boxShadow: `0 0 10px ${currentTheme.primary}`,
+                    boxShadow: `0 0 8px ${currentTheme.primary}`,
                     display: 'inline-block',
                     flexShrink: 0,
                   }}
                 />
+                <span>LYAXIS {meta.label}</span>
                 <span
+                  className="lx-tabular"
                   style={{
-                    fontSize: '13.5px',
-                    fontWeight: 700,
-                    letterSpacing: '0.2px',
-                    color: '#ffffff',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
+                    fontSize: '10px',
+                    color: '#94a3b8',
+                    fontFamily: 'var(--lx-font-mono)',
                   }}
                 >
-                  LYAXIS {meta.label}
+                  T:{meta.temperature}
                 </span>
                 <ChevronDown
-                  size={14}
+                  size={13}
                   color={currentTheme.primary}
                   style={{
                     transform: isModelDropdownOpen ? 'rotate(180deg)' : 'none',
@@ -1582,739 +1360,248 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 </>
               )}
             </div>
-          )}
-        </div>
 
-        {/* Zone 2 (Center): Compact Unified Telemetry Pill on Wide Monitors (>= 1420px via CSS) */}
-        {!isMobile && (
-          <div
-            className="lyaxis-header-telemetry"
-            title="LYAXIS Neural Stream Online • Acceso Público Activo"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '7px',
-              padding: '4px 12px',
-              borderRadius: '14px',
-              backgroundColor: 'rgba(255, 255, 255, 0.025)',
-              border: '1px solid rgba(255, 255, 255, 0.07)',
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-          >
-            <span
+            {/* Indicador de Estado Discreto (punto verde) */}
+            <div
+              title="Red neuronal ONLINE • Latencia ~14ms • Acceso Activo"
               style={{
-                width: '6px',
-                height: '6px',
+                width: '8px',
+                height: '8px',
                 borderRadius: '50%',
                 backgroundColor: '#00ff66',
                 boxShadow: '0 0 8px #00ff66',
+                cursor: 'help',
                 flexShrink: 0,
               }}
             />
-            <span
+          </div>
+
+        {/* Zone 3 (Right): Comandos (Ctrl+K) + Menú ··· + Usuario */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          {/* Botón Comandos en PC */}
+          {!isMobile && onOpenCommandPalette && (
+            <button
+              type="button"
+              onClick={() => {
+                triggerSound();
+                onOpenCommandPalette();
+              }}
+              title="Paleta de Comandos y Todos los Motores (Ctrl+K)"
               style={{
-                fontSize: '10.5px',
-                fontFamily: 'monospace',
-                color: '#94a3b8',
-                letterSpacing: '0.5px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                backgroundColor: 'rgba(0, 217, 255, 0.08)',
+                border: '1px solid rgba(0, 217, 255, 0.3)',
+                borderRadius: '8px',
+                padding: '6px 10px',
+                minHeight: '32px',
+                color: '#ffffff',
+                fontSize: '11.5px',
                 fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 0 10px rgba(0, 217, 255, 0.1)',
                 whiteSpace: 'nowrap',
               }}
             >
-              ONLINE • ~14ms
-            </span>
-          </div>
-        )}
+              <Command size={14} color="#00D9FF" />
+              <span className="lyaxis-btn-label">Comandos</span>
+              <kbd className="lyaxis-kbd-hint" style={{ fontSize: '9.5px', opacity: 0.75, backgroundColor: 'rgba(255,255,255,0.1)', padding: '1px 4px', borderRadius: '4px' }}>Ctrl+K</kbd>
+            </button>
+          )}
 
-        {/* Zone 3 (Right): Streamlined Non-Clipping Actions (PC & Mobile) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-          {isMobile ? (
-            <>
-              {/* Usuario / Acceder compacto en móvil */}
-              {user ? (
-                user.picture ? (
-                  <img
-                    src={user.picture}
-                    alt={user.name || 'Usuario'}
+          {/* Menú de Herramientas Secundarias `···` */}
+          <div style={{ position: 'relative' }} ref={toolsMenuRef}>
+            <button
+              type="button"
+              onClick={() => {
+                triggerSound();
+                setIsToolsMenuOpen(!isToolsMenuOpen);
+              }}
+              title="Herramientas secundarias (WebForge, Notebook, Exportar, Dashboard, Info...)"
+              aria-label="Más herramientas"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '3px',
+                padding: '6px 9px',
+                minHeight: '32px',
+                borderRadius: '8px',
+                backgroundColor: isToolsMenuOpen ? 'rgba(0, 217, 255, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+                border: isToolsMenuOpen ? '1px solid rgba(0, 217, 255, 0.45)' : '1px solid rgba(255, 255, 255, 0.1)',
+                color: isToolsMenuOpen ? '#00D9FF' : '#cbd5e1',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <MoreHorizontal size={16} />
+              <ChevronDown
+                size={12}
+                style={{
+                  transform: isToolsMenuOpen ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.2s ease',
+                }}
+              />
+            </button>
+
+            {isToolsMenuOpen && (
+              <>
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 45, backgroundColor: 'transparent' }}
+                  onClick={() => setIsToolsMenuOpen(false)}
+                />
+                <div
+                  className="lyaxis-tools-popover"
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    right: 0,
+                    width: '240px',
+                    maxHeight: 'calc(100dvh - 80px)',
+                    overflowY: 'auto',
+                    backgroundColor: '#0a0a0f',
+                    border: '1px solid #22222e',
+                    borderRadius: '12px',
+                    padding: '6px',
+                    boxShadow: '0 12px 40px rgba(0,0,0,0.95), 0 0 20px rgba(0, 217, 255, 0.12)',
+                    zIndex: 60,
+                    backdropFilter: 'blur(16px)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '3px',
+                    animation: 'fadeIn 0.15s ease-out',
+                  }}
+                >
+                  <div style={{ padding: '6px 8px 4px', fontSize: '10px', fontWeight: 800, color: '#71717a', letterSpacing: '0.8px', textTransform: 'uppercase', fontFamily: 'var(--lx-font-mono)' }}>
+                    Herramientas LYAXIS
+                  </div>
+
+                  {/* 1. WebForge */}
+                  <a
+                    href="https://lyaxis-webforge.vercel.app"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setIsToolsMenuOpen(false)}
                     style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      border: '1px solid rgba(0, 217, 255, 0.45)',
-                      objectFit: 'cover',
-                      flexShrink: 0,
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      backgroundColor: 'rgba(0, 217, 255, 0.2)',
-                      border: '1px solid rgba(0, 217, 255, 0.4)',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      color: '#00D9FF',
-                      flexShrink: 0,
+                      gap: '9px',
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(6, 182, 212, 0.08)',
+                      border: '1px solid rgba(6, 182, 212, 0.25)',
+                      color: '#06B6D4',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      textDecoration: 'none',
+                      cursor: 'pointer',
                     }}
                   >
-                    {(user.name || user.email || 'U').charAt(0).toUpperCase()}
-                  </div>
-                )
-              ) : onOpenAuth ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerSound();
-                    onOpenAuth();
-                  }}
-                  title="Iniciar sesión"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '5px',
-                    backgroundColor: 'rgba(0, 217, 255, 0.1)',
-                    border: '1px solid rgba(0, 217, 255, 0.3)',
-                    borderRadius: '10px',
-                    padding: '6px 10px',
-                    minHeight: '40px',
-                    color: '#00D9FF',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
-                  }}
-                >
-                  <LogIn size={14} color="#00D9FF" />
-                  <span>Acceder</span>
-                </button>
-              ) : null}
+                    <Globe size={15} color="#06B6D4" />
+                    <span>LYAXIS WebForge</span>
+                    <ArrowUpRight size={12} style={{ marginLeft: 'auto', opacity: 0.8 }} />
+                  </a>
 
-              {/* Menú Desplegable Completo de Tres Puntos (⋮) en Celular */}
-              <div style={{ position: 'relative' }} ref={mobileActionsRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsMobileActionsOpen(!isMobileActionsOpen)}
-                  title="Más herramientas"
-                  aria-label="Más herramientas"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '40px',
-                    height: '40px',
-                    minWidth: '40px',
-                    minHeight: '40px',
-                    borderRadius: '10px',
-                    backgroundColor: isMobileActionsOpen ? 'rgba(0, 217, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-                    border: isMobileActionsOpen ? '1px solid rgba(0, 217, 255, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
-                    color: isMobileActionsOpen ? '#00D9FF' : '#ffffff',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <MoreVertical size={19} />
-                </button>
-
-                {isMobileActionsOpen && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 8px)',
-                      right: 0,
-                      width: '236px',
-                      maxHeight: 'calc(100dvh - 80px)',
-                      overflowY: 'auto',
-                      backgroundColor: '#0b0b12',
-                      border: '1px solid #222232',
-                      borderRadius: '12px',
-                      padding: '6px',
-                      boxShadow: '0 12px 40px rgba(0,0,0,0.95), 0 0 20px rgba(0, 217, 255, 0.12)',
-                      zIndex: 60,
-                      backdropFilter: 'blur(16px)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '2px',
-                      animation: 'fadeIn 0.2s ease-out',
-                    }}
-                  >
-                    <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 800, color: '#71717a', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
-                      Herramientas LYAXIS
-                    </div>
-
-                    {/* WebForge Mobile */}
-                    <a
-                      href="https://lyaxis-webforge.vercel.app"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => setIsMobileActionsOpen(false)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        padding: '10px 12px',
-                        borderRadius: '8px',
-                        border: '1px solid rgba(6, 182, 212, 0.25)',
-                        backgroundColor: 'rgba(6, 182, 212, 0.1)',
-                        color: '#06b6d4',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        textDecoration: 'none',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        marginBottom: '4px',
-                      }}
-                    >
-                      <Globe size={16} color="#06b6d4" />
-                      <span>LYAXIS WebForge</span>
-                      <ArrowUpRight size={13} style={{ marginLeft: 'auto', opacity: 0.8 }} />
-                    </a>
-
-                    {/* Auto-Router Mobile */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        triggerSound();
-                        setIsAutoRouterActive((prev) => {
-                          const next = !prev;
-                          try { localStorage.setItem('lyaxis_auto_router', String(next)); } catch {}
-                          return next;
-                        });
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '10px 12px',
-                        borderRadius: '8px',
-                        border: 'none',
-                        backgroundColor: isAutoRouterActive ? 'rgba(0, 255, 102, 0.1)' : 'transparent',
-                        color: isAutoRouterActive ? '#00FF66' : '#f1f5f9',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                      }}
-                    >
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <Zap size={16} color={isAutoRouterActive ? '#00FF66' : '#00D9FF'} />
-                        <span>Auto-Router</span>
-                      </span>
-                      <span style={{ fontSize: '10.5px', fontFamily: 'monospace' }}>{isAutoRouterActive ? 'ON' : 'OFF'}</span>
-                    </button>
-
-                    {/* Notebook */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMobileActionsOpen(false);
-                        triggerSound();
-                        if (!notebookContent && messages.length > 0) {
-                          const lastModel = [...messages].reverse().find((m) => m.role === 'model');
-                          if (lastModel?.content) {
-                            setNotebookContent(lastModel.content);
-                            setNotebookTitle(`Apuntes ${meta.label} • ${new Date().toLocaleDateString('es-MX')}`);
-                          }
+                  {/* 2. Cuaderno / Notebook Studio */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsToolsMenuOpen(false);
+                      triggerSound();
+                      if (!notebookContent && messages.length > 0) {
+                        const lastModel = [...messages].reverse().find((m) => m.role === 'model');
+                        if (lastModel?.content) {
+                          setNotebookContent(lastModel.content);
+                          setNotebookTitle(`Apuntes ${meta.label} • ${new Date().toLocaleDateString('es-MX')}`);
                         }
-                        setIsNotebookOpen(true);
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        padding: '10px 12px',
-                        borderRadius: '8px',
-                        border: 'none',
-                        backgroundColor: 'transparent',
-                        color: '#f1f5f9',
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                      }}
-                    >
-                      <BookOpen size={16} color="#00D9FF" />
-                      <span>Notebook Studio</span>
-                    </button>
+                      }
+                      setIsNotebookOpen(true);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '9px',
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: isNotebookOpen ? 'rgba(0, 217, 255, 0.1)' : 'transparent',
+                      color: isNotebookOpen ? '#00D9FF' : '#f1f5f9',
+                      fontSize: '12.5px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isNotebookOpen ? 'rgba(0, 217, 255, 0.1)' : 'transparent'; }}
+                  >
+                    <BookOpen size={15} color="#00D9FF" />
+                    <span>Cuaderno / Notebook Studio</span>
+                  </button>
 
-                    {/* Memoria y Directivas */}
-                    {onOpenDirectives && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsMobileActionsOpen(false);
-                          triggerSound();
-                          onOpenDirectives();
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          padding: '10px 12px',
-                          borderRadius: '8px',
-                          border: 'none',
-                          backgroundColor: 'transparent',
-                          color: '#f1f5f9',
-                          fontSize: '13px',
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                        }}
-                      >
-                        <Sliders size={16} color="#00D9FF" />
-                        <span>Memoria y Directivas</span>
-                      </button>
-                    )}
-
-                    {/* Bóveda de Prompts */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMobileActionsOpen(false);
-                        triggerSound();
-                        setIsPromptVaultOpen(true);
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        padding: '10px 12px',
-                        borderRadius: '8px',
-                        border: 'none',
-                        backgroundColor: 'transparent',
-                        color: '#f1f5f9',
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                      }}
-                    >
-                      <Bookmark size={16} color="#00D9FF" />
-                      <span>Bóveda de Prompts</span>
-                    </button>
-
-                    {/* Command Palette Mobile */}
-                    {onOpenCommandPalette && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsMobileActionsOpen(false);
-                          triggerSound();
-                          onOpenCommandPalette();
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          padding: '10px 12px',
-                          borderRadius: '8px',
-                          border: 'none',
-                          backgroundColor: 'rgba(0, 217, 255, 0.08)',
-                          color: '#00D9FF',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                        }}
-                      >
-                        <Command size={16} color="#00D9FF" />
-                        <span>Todos los Motores / Cmd</span>
-                      </button>
-                    )}
-
-                    {/* Export Options */}
-                    {messages.length > 0 && (
-                      <>
-                        <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.06)', margin: '3px 6px' }} />
-                        {onExportPDF && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsMobileActionsOpen(false);
-                              triggerSound();
-                              onExportPDF('Conversación LYAXIS', meta.label, meta.color, messages);
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '10px',
-                              padding: '9px 12px',
-                              borderRadius: '8px',
-                              border: 'none',
-                              backgroundColor: 'transparent',
-                              color: '#f1f5f9',
-                              fontSize: '12.5px',
-                              fontWeight: 500,
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <FileDown size={15} color="#00D9FF" />
-                            <span>Exportar PDF (.pdf)</span>
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsMobileActionsOpen(false);
-                            triggerSound();
-                            exportChatToMarkdown('Sesión LYAXIS', currentActiveModel, messages);
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            padding: '9px 12px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            backgroundColor: 'transparent',
-                            color: '#f1f5f9',
-                            fontSize: '12.5px',
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                            textAlign: 'left',
-                          }}
-                        >
-                          <FileText size={15} color="#10B981" />
-                          <span>Exportar Markdown (.md)</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsMobileActionsOpen(false);
-                            triggerSound();
-                            exportChatToJSON('Sesión LYAXIS', currentActiveModel, messages);
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            padding: '9px 12px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            backgroundColor: 'transparent',
-                            color: '#f1f5f9',
-                            fontSize: '12.5px',
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                            textAlign: 'left',
-                          }}
-                        >
-                          <FileCode size={15} color="#F59E0B" />
-                          <span>Exportar JSON (.json)</span>
-                        </button>
-                        <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.06)', margin: '3px 6px' }} />
-                      </>
-                    )}
-
-                    {/* Dashboard */}
-                    {onOpenDashboard && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsMobileActionsOpen(false);
-                          triggerSound();
-                          onOpenDashboard();
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          padding: '10px 12px',
-                          borderRadius: '8px',
-                          border: 'none',
-                          backgroundColor: 'transparent',
-                          color: '#f1f5f9',
-                          fontSize: '13px',
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                        }}
-                      >
-                        <LayoutDashboard size={16} color="#00D9FF" />
-                        <span>Dashboard y Temas</span>
-                      </button>
-                    )}
-
-                    {/* Info */}
-                    {onOpenInfoDrawer && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsMobileActionsOpen(false);
-                          triggerSound();
-                          onOpenInfoDrawer('manifesto');
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          padding: '10px 12px',
-                          borderRadius: '8px',
-                          border: 'none',
-                          backgroundColor: 'transparent',
-                          color: '#f1f5f9',
-                          fontSize: '13px',
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                        }}
-                      >
-                        <Info size={16} color="#00D9FF" />
-                        <span>Info y Manifiesto</span>
-                      </button>
-                    )}
-
-                    {/* Sound */}
-                    <button
-                      type="button"
-                      onClick={toggleSoundMute}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        padding: '10px 12px',
-                        borderRadius: '8px',
-                        border: 'none',
-                        backgroundColor: 'transparent',
-                        color: '#f1f5f9',
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                      }}
-                    >
-                      {isMuted ? <VolumeX size={16} color="#71717a" /> : <Volume2 size={16} color="#00D9FF" />}
-                      <span>{isMuted ? 'Activar sonido' : 'Silenciar sonido'}</span>
-                    </button>
-
-                    {/* Logout */}
-                    {user && onLogout && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsMobileActionsOpen(false);
-                          triggerSound();
-                          onLogout();
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          padding: '10px 12px',
-                          borderRadius: '8px',
-                          border: 'none',
-                          backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                          color: '#f87171',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          marginTop: '4px',
-                        }}
-                      >
-                        <LogOut size={16} color="#f87171" />
-                        <span>Cerrar sesión</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            /* Botones en PC (>= 768px) — Cápsula unificada de Estudio + Perfil */
-            <>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  padding: '3px',
-                  borderRadius: '11px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.025)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                }}
-              >
-              {/* LYAXIS WebForge Button */}
-              <a
-                href="https://lyaxis-webforge.vercel.app"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Abrir LYAXIS WebForge — Creador autónomo de sitios web en vivo"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '5px',
-                  backgroundColor: 'rgba(6, 182, 212, 0.12)',
-                  border: '1px solid rgba(6, 182, 212, 0.35)',
-                  borderRadius: '8px',
-                  padding: '6px 9px',
-                  minHeight: '32px',
-                  color: '#06B6D4',
-                  fontSize: '11.5px',
-                  fontWeight: 700,
-                  textDecoration: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  boxShadow: '0 0 10px rgba(6, 182, 212, 0.18)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <Globe size={14} color="#06B6D4" />
-                <span className="lyaxis-btn-label">WebForge</span>
-                <ArrowUpRight size={11} style={{ opacity: 0.8 }} />
-              </a>
-
-              {/* Auto-Router Inteligente */}
-              <button
-                type="button"
-                onClick={() => {
-                  triggerSound();
-                  setIsAutoRouterActive((prev) => {
-                    const next = !prev;
-                    try { localStorage.setItem('lyaxis_auto_router', String(next)); } catch {}
-                    return next;
-                  });
-                }}
-                title={isAutoRouterActive ? 'Auto-Router Activado: conmuta automáticamente al modelo óptimo' : 'Activar Auto-Router neuronal'}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '5px',
-                  backgroundColor: isAutoRouterActive ? 'rgba(0, 255, 102, 0.12)' : 'rgba(255, 255, 255, 0.05)',
-                  border: isAutoRouterActive ? '1px solid rgba(0, 255, 102, 0.45)' : '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '8px',
-                  padding: '6px 9px',
-                  minHeight: '32px',
-                  color: isAutoRouterActive ? '#00FF66' : '#94a3b8',
-                  fontSize: '11.5px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  boxShadow: isAutoRouterActive ? '0 0 10px rgba(0, 255, 102, 0.25)' : 'none',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <Zap size={14} color={isAutoRouterActive ? '#00FF66' : '#94a3b8'} />
-                <span className="lyaxis-btn-label">Auto</span>
-              </button>
-
-              {/* LYAXIS Notebook Canvas Studio Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  triggerSound();
-                  if (!notebookContent && messages.length > 0) {
-                    const lastModel = [...messages].reverse().find((m) => m.role === 'model');
-                    if (lastModel?.content) {
-                      setNotebookContent(lastModel.content);
-                      setNotebookTitle(`Apuntes ${meta.label} • ${new Date().toLocaleDateString('es-MX')}`);
-                    }
-                  }
-                  setIsNotebookOpen(true);
-                }}
-                title="Abrir Cuaderno Visual LYAXIS (Notebook Studio)"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  backgroundColor: isNotebookOpen ? 'rgba(0, 217, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                  border: isNotebookOpen ? '1px solid rgba(0, 217, 255, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '8px',
-                  padding: '6px 9px',
-                  minHeight: '32px',
-                  color: isNotebookOpen ? '#00D9FF' : '#ffffff',
-                  fontSize: '11.5px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <BookOpen size={15} color="#00D9FF" />
-                <span className="lyaxis-btn-label">Notebook</span>
-              </button>
-
-              {/* Export Dropdown (cuando hay mensajes) */}
-              {messages.length > 0 && (
-                <div style={{ position: 'relative' }} ref={exportMenuRef}>
+                  {/* 3. Auto-Router Inteligente */}
                   <button
                     type="button"
                     onClick={() => {
                       triggerSound();
-                      setIsExportMenuOpen((prev) => !prev);
+                      setIsAutoRouterActive((prev) => {
+                        const next = !prev;
+                        try { localStorage.setItem('lyaxis_auto_router', String(next)); } catch {}
+                        return next;
+                      });
                     }}
-                    title="Exportar conversación (PDF, Markdown, JSON)"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '5px',
-                      backgroundColor: isExportMenuOpen ? 'rgba(0, 217, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                      border: isExportMenuOpen ? '1px solid rgba(0, 217, 255, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
+                      justifyContent: 'space-between',
+                      padding: '8px 10px',
                       borderRadius: '8px',
-                      padding: '6px 9px',
-                      minHeight: '32px',
-                      color: '#ffffff',
-                      fontSize: '11.5px',
-                      fontWeight: 600,
+                      border: 'none',
+                      backgroundColor: isAutoRouterActive ? 'rgba(0, 255, 102, 0.1)' : 'transparent',
+                      color: isAutoRouterActive ? '#00FF66' : '#f1f5f9',
+                      fontSize: '12.5px',
+                      fontWeight: 500,
                       cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      whiteSpace: 'nowrap',
+                      textAlign: 'left',
                     }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isAutoRouterActive ? 'rgba(0, 255, 102, 0.1)' : 'transparent'; }}
                   >
-                    <Download size={14} color="#00D9FF" />
-                    <span className="lyaxis-btn-label">Exportar</span>
-                    <ChevronDown size={12} />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                      <Zap size={15} color={isAutoRouterActive ? '#00FF66' : '#94a3b8'} />
+                      <span>Auto-Router Neuronal</span>
+                    </span>
+                    <span style={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: 700, color: isAutoRouterActive ? '#00FF66' : '#71717a' }}>
+                      {isAutoRouterActive ? 'ON' : 'OFF'}
+                    </span>
                   </button>
 
-                  {isExportMenuOpen && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '100%',
-                        right: 0,
-                        marginTop: '6px',
-                        backgroundColor: '#090d16',
-                        border: '1px solid rgba(0, 217, 255, 0.3)',
-                        borderRadius: '10px',
-                        padding: '6px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '4px',
-                        zIndex: 100,
-                        minWidth: '175px',
-                        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.85), 0 0 15px rgba(0, 217, 255, 0.15)',
-                        animation: 'fadeIn 0.15s ease-out',
-                      }}
-                    >
+                  {/* 4. Exportar Conversación (PDF, Markdown, JSON — solo visible si hay mensajes) */}
+                  {messages.length > 0 && (
+                    <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.07)', marginTop: '4px', paddingTop: '4px' }}>
+                      <div style={{ padding: '4px 8px 2px', fontSize: '9.5px', fontWeight: 800, color: '#71717a', letterSpacing: '0.6px', textTransform: 'uppercase', fontFamily: 'var(--lx-font-mono)' }}>
+                        Exportar Conversación
+                      </div>
                       <button
                         type="button"
                         onClick={() => {
-                          setIsExportMenuOpen(false);
+                          setIsToolsMenuOpen(false);
                           if (onExportPDF) onExportPDF('Conversación LYAXIS', meta.label, meta.color, messages);
                         }}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '8px',
+                          gap: '9px',
                           padding: '7px 10px',
-                          borderRadius: '6px',
+                          borderRadius: '8px',
                           border: 'none',
-                          background: 'none',
-                          color: '#ffffff',
-                          fontSize: '11.5px',
+                          backgroundColor: 'transparent',
+                          color: '#f1f5f9',
+                          fontSize: '12px',
                           cursor: 'pointer',
+                          width: '100%',
                           textAlign: 'left',
                         }}
                         onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
@@ -2323,24 +1610,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         <FileDown size={14} color="#00D9FF" />
                         <span>Documento PDF (.pdf)</span>
                       </button>
-
                       <button
                         type="button"
                         onClick={() => {
-                          setIsExportMenuOpen(false);
+                          setIsToolsMenuOpen(false);
                           exportChatToMarkdown('Sesión LYAXIS', currentActiveModel, messages);
                         }}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '8px',
+                          gap: '9px',
                           padding: '7px 10px',
-                          borderRadius: '6px',
+                          borderRadius: '8px',
                           border: 'none',
-                          background: 'none',
-                          color: '#ffffff',
-                          fontSize: '11.5px',
+                          backgroundColor: 'transparent',
+                          color: '#f1f5f9',
+                          fontSize: '12px',
                           cursor: 'pointer',
+                          width: '100%',
                           textAlign: 'left',
                         }}
                         onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
@@ -2349,24 +1636,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         <FileText size={14} color="#10B981" />
                         <span>Markdown (.md)</span>
                       </button>
-
                       <button
                         type="button"
                         onClick={() => {
-                          setIsExportMenuOpen(false);
+                          setIsToolsMenuOpen(false);
                           exportChatToJSON('Sesión LYAXIS', currentActiveModel, messages);
                         }}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '8px',
+                          gap: '9px',
                           padding: '7px 10px',
-                          borderRadius: '6px',
+                          borderRadius: '8px',
                           border: 'none',
-                          background: 'none',
-                          color: '#ffffff',
-                          fontSize: '11.5px',
+                          backgroundColor: 'transparent',
+                          color: '#f1f5f9',
+                          fontSize: '12px',
                           cursor: 'pointer',
+                          width: '100%',
                           textAlign: 'left',
                         }}
                         onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
@@ -2377,250 +1664,288 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       </button>
                     </div>
                   )}
-                </div>
-              )}
 
-              {/* Cuando el Sidebar está oculto, mostrar accesos compactos a Memoria y Audio */}
-              {!isSidebarOpen && (
-                <>
-                  {onOpenDirectives && (
+                  {/* 5. Dashboard y Métricas */}
+                  {onOpenDashboard && (
                     <button
                       type="button"
                       onClick={() => {
+                        setIsToolsMenuOpen(false);
                         triggerSound();
-                        onOpenDirectives();
+                        onOpenDashboard();
                       }}
-                      title="Configurar Directivas y Memoria Personal"
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '32px',
-                        height: '32px',
-                        minWidth: '32px',
+                        gap: '9px',
+                        padding: '8px 10px',
                         borderRadius: '8px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        color: '#00D9FF',
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        color: '#f1f5f9',
+                        fontSize: '12.5px',
+                        fontWeight: 500,
                         cursor: 'pointer',
+                        textAlign: 'left',
                       }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                     >
-                      <Sliders size={15} />
+                      <LayoutDashboard size={15} color="#00D9FF" />
+                      <span>Dashboard y Métricas</span>
                     </button>
                   )}
+
+                  {/* 6. Manifiesto e Información */}
+                  {onOpenInfoDrawer && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsToolsMenuOpen(false);
+                        triggerSound();
+                        onOpenInfoDrawer('manifesto');
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '9px',
+                        padding: '8px 10px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        color: '#f1f5f9',
+                        fontSize: '12.5px',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    >
+                      <Info size={15} color="#00D9FF" />
+                      <span>Manifiesto e Información</span>
+                    </button>
+                  )}
+
+                  {/* Bóveda de Prompts en el menú */}
                   <button
                     type="button"
-                    onClick={toggleSoundMute}
-                    title={isMuted ? 'Activar efectos de audio' : 'Silenciar efectos de audio'}
+                    onClick={() => {
+                      setIsToolsMenuOpen(false);
+                      triggerSound();
+                      setIsPromptVaultOpen(true);
+                    }}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '32px',
-                      height: '32px',
-                      minWidth: '32px',
+                      gap: '9px',
+                      padding: '8px 10px',
                       borderRadius: '8px',
-                      backgroundColor: isMuted ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 217, 255, 0.08)',
-                      border: isMuted ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 217, 255, 0.25)',
-                      color: isMuted ? '#71717a' : '#00D9FF',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      color: '#f1f5f9',
+                      fontSize: '12.5px',
                       cursor: 'pointer',
+                      textAlign: 'left',
                     }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                   >
-                    {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                    <Bookmark size={15} color="#00D9FF" />
+                    <span>Bóveda de Prompts</span>
                   </button>
-                </>
-              )}
 
-              {/* Command Palette Button */}
-              {onOpenCommandPalette && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerSound();
-                    onOpenCommandPalette();
-                  }}
-                  title="Paleta de Comandos y Todos los Motores (Ctrl+K)"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    backgroundColor: 'rgba(0, 217, 255, 0.08)',
-                    border: '1px solid rgba(0, 217, 255, 0.3)',
-                    borderRadius: '8px',
-                    padding: '6px 9px',
-                    minHeight: '32px',
-                    color: '#ffffff',
-                    fontSize: '11.5px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    boxShadow: '0 0 10px rgba(0, 217, 255, 0.1)',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <Command size={14} color="#00D9FF" />
-                  <span className="lyaxis-btn-label">Comandos</span>
-                  <kbd className="lyaxis-kbd-hint" style={{ fontSize: '9.5px', opacity: 0.75, backgroundColor: 'rgba(255,255,255,0.1)', padding: '1px 4px', borderRadius: '4px' }}>Ctrl+K</kbd>
-                </button>
-              )}
-
-              {/* Futuristic Dashboard Button */}
-              {onOpenDashboard && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerSound();
-                    onOpenDashboard();
-                  }}
-                  title="Métricas, Telemetría y Temas Visuales"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    borderRadius: '8px',
-                    padding: '6px 9px',
-                    minHeight: '32px',
-                    color: '#ffffff',
-                    fontSize: '11.5px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <LayoutDashboard size={15} color="#00D9FF" />
-                  <span className="lyaxis-btn-label">Dashboard</span>
-                </button>
-              )}
-
-              {/* Info Drawer Compact Icon Button */}
-              {onOpenInfoDrawer && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerSound();
-                    onOpenInfoDrawer('manifesto');
-                  }}
-                  title="Información y Manifiesto LYAXIS labs™"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '32px',
-                    height: '32px',
-                    minWidth: '32px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    borderRadius: '8px',
-                    color: '#ffffff',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    flexShrink: 0,
-                  }}
-                >
-                  <Info size={15} color="#00D9FF" />
-                </button>
-              )}
-              </div>
-
-              {/* User Profile / Login Button — Always Visible on Right Edge */}
-              {user ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                  {user.picture ? (
-                    <img
-                      src={user.picture}
-                      alt={user.name || 'Usuario'}
-                      title={user.name || user.email || 'Usuario'}
-                      style={{
-                        width: '30px',
-                        height: '30px',
-                        borderRadius: '50%',
-                        border: '1px solid rgba(0, 217, 255, 0.45)',
-                        objectFit: 'cover',
-                      }}
-                    />
-                  ) : (
-                    <div
-                      title={user.name || user.email || 'Usuario'}
-                      style={{
-                        width: '30px',
-                        height: '30px',
-                        borderRadius: '50%',
-                        backgroundColor: 'rgba(0, 217, 255, 0.2)',
-                        border: '1px solid rgba(0, 217, 255, 0.4)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '11.5px',
-                        fontWeight: 700,
-                        color: '#00D9FF',
-                      }}
-                    >
-                      {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                  {/* Accesos rápidos a Memoria y Audio si Sidebar está oculto o en móvil */}
+                  {(!isSidebarOpen || isMobile) && (
+                    <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.07)', marginTop: '4px', paddingTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      {onOpenDirectives && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsToolsMenuOpen(false);
+                            triggerSound();
+                            onOpenDirectives();
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '9px',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            backgroundColor: 'transparent',
+                            color: '#f1f5f9',
+                            fontSize: '12.5px',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                        >
+                          <Sliders size={15} color="#00D9FF" />
+                          <span>Memoria y Directivas</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          toggleSoundMute();
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          backgroundColor: 'transparent',
+                          color: '#f1f5f9',
+                          fontSize: '12.5px',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                          {isMuted ? <VolumeX size={15} color="#71717a" /> : <Volume2 size={15} color="#00D9FF" />}
+                          <span>Sonido Cyber</span>
+                        </span>
+                        <span style={{ fontSize: '10px', color: isMuted ? '#71717a' : '#00D9FF', fontFamily: 'monospace' }}>
+                          {isMuted ? 'MUTED' : 'ACTIVO'}
+                        </span>
+                      </button>
                     </div>
                   )}
-                  {onLogout && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        triggerSound();
-                        onLogout();
-                      }}
-                      title="Cerrar sesión"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '32px',
-                        height: '32px',
-                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                        border: '1px solid rgba(239, 68, 68, 0.25)',
-                        borderRadius: '8px',
-                        color: '#EF4444',
-                        cursor: 'pointer',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <LogOut size={14} />
-                    </button>
+
+                  {/* Cerrar Sesión en menú si logueado en móvil */}
+                  {isMobile && user && onLogout && (
+                    <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.07)', marginTop: '4px', paddingTop: '4px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsToolsMenuOpen(false);
+                          triggerSound();
+                          onLogout();
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '9px',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                          color: '#f87171',
+                          fontSize: '12.5px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          width: '100%',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <LogOut size={15} color="#f87171" />
+                        <span>Cerrar sesión</span>
+                      </button>
+                    </div>
                   )}
                 </div>
-              ) : onOpenAuth ? (
+              </>
+            )}
+          </div>
+
+          {/* User Profile / Login Button — Always Visible on Right Edge */}
+          {user ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+              {user.picture ? (
+                <img
+                  src={user.picture}
+                  alt={user.name || 'Usuario'}
+                  title={user.name || user.email || 'Usuario'}
+                  style={{
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '50%',
+                    border: '1px solid rgba(0, 217, 255, 0.45)',
+                    objectFit: 'cover',
+                  }}
+                />
+              ) : (
+                <div
+                  title={user.name || user.email || 'Usuario'}
+                  style={{
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(0, 217, 255, 0.2)',
+                    border: '1px solid rgba(0, 217, 255, 0.4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    color: '#00D9FF',
+                  }}
+                >
+                  {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                </div>
+              )}
+              {!isMobile && onLogout && (
                 <button
                   type="button"
                   onClick={() => {
                     triggerSound();
-                    onOpenAuth();
+                    onLogout();
                   }}
-                  title="Iniciar sesión"
+                  title="Cerrar sesión"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '6px',
-                    backgroundColor: 'rgba(0, 217, 255, 0.12)',
-                    border: '1px solid rgba(0, 217, 255, 0.35)',
+                    width: '30px',
+                    height: '30px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
                     borderRadius: '8px',
-                    padding: '6px 12px',
-                    minHeight: '32px',
-                    color: '#00D9FF',
-                    fontSize: '12px',
-                    fontWeight: 600,
+                    color: '#EF4444',
                     cursor: 'pointer',
-                    whiteSpace: 'nowrap',
                     flexShrink: 0,
                   }}
                 >
-                  <LogIn size={14} color="#00D9FF" />
-                  <span>Acceder</span>
+                  <LogOut size={13} />
                 </button>
-              ) : null}
-            </>
-          )}
+              )}
+            </div>
+          ) : onOpenAuth ? (
+            <button
+              type="button"
+              onClick={() => {
+                triggerSound();
+                onOpenAuth();
+              }}
+              title="Iniciar sesión"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+                backgroundColor: 'rgba(0, 217, 255, 0.12)',
+                border: '1px solid rgba(0, 217, 255, 0.35)',
+                borderRadius: '8px',
+                padding: '6px 10px',
+                minHeight: '32px',
+                color: '#00D9FF',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+              }}
+            >
+              <LogIn size={14} color="#00D9FF" />
+              <span>Acceder</span>
+            </button>
+          ) : null}
         </div>
       </div>
       
@@ -3358,183 +2683,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
           )}
 
-          {/* LYAXIS TRIAD™ Control Strip */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '8px',
-              padding: '0 4px',
-              flexWrap: 'wrap',
-              gap: '8px',
-            }}
-          >
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={toggleTriad}
-                disabled={triadRemaining === 0 && !isTriadActive}
-                title={
-                  triadRemaining === 0
-                    ? `Cuota de LYAXIS TRIAD™ agotada (0/3). ${triadTimeFormatted}. Conmutado a LYAXIS Speed.`
-                    : isTriadCooldown
-                    ? `⏳ Enfriamiento de TRIAD activo (${triadCooldownFormatted}). Espera antes de enviar la siguiente consulta.`
-                    : `⚡ TRIAD [${triadRemaining}/3] · Debate concurrente a 3 núcleos: Create ➔ Break ➔ Rebuild`
-                }
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: isMobile ? '10px 16px' : '5px 12px',
-                  minHeight: isMobile ? '44px' : 'auto',
-                  borderRadius: '8px',
-                  backgroundColor: isTriadActive
-                    ? isTriadCooldown
-                      ? 'rgba(245, 158, 11, 0.15)'
-                      : 'rgba(124, 58, 237, 0.18)'
-                    : triadRemaining === 0
-                    ? 'rgba(239, 68, 68, 0.08)'
-                    : 'rgba(255, 255, 255, 0.04)',
-                  border: isTriadActive
-                    ? isTriadCooldown
-                      ? '1px solid rgba(245, 158, 11, 0.55)'
-                      : '1px solid rgba(124, 58, 237, 0.55)'
-                    : triadRemaining === 0
-                    ? '1px solid rgba(239, 68, 68, 0.3)'
-                    : '1px solid rgba(255, 255, 255, 0.1)',
-                  color: isTriadActive
-                    ? isTriadCooldown
-                      ? '#fef3c7'
-                      : '#ffffff'
-                    : triadRemaining === 0
-                    ? '#fca5a5'
-                    : '#a1a1aa',
-                  cursor: triadRemaining === 0 && !isTriadActive ? 'not-allowed' : 'pointer',
-                  fontSize: isMobile ? '12px' : '11.5px',
-                  fontWeight: 700,
-                  letterSpacing: '0.3px',
-                  transition: 'all 0.2s ease',
-                  boxShadow: isTriadActive
-                    ? isTriadCooldown
-                      ? '0 0 16px rgba(245, 158, 11, 0.35)'
-                      : '0 0 16px rgba(124, 58, 237, 0.35)'
-                    : 'none',
-                  opacity: triadRemaining === 0 && !isTriadActive ? 0.7 : 1,
-                }}
-              >
-                <Zap
-                  size={13}
-                  color={
-                    isTriadActive
-                      ? isTriadCooldown
-                        ? '#fbbf24'
-                        : '#00D9FF'
-                      : triadRemaining === 0
-                      ? '#ef4444'
-                      : '#71717a'
-                  }
-                />
-                <span>
-                  {isTriadCooldown ? `⏳ TRIAD [${triadRemaining}/3] (${triadCooldownFormatted}) :` : `⚡ TRIAD [${triadRemaining}/3] :`}
-                </span>
-                <span
-                  style={{
-                    color: isTriadActive
-                      ? isTriadCooldown
-                        ? '#fbbf24'
-                        : '#10B981'
-                      : triadRemaining === 0
-                      ? '#ef4444'
-                      : '#71717a',
-                    fontWeight: 800,
-                  }}
-                >
-                  {isTriadActive ? 'ON' : 'OFF'}
-                </span>
-              </button>
-
-              {/* Banner / Pill discreto de enfriamiento activo */}
-              {isTriadCooldown && triadRemaining > 0 && (
-                <div
-                  title={`Enfriamiento activo de 2 minutos entre consultas de LYAXIS TRIAD™. Espera ${triadCooldownFormatted}`}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    padding: '3px 8px',
-                    borderRadius: '6px',
-                    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-                    border: '1px solid rgba(245, 158, 11, 0.35)',
-                    color: '#fbbf24',
-                    fontSize: '10.5px',
-                    fontFamily: 'monospace',
-                    fontWeight: 700,
-                    animation: 'fadeIn 0.25s ease-out',
-                  }}
-                >
-                  <Clock size={11} color="#fbbf24" />
-                  <span>⏳ {triadCooldownFormatted}</span>
-                </div>
-              )}
-
-              {/* Banner / Pill discreto con cuenta regresiva cuando la cuota está agotada */}
-              {triadRemaining === 0 && (
-                <div
-                  title={`Cuota de 6h agotada. ${triadTimeFormatted}`}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    padding: '3px 8px',
-                    borderRadius: '6px',
-                    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                    border: '1px solid rgba(239, 68, 68, 0.35)',
-                    color: '#f87171',
-                    fontSize: '10.5px',
-                    fontFamily: 'monospace',
-                    fontWeight: 700,
-                    animation: 'fadeIn 0.25s ease-out',
-                  }}
-                >
-                  <Clock size={11} color="#f87171" />
-                  <span>{triadTimeFormatted}</span>
-                </div>
-              )}
-
-              {isTriadActive && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '10.5px',
-                    fontFamily: 'monospace',
-                    color: '#d8b4fe',
-                    backgroundColor: 'rgba(124, 58, 237, 0.14)',
-                    border: '1px solid rgba(124, 58, 237, 0.35)',
-                    padding: '3px 10px',
-                    borderRadius: '12px',
-                    animation: 'fadeIn 0.25s ease-out',
-                  }}
-                >
-                  <span
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      backgroundColor: '#10B981',
-                      boxShadow: '0 0 8px #10B981',
-                      display: 'inline-block',
-                    }}
-                  />
-                  <span>TRIAD ENGAGED // 3 CORES</span>
-                </div>
-              )}
-            </div>
-
-            {/* Indicador de tokens estimados en vivo + botón Continuar si la última respuesta fue extensa */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          {/* Conditional helper bar: Continuar button & live token estimator */}
+          {((!isStreaming && messages.length > 0 && messages[messages.length - 1]?.role === 'model' && (messages[messages.length - 1]?.content?.length || 0) > 2600 && !inputValue.trim()) || (inputValue.trim().length > 0 || attachedFiles.length > 0)) && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: '8px',
+                marginBottom: '6px',
+                padding: '0 4px',
+              }}
+            >
               {!isStreaming &&
                 messages.length > 0 &&
                 messages[messages.length - 1]?.role === 'model' &&
@@ -3582,7 +2742,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 </span>
               )}
             </div>
-          </div>
+          )}
 
           {/* Floating Slash Commands Palette */}
           {filteredCommands.length > 0 && (
@@ -3774,6 +2934,54 @@ export const ChatView: React.FC<ChatViewProps> = ({
               }}
             >
               <Paperclip size={18} />
+            </button>
+
+            {/* Toggle compacto de TRIAD dentro del Input Dock */}
+            <button
+              type="button"
+              onClick={toggleTriad}
+              disabled={triadRemaining === 0 && !isTriadActive}
+              title={
+                triadRemaining === 0
+                  ? `Cuota de LYAXIS TRIAD™ agotada (0/3). ${triadTimeFormatted}.`
+                  : isTriadCooldown
+                  ? `⏳ Enfriamiento de TRIAD activo (${triadCooldownFormatted}).`
+                  : `LYAXIS TRIAD™ [${triadRemaining}/3] · ${isTriadActive ? 'Desactivar modo 3 núcleos' : 'Activar debate concurrente Create ➔ Break ➔ Rebuild'}`
+              }
+              style={{
+                width: isMobile ? '44px' : '36px',
+                height: isMobile ? '44px' : '36px',
+                minWidth: isMobile ? '44px' : '36px',
+                borderRadius: '10px',
+                backgroundColor: isTriadActive
+                  ? (isTriadCooldown ? 'rgba(245, 158, 11, 0.25)' : 'rgba(124, 58, 237, 0.25)')
+                  : triadRemaining === 0
+                  ? 'rgba(239, 68, 68, 0.1)'
+                  : 'rgba(255, 255, 255, 0.05)',
+                border: isTriadActive
+                  ? (isTriadCooldown ? '1px solid #f59e0b' : '1px solid #7C3AED')
+                  : triadRemaining === 0
+                  ? '1px solid rgba(239, 68, 68, 0.3)'
+                  : '1px solid rgba(255, 255, 255, 0.1)',
+                color: isTriadActive
+                  ? (isTriadCooldown ? '#fbbf24' : '#c084fc')
+                  : triadRemaining === 0
+                  ? '#f87171'
+                  : '#71717a',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: triadRemaining === 0 && !isTriadActive ? 'not-allowed' : 'pointer',
+                boxShadow: isTriadActive ? '0 0 12px rgba(124, 58, 237, 0.4)' : 'none',
+                flexShrink: 0,
+                position: 'relative',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <Zap size={15} />
+              <span style={{ position: 'absolute', bottom: '2px', right: '4px', fontSize: '8px', fontWeight: 800, fontFamily: 'monospace' }}>
+                {triadRemaining}
+              </span>
             </button>
 
             {/* Prompt Vault Button */}

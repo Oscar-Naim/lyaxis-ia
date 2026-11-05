@@ -2249,6 +2249,47 @@ span.katex {
   box-shadow: 0 0 14px color-mix(in srgb, var(--lx-card-color, #00d9ff) 30%, transparent);
 }
 
+/* ==========================================================================
+   LYAXIS Visual Polish: Chat Item Actions & Compact Popovers
+   ========================================================================== */
+.lyaxis-chat-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.lyaxis-chat-item:hover .lyaxis-chat-actions,
+.lyaxis-chat-item:focus-within .lyaxis-chat-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.lyaxis-msg-popover {
+  animation: fadeIn 0.15s ease-out;
+}
+
+.lyaxis-msg-popover button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.lyaxis-msg-popover button:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
 /* 17. Accesibilidad: movimiento reducido */
 @media (prefers-reduced-motion: reduce) {
   *,

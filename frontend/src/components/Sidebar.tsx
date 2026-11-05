@@ -472,58 +472,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      {/* LYAXIS WebForge Quick Access Link */}
-      <a
-        href="https://lyaxis-webforge.vercel.app"
-        target="_blank"
-        rel="noopener noreferrer"
-        title="Abrir LYAXIS WebForge — Creador autónomo de sitios web"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '8px 12px',
-          borderRadius: '10px',
-          backgroundColor: 'rgba(6, 182, 212, 0.08)',
-          border: '1px solid rgba(6, 182, 212, 0.28)',
-          color: '#e2e8f0',
-          textDecoration: 'none',
-          fontSize: '12px',
-          fontWeight: 600,
-          marginBottom: '12px',
-          transition: 'all 0.2s ease',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = 'rgba(6, 182, 212, 0.16)';
-          e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.5)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'rgba(6, 182, 212, 0.08)';
-          e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.28)';
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-          <div
-            style={{
-              width: '24px',
-              height: '24px',
-              borderRadius: '6px',
-              backgroundColor: 'rgba(6, 182, 212, 0.15)',
-              border: '1px solid rgba(6, 182, 212, 0.4)',
-              display: 'grid',
-              placeItems: 'center',
-            }}
-          >
-            <Globe size={13} color="#06b6d4" />
-          </div>
-          <div>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#ffffff' }}>LYAXIS WebForge</span>
-            <small style={{ display: 'block', fontSize: '9.5px', color: '#06b6d4' }}>Estudio Web en Vivo</small>
-          </div>
-        </div>
-        <ArrowUpRight size={13} color="#06b6d4" />
-      </a>
-
       {/* New Chat Button */}
       <button
         type="button"
@@ -545,7 +493,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           fontSize: '14.5px',
           fontWeight: 600,
           cursor: 'pointer',
-          marginBottom: '14px',
+          marginBottom: '10px',
           transition: 'all 0.2s ease',
         }}
         onMouseEnter={(e) => {
@@ -599,114 +547,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span>Comandos Rápidos</span>
           </div>
           <kbd style={{ fontSize: '10px', opacity: 0.7, backgroundColor: 'rgba(255,255,255,0.08)', padding: '1px 4px', borderRadius: '3px' }}>Ctrl+K</kbd>
-        </button>
-      )}
-
-      {/* Indicador / Selector de Motor Activo con Subtítulo Descriptivo */}
-      {selectedModel && (
-        <div
-          onClick={() => {
-            playCyberClick();
-            if (onOpenCommandPalette) onOpenCommandPalette();
-          }}
-          title="Haz clic para cambiar de motor de IA (Ctrl+K)"
-          style={{
-            padding: '10px 12px',
-            backgroundColor: 'rgba(255, 255, 255, 0.03)',
-            border: `1px solid ${getModelColor(selectedModel)}44`,
-            borderRadius: '10px',
-            marginBottom: '14px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '10px',
-            boxShadow: `0 0 12px ${getModelColor(selectedModel)}15`,
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)';
-            e.currentTarget.style.borderColor = `${getModelColor(selectedModel)}88`;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.03)';
-            e.currentTarget.style.borderColor = `${getModelColor(selectedModel)}44`;
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, overflow: 'hidden' }}>
-            <div style={{ color: getModelColor(selectedModel), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              {MODEL_ICONS[selectedModel]?.(18, getModelColor(selectedModel))}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', lineHeight: 1.25 }}>
-                LYAXIS {MODEL_META[selectedModel]?.label}
-              </span>
-              <span style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {MODEL_META[selectedModel]?.tagline}
-              </span>
-            </div>
-          </div>
-          <span style={{ fontSize: '10px', color: '#71717a', backgroundColor: 'rgba(255,255,255,0.06)', padding: '2px 5px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.08)' }}>
-            Cambiar
-          </span>
-        </div>
-      )}
-
-      {/* 2. Acceso Directo al Cuaderno / Mis Notas */}
-      {onOpenNotebook && (
-        <button
-          type="button"
-          onClick={() => {
-            onOpenNotebook();
-            if (isMobile) onClose();
-          }}
-          title="Abrir Cuaderno Visual LYAXIS (Notebook Studio)"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            width: '100%',
-            minHeight: '46px',
-            padding: '11px 14px',
-            backgroundColor: 'rgba(0, 217, 255, 0.05)',
-            border: '1px solid rgba(0, 217, 255, 0.22)',
-            borderRadius: '10px',
-            color: '#ffffff',
-            fontSize: '14px',
-            fontWeight: 600,
-            cursor: 'pointer',
-            marginBottom: '16px',
-            transition: 'all 0.2s ease',
-            boxShadow: '0 0 12px rgba(0, 217, 255, 0.06)',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.12)';
-            e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.45)';
-            e.currentTarget.style.boxShadow = '0 0 16px rgba(0, 217, 255, 0.2)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.05)';
-            e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.22)';
-            e.currentTarget.style.boxShadow = '0 0 12px rgba(0, 217, 255, 0.06)';
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BookOpen size={16} color="#00D9FF" />
-            <span>Mis Notas / Cuaderno</span>
-          </div>
-          <span
-            style={{
-              fontSize: '10px',
-              padding: '2px 7px',
-              borderRadius: '6px',
-              backgroundColor: 'rgba(0, 217, 255, 0.15)',
-              color: '#00D9FF',
-              fontWeight: 700,
-              letterSpacing: '0.4px',
-            }}
-          >
-            CANVAS
-          </span>
         </button>
       )}
 
@@ -795,85 +635,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             )}
 
-            {/* Model Filter Pills */}
+            {/* Menú Desplegable "Filtrar por" */}
             {conversations.length > 0 && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  overflowX: 'auto',
-                  paddingBottom: '6px',
-                  marginBottom: '8px',
-                  scrollbarWidth: 'none',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setSelectedFilterModel('all')}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', padding: '0 2px' }}>
+                <span style={{ fontSize: '11px', color: '#71717a', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Conversaciones ({filteredConversations.length})
+                </span>
+                <select
+                  value={selectedFilterModel}
+                  onChange={(e) => setSelectedFilterModel(e.target.value as any)}
                   style={{
-                    padding: '3px 8px',
-                    borderRadius: '12px',
-                    fontSize: '10.5px',
-                    fontWeight: 600,
-                    border: 'none',
-                    backgroundColor: selectedFilterModel === 'all' ? '#00d9ff' : 'rgba(255, 255, 255, 0.05)',
-                    color: selectedFilterModel === 'all' ? '#000000' : '#94a3b8',
+                    fontSize: '11px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '6px',
+                    color: '#cbd5e1',
+                    padding: '3px 6px',
+                    outline: 'none',
                     cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.15s ease',
                   }}
                 >
-                  Todos
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedFilterModel(selectedFilterModel === 'pinned' ? 'all' : 'pinned')}
-                  style={{
-                    padding: '3px 8px',
-                    borderRadius: '12px',
-                    fontSize: '10.5px',
-                    fontWeight: 600,
-                    border: selectedFilterModel === 'pinned' ? '1px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.06)',
-                    backgroundColor: selectedFilterModel === 'pinned' ? 'rgba(245, 158, 11, 0.22)' : 'rgba(255, 255, 255, 0.03)',
-                    color: selectedFilterModel === 'pinned' ? '#fbbf24' : '#94a3b8',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <Pin size={10} />
-                  Fijados
-                </button>
-                {/* 3 Modelos Principales en Filtro Rápido */}
-                {(['speed', 'cortex', 'zenith'] as const).map((m) => {
-                  const isSel = selectedFilterModel === m;
-                  const mMeta = MODEL_META[m];
-                  return (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setSelectedFilterModel(isSel ? 'all' : m)}
-                      style={{
-                        padding: '3px 8px',
-                        borderRadius: '12px',
-                        fontSize: '10.5px',
-                        fontWeight: 600,
-                        border: isSel ? `1px solid ${mMeta?.color || '#00d9ff'}` : '1px solid rgba(255, 255, 255, 0.06)',
-                        backgroundColor: isSel ? `${mMeta?.color || '#00d9ff'}25` : 'rgba(255, 255, 255, 0.03)',
-                        color: isSel ? '#ffffff' : '#94a3b8',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      {mMeta?.label || m}
-                    </button>
-                  );
-                })}
+                  <option value="all">Filtrar: Todos</option>
+                  <option value="pinned">📌 Fijados</option>
+                  <option value="speed">⚡ Speed</option>
+                  <option value="cortex">🧠 Cortex</option>
+                  <option value="zenith">✨ Zenith</option>
+                </select>
               </div>
             )}
 
@@ -911,6 +698,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <div className="lyaxis-sidebar-group-label">{bucket}</div>
                 )}
                 <div
+                  className="lyaxis-chat-item"
                   onClick={() => {
                     if (isEditingThis) return;
                     onSelectConversation(chat);
@@ -1022,7 +810,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </span>
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+                <div className="lyaxis-chat-actions" style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
                   {onTogglePinConversation && (
                     <button
                       type="button"
@@ -1106,30 +894,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* 5. Barra Inferior del Sidebar con Interruptor de Sonido Discreto (Mute Toggle) */}
       <div
         style={{
-          paddingTop: '10px',
+          paddingTop: '8px',
           borderTop: '1px solid #141418',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '6px',
           marginTop: '8px',
           flexShrink: 0,
         }}
       >
         <span
           style={{
-            fontSize: '10.5px',
-            color: '#52525b',
-            letterSpacing: '0.2px',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            minWidth: 0,
+            fontSize: '10px',
+            color: '#3f3f46',
+            fontFamily: 'var(--lx-font-mono)',
           }}
+          title="Protocolo LYAXIS labs"
         >
-          Create. Break. Rebuild.
+          v2.4
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           {onOpenDirectives && (
             <button
               type="button"
@@ -1137,56 +921,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 playCyberClick();
                 onOpenDirectives();
               }}
-              title="Configurar Directivas y Memoria Personal"
+              title="Memoria y Directivas"
               style={{
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                padding: '6px',
                 borderRadius: '6px',
-                color: '#94a3b8',
+                background: 'none',
+                border: 'none',
+                color: '#71717a',
                 cursor: 'pointer',
-                padding: '4px 8px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px',
-                fontSize: '11px',
-                fontWeight: 600,
-                transition: 'all 0.2s ease',
+                justifyContent: 'center',
+                transition: 'color 0.2s ease',
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = '#00D9FF';
-                e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.4)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = '#94a3b8';
-                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = '#00D9FF'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = '#71717a'; }}
             >
-              <Sliders size={13} />
-              <span>Memoria</span>
+              <Sliders size={14} />
             </button>
           )}
           <button
             type="button"
             onClick={handleToggleMute}
-            title={internalMuted ? 'Activar sonido cyber' : 'Silenciar sonido cyber'}
+            title={internalMuted ? 'Activar audio' : 'Silenciar audio'}
             style={{
-              background: internalMuted ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 217, 255, 0.08)',
-              border: internalMuted ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 217, 255, 0.3)',
+              padding: '6px',
               borderRadius: '6px',
-              color: internalMuted ? '#52525b' : '#00D9FF',
+              background: 'none',
+              border: 'none',
+              color: internalMuted ? '#52525b' : '#00d9ff',
               cursor: 'pointer',
-              padding: '4px 8px',
               display: 'flex',
               alignItems: 'center',
-              gap: '5px',
-              fontSize: '11px',
-              fontWeight: 600,
-              boxShadow: internalMuted ? 'none' : '0 0 10px rgba(0, 217, 255, 0.2)',
-              transition: 'all 0.2s ease',
+              justifyContent: 'center',
+              transition: 'color 0.2s ease',
             }}
           >
-            {internalMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
-            <span>{internalMuted ? 'Muted' : 'Audio'}</span>
+            {internalMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
           </button>
         </div>
       </div>

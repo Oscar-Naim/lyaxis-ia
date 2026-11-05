@@ -10,7 +10,7 @@ import {
   Copy, Check, FileDown, ChevronDown, ChevronRight, ChevronUp, Sparkles, BookOpen, 
   Zap, Crosshair, Brain, Compass, MessageCircle, Waypoints, Hammer, 
   GraduationCap, Terminal, User as UserIcon, Pencil, Save,
-  Volume2, Square, GitFork, ArrowUpRight
+  Volume2, Square, GitFork, ArrowUpRight, MoreHorizontal
 } from 'lucide-react';
 import type { Message, ModelType } from '../types';
 import { CodeBlock } from '../CodeBlock';
@@ -697,6 +697,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   const [editText, setEditText] = useState(message.content || '');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isPromptExpanded, setIsPromptExpanded] = useState(false);
+  const [isMsgMenuOpen, setIsMsgMenuOpen] = useState(false);
 
   React.useEffect(() => {
     return () => {
@@ -1468,54 +1469,18 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
         )}
 
         {!isUser && message.content && !message.isStreaming && !isTriad && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            {/* TTS Neural Voice Button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            {/* Único botón de copiado rápido */}
             <button
               type="button"
-              title={isSpeaking ? 'Detener lectura por voz' : 'Escuchar respuesta en voz alta (TTS)'}
-              onClick={handleToggleSpeech}
-              style={{
-                background: isSpeaking ? 'rgba(0, 217, 255, 0.16)' : 'rgba(255, 255, 255, 0.04)',
-                border: isSpeaking ? '1px solid rgba(0, 217, 255, 0.5)' : '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '6px',
-                padding: '3px 8px',
-                color: isSpeaking ? '#00D9FF' : '#a1a1aa',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                fontSize: '11px',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {isSpeaking ? (
-                <>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', height: '12px' }}>
-                    <span className="lyaxis-tts-bar" />
-                    <span className="lyaxis-tts-bar" />
-                    <span className="lyaxis-tts-bar" />
-                  </span>
-                  <Square size={10} fill="#00D9FF" />
-                  <span>Detener</span>
-                </>
-              ) : (
-                <>
-                  <Volume2 size={12} />
-                  <span>Voz</span>
-                </>
-              )}
-            </button>
-
-            <button
-              type="button"
-              title="Copiar texto"
               onClick={handleCopyText}
+              title="Copiar respuesta completa"
               style={{
                 background: copied ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.04)',
                 border: copied ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(255, 255, 255, 0.08)',
                 borderRadius: '6px',
-                padding: '3px 8px',
-                color: copied ? '#10b981' : '#a1a1aa',
+                padding: '4px 8px',
+                color: copied ? '#10b981' : '#cbd5e1',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -1524,90 +1489,109 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                 transition: 'all 0.15s ease',
               }}
             >
-              {copied ? <Check size={12} color="#10B981" /> : <Copy size={12} />}
+              {copied ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
               <span>{copied ? 'Copiado' : 'Copiar'}</span>
             </button>
 
-            {onForkMessage && (
+            {/* Menú desplegable para acciones secundarias */}
+            <div style={{ position: 'relative' }}>
               <button
                 type="button"
-                title="Ramificar conversación desde este punto"
-                onClick={onForkMessage}
+                onClick={() => setIsMsgMenuOpen(!isMsgMenuOpen)}
+                title="Más opciones de respuesta"
                 style={{
-                  background: 'rgba(168, 85, 247, 0.08)',
-                  border: '1px solid rgba(168, 85, 247, 0.28)',
+                  background: isMsgMenuOpen ? 'rgba(0, 217, 255, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+                  border: isMsgMenuOpen ? '1px solid rgba(0, 217, 255, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
                   borderRadius: '6px',
-                  padding: '3px 8px',
-                  color: '#c084fc',
+                  padding: '4px 6px',
+                  color: isMsgMenuOpen ? '#00D9FF' : '#a1a1aa',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '5px',
-                  fontSize: '11px',
+                  justifyContent: 'center',
                   transition: 'all 0.15s ease',
                 }}
               >
-                <GitFork size={12} />
-                <span>Ramificar</span>
+                <MoreHorizontal size={13} />
               </button>
-            )}
+              {isMsgMenuOpen && (
+                <>
+                  <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 45, backgroundColor: 'transparent' }}
+                    onClick={() => setIsMsgMenuOpen(false)}
+                  />
+                  <div
+                    className="lyaxis-msg-popover"
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 5px)',
+                      right: 0,
+                      backgroundColor: '#0a0a0f',
+                      border: '1px solid #22222e',
+                      borderRadius: '10px',
+                      padding: '5px',
+                      boxShadow: '0 8px 30px rgba(0,0,0,0.85), 0 0 15px rgba(0, 217, 255, 0.1)',
+                      zIndex: 50,
+                      minWidth: '175px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '3px',
+                      backdropFilter: 'blur(16px)',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMsgMenuOpen(false);
+                        handleToggleSpeech();
+                      }}
+                    >
+                      {isSpeaking ? <Square size={13} color="#00D9FF" fill="#00D9FF" /> : <Volume2 size={13} color="#00D9FF" />}
+                      <span>{isSpeaking ? 'Detener lectura' : 'Lectura por voz'}</span>
+                    </button>
 
-            {onOpenInNotebook && (
-              <button
-                type="button"
-                title="Abrir en LYAXIS Notebook"
-                onClick={() => onOpenInNotebook(message.content, msgModel)}
-                style={{
-                  background: 'rgba(0, 217, 255, 0.06)',
-                  border: '1px solid rgba(0, 217, 255, 0.22)',
-                  borderRadius: '6px',
-                  padding: '3px 8px',
-                  color: '#00D9FF',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  transition: 'all 0.15s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.15)';
-                  e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.45)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(0, 217, 255, 0.06)';
-                  e.currentTarget.style.borderColor = 'rgba(0, 217, 255, 0.22)';
-                }}
-              >
-                <BookOpen size={12} color="#00D9FF" />
-                <span>Notebook</span>
-              </button>
-            )}
+                    {onForkMessage && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMsgMenuOpen(false);
+                          onForkMessage();
+                        }}
+                      >
+                        <GitFork size={13} color="#c084fc" />
+                        <span>Ramificar desde aquí</span>
+                      </button>
+                    )}
 
-            {onExportPDF && (
-              <button
-                type="button"
-                title="Exportar a PDF"
-                onClick={() => onExportPDF('Respuesta LYAXIS', modelLabel, modelColor, [message])}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: '6px',
-                  padding: '3px 8px',
-                  color: '#00D9FF',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  fontSize: '11px',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <FileDown size={12} />
-                <span>PDF</span>
-              </button>
-            )}
+                    {onOpenInNotebook && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMsgMenuOpen(false);
+                          onOpenInNotebook(message.content, msgModel);
+                        }}
+                      >
+                        <BookOpen size={13} color="#00D9FF" />
+                        <span>Enviar a Notebook</span>
+                      </button>
+                    )}
+
+                    {onExportPDF && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMsgMenuOpen(false);
+                          onExportPDF('Respuesta LYAXIS', modelLabel, modelColor, [message]);
+                        }}
+                      >
+                        <FileDown size={13} color="#10B981" />
+                        <span>Exportar como PDF</span>
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -1863,45 +1847,22 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
         </div>
       )}
 
-      {/* Footer bar for standard assistant message: "Copiar respuesta completa" + Sello de Telemetría Real */}
+      {/* Footer bar for standard assistant message: Sello de Telemetría Real */}
       {!isUser && !isTriad && message.content && !message.isStreaming && (
         <div
           style={{
-            marginTop: '12px',
-            paddingTop: '10px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.07)',
+            marginTop: '10px',
+            paddingTop: '8px',
+            borderTop: '1px solid rgba(255, 255, 255, 0.06)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
+            justifyContent: 'flex-end',
             flexWrap: 'wrap',
             gap: '8px',
             fontSize: '11px',
             color: '#71717a',
           }}
         >
-          <button
-            type="button"
-            onClick={handleCopyText}
-            title="Copiar respuesta completa"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '5px 11px',
-              borderRadius: '6px',
-              backgroundColor: copied ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-              border: copied ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
-              color: copied ? '#10b981' : '#a1a1aa',
-              cursor: 'pointer',
-              fontSize: '11px',
-              fontWeight: 500,
-              transition: 'all 0.2s ease',
-            }}
-          >
-            {copied ? <Check size={13} color="#10B981" /> : <Copy size={13} />}
-            <span>{copied ? '¡Copiado al portapapeles!' : 'Copiar respuesta completa'}</span>
-          </button>
-
           <div className="lyaxis-usage-seal">
             {message.usage && message.usage.totalTokens > 0 ? (
               <span
