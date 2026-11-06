@@ -1536,7 +1536,6 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '3px',
-                      backdropFilter: 'blur(16px)',
                     }}
                   >
                     <button

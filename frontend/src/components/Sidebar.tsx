@@ -17,7 +17,6 @@ import {
   Waypoints,
   Hammer,
   GraduationCap,
-  BookOpen,
   Zap,
   Search,
   X,
@@ -26,8 +25,6 @@ import {
   Pin,
   Pencil,
   Check,
-  Globe,
-  ArrowUpRight,
   Download,
 } from 'lucide-react';
 import type { Conversation, User, ModelType } from '../types';
@@ -112,10 +109,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onDeleteAllConversations,
   onTogglePinConversation,
   onRenameConversation,
-  selectedModel,
   soundMuted: soundMutedProp,
   onToggleSoundMute,
-  onOpenNotebook,
   onOpenShowcase,
   onOpenCommandPalette,
   onOpenDirectives,

@@ -15,6 +15,7 @@ from main import (
     detect_incomplete_query,
     get_dynamic_token_budget,
     _clean_history_text,
+    sign_user_token,
 )
 
 PDF_ORIGINAL_PROMPT = (
@@ -116,11 +117,13 @@ async def _consume_sse(client: httpx.AsyncClient, payload: dict) -> tuple[str, d
 async def run_live_tests():
     db.execute("DELETE FROM prompt_cache WHERE response LIKE '%QuickSort%' OR response LIKE '%<thought>%'")
     test_uid = f"test-gov-{uuid.uuid4().hex[:8]}"
+    test_token = sign_user_token(test_uid)
+    auth_headers = {"Authorization": f"Bearer {test_token}"}
     created_convs = []
     transport = httpx.ASGITransport(app=app)
 
     try:
-        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers=auth_headers) as client:
             print("\n=== [2/4] Test en Vivo 1: Interceptor Pre-Vuelo (Prompt del PDF en Speed, Cortex y Zenith) ===")
             for motor in ("speed", "cortex", "zenith"):
                 cid = f"conv-preflight-{motor}-{uuid.uuid4().hex[:6]}"
