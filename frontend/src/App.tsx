@@ -94,7 +94,12 @@ export default function App() {
       if (!Array.isArray(parsed)) return [];
       const currentUid = user?.id || guestId;
       const sanitized = parsed.filter(
-        (c: any) => c && c.userId && c.userId !== 'anon' && c.userId === currentUid
+        (c: any) =>
+          c &&
+          c.id &&
+          c.userId &&
+          c.userId !== 'anon' &&
+          (c.userId === currentUid || (currentUid.startsWith('guest-') && (c.userId === 'guest' || c.userId.startsWith('guest-'))))
       );
       if (sanitized.length !== parsed.length) {
         localStorage.setItem('lyaxis_conversations', JSON.stringify(sanitized));
@@ -111,7 +116,34 @@ export default function App() {
     } catch {}
   }, [conversations]);
 
-  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const savedChatId = localStorage.getItem('lyaxis_current_chat_id');
+      if (savedChatId) return savedChatId;
+      const saved = localStorage.getItem('lyaxis_conversations');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.id) {
+          return parsed[0].id;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (currentChatId) {
+        localStorage.setItem('lyaxis_current_chat_id', currentChatId);
+      } else {
+        localStorage.removeItem('lyaxis_current_chat_id');
+      }
+    } catch {}
+  }, [currentChatId]);
+
   const [selectedModel, setSelectedModel] = useState<ModelId>('speed');
 
   useEffect(() => {
@@ -121,7 +153,34 @@ export default function App() {
     } catch {}
   }, [selectedModel]);
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const savedChatId = localStorage.getItem('lyaxis_current_chat_id');
+      if (savedChatId) {
+        const savedMsgs = localStorage.getItem(`lyaxis_msgs_${savedChatId}`);
+        if (savedMsgs) {
+          const parsed = JSON.parse(savedMsgs);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      }
+      const saved = localStorage.getItem('lyaxis_conversations');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.id) {
+          const firstId = parsed[0].id;
+          const savedMsgs = localStorage.getItem(`lyaxis_msgs_${firstId}`);
+          if (savedMsgs) {
+            const parsed = JSON.parse(savedMsgs);
+            if (Array.isArray(parsed)) return parsed;
+          }
+        }
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     if (currentChatId && messages.length > 0) {
@@ -185,9 +244,26 @@ export default function App() {
     fetchConversations(loggedInUser.id);
   };
 
+  const handleEnsureConversation = (newChat: Conversation) => {
+    setConversations((prev) => {
+      const exists = prev.some((c) => c.id === newChat.id);
+      let updated: Conversation[];
+      if (exists) {
+        updated = prev.map((c) => (c.id === newChat.id ? { ...c, ...newChat } : c));
+      } else {
+        updated = [newChat, ...prev];
+      }
+      try {
+        localStorage.setItem('lyaxis_conversations', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('lyaxis_user');
+    localStorage.removeItem('lyaxis_current_chat_id');
     setConversations([]);
     setMessages([]);
     setCurrentChatId(null);
@@ -198,7 +274,6 @@ export default function App() {
     try {
       const uid = targetUserId !== undefined ? targetUserId : activeUserId;
       if (!uid || uid === 'anon') {
-        setConversations([]);
         return;
       }
       const url = `${API_BASE}/api/v1/conversations?user_id=${encodeURIComponent(uid)}`;
@@ -217,7 +292,38 @@ export default function App() {
               pinned: Boolean(c.pinned),
               folder: c.folder || undefined,
             }));
-          setConversations(loaded);
+
+          setConversations((prev) => {
+            const map = new Map<string, Conversation>();
+            // 1. Conservar conversaciones locales válidas del usuario actual
+            prev.forEach((c) => {
+              const cUid = c?.userId;
+              if (c && c.id && cUid && (cUid === uid || (uid.startsWith('guest-') && (cUid === 'guest' || cUid.startsWith('guest-'))))) {
+                map.set(c.id, c);
+              }
+            });
+            // 2. Fusionar con las devueltas por el servidor sin destruir las locales
+            loaded.forEach((serverConv) => {
+              const existing = map.get(serverConv.id);
+              if (!existing) {
+                map.set(serverConv.id, serverConv);
+              } else {
+                map.set(serverConv.id, {
+                  ...existing,
+                  ...serverConv,
+                  title: serverConv.title && serverConv.title !== 'Nueva conversación' ? serverConv.title : existing.title,
+                });
+              }
+            });
+            const merged = Array.from(map.values()).sort(
+              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+            try {
+              localStorage.setItem('lyaxis_conversations', JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+
           setCurrentChatId((curr) => {
             if (!curr && loaded.length > 0) {
               loadMessages(loaded[0].id);
@@ -347,6 +453,9 @@ export default function App() {
   const handleDeleteConversation = async (chatId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     try {
+      localStorage.removeItem(`lyaxis_msgs_${chatId}`);
+    } catch {}
+    try {
       await fetch(`${API_BASE}/api/v1/conversations/${chatId}`, {
         method: 'DELETE',
         headers: getAuthHeaders(activeUserId),
@@ -366,6 +475,14 @@ export default function App() {
   };
 
   const deleteAllConversations = async () => {
+    try {
+      localStorage.removeItem('lyaxis_current_chat_id');
+      conversations.forEach((c) => {
+        try {
+          localStorage.removeItem(`lyaxis_msgs_${c.id}`);
+        } catch {}
+      });
+    } catch {}
     try {
       await fetch(`${API_BASE}/api/v1/conversations/all?user_id=${encodeURIComponent(activeUserId)}`, {
         method: 'DELETE',
@@ -512,6 +629,7 @@ export default function App() {
           setSelectedModel={switchModel}
           currentChatId={currentChatId}
           setCurrentChatId={setCurrentChatId}
+          onEnsureConversation={handleEnsureConversation}
           activeUserId={activeUserId}
           isMobile={isMobile}
           soundEnabled={soundEnabled}
