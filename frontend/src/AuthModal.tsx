@@ -52,7 +52,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
     setError(null);
 
     const fallbackUser: User = {
-      id: `email-${email.replace(/[^a-z0-9]/g, '_')}`,
+      id: `guest-email-${email.replace(/[^a-z0-9]/gi, '_')}`,
       email,
       name: email.split('@')[0].toUpperCase(),
       picture: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(email)}`
@@ -71,7 +71,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
       if (res.ok) {
         const data = await res.json();
         if (data?.user) {
-          onLoginSuccess(data.user);
+          const userWithToken: User = {
+            ...data.user,
+            token: data.token || data.user.token,
+          };
+          onLoginSuccess(userWithToken);
           onClose();
           setLoading(false);
           return;
@@ -141,30 +145,51 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
     setLoading(true);
     setError(null);
 
-    const verifiedUser: User = {
-      id: `user-${Date.now()}`,
+    const safeTarget = target.replace(/[^a-z0-9]/gi, '_');
+    const fallbackVerifiedUser: User = {
+      id: `guest-otp-${safeTarget}`,
       email: authType === 'email' ? target : undefined,
       phone: authType === 'phone' ? target : undefined,
       name: authType === 'email' ? target.split('@')[0].toUpperCase() : `Usuario ${target.slice(-4)}`,
       picture: `https://api.dicebear.com/7.x/bottts/svg?seed=${target}`
     };
 
-    onLoginSuccess(verifiedUser);
-    onClose();
-    setLoading(false);
-
     try {
-      fetch(`${API_BASE}/api/v1/auth/otp/verify`, {
+      const res = await fetch(`${API_BASE}/api/v1/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contact: target,
           target: target,
-          code: otpCode.join(''),
+          code: fullCode,
           auth_type: authType
         })
       });
-    } catch {}
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.user) {
+          const userWithToken: User = {
+            ...data.user,
+            token: data.token || data.user.token,
+          };
+          onLoginSuccess(userWithToken);
+          onClose();
+          setLoading(false);
+          return;
+        }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setError(errData.detail || 'Código inválido o expirado');
+        setLoading(false);
+        return;
+      }
+    } catch {
+      // Fallback offline si el backend no responde
+    }
+
+    onLoginSuccess(fallbackVerifiedUser);
+    onClose();
+    setLoading(false);
   };
 
   const handleVerifyOtp = handleVerifyOTP;
@@ -174,7 +199,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
       const payload = parseJwt(credentialResponse.credential);
       if (payload) {
         const googleUser: User = {
-          id: payload.sub,
+          id: `guest-google-${payload.sub}`,
           email: payload.email,
           name: payload.name || payload.email.split('@')[0],
           picture: payload.picture || `https://api.dicebear.com/7.x/bottts/svg?seed=${payload.email}`
@@ -193,7 +218,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
           .then((r) => (r.ok ? r.json() : null))
           .then((data) => {
             if (data?.user) {
-              onLoginSuccess(data.user);
+              const userWithToken: User = {
+                ...data.user,
+                token: data.token || data.user.token,
+              };
+              onLoginSuccess(userWithToken);
             }
           })
           .catch(() => {});

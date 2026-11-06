@@ -43,7 +43,7 @@ import {
   ArrowUpRight,
   MoreHorizontal,
 } from 'lucide-react';
-import type { Message, ModelType, User } from '../types';
+import type { Message, ModelType, User, Conversation } from '../types';
 import { useSSEStream } from '../useSSEStream';
 import { useTriadQuota } from '../useTriadQuota';
 import { MessageBubble } from './MessageBubble';
@@ -68,6 +68,7 @@ export interface ChatViewProps {
   setSelectedModel?: (model: ModelType) => void;
   currentChatId: string | null;
   setCurrentChatId?: (id: string) => void;
+  onEnsureConversation?: (chat: Conversation) => void;
   activeUserId?: string;
   isMobile?: boolean;
   soundEnabled?: boolean;
@@ -114,6 +115,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   setSelectedModel,
   currentChatId,
   setCurrentChatId,
+  onEnsureConversation,
   activeUserId,
   isMobile = false,
   soundEnabled,
@@ -819,6 +821,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
       if (setCurrentChatId) setCurrentChatId(targetChatId);
     }
 
+    const snippetTitle = userText
+      .trim()
+      .replace(/^\[Directivas[^\]]+\]\s*/, '')
+      .replace(/^\[Archivo[^\]]+\]\s*/, '')
+      .slice(0, 42)
+      .trim() || 'Nueva conversación';
+
+    const optimisticConv: Conversation = {
+      id: targetChatId,
+      userId: activeUserId || 'guest',
+      title: snippetTitle,
+      createdAt: new Date().toISOString(),
+      model: activeModelForSend,
+    };
+    onEnsureConversation?.(optimisticConv);
+
     const userMessage: Message = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -842,6 +860,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
     userScrolledUpRef.current = false;
     setShowScrollBottom(false);
     setMessages([...updatedMessages, assistantMessage]);
+
+    try {
+      localStorage.setItem(`lyaxis_msgs_${targetChatId}`, JSON.stringify([...updatedMessages, assistantMessage]));
+      localStorage.setItem('lyaxis_current_chat_id', targetChatId);
+    } catch {}
 
     // Active model individual temperature
     const activeMeta = modelMeta[activeModelForSend] || MODEL_META[activeModelForSend] || MODEL_META.speed;
@@ -932,13 +955,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
               tokenCount: streamTokenCountRef.current,
             });
           }
-          setMessages((prev) =>
-            prev.map((msg) =>
+          setMessages((prev) => {
+            const next = prev.map((msg) =>
               msg.id === assistantPlaceholderId
                 ? { ...msg, usage: usage && usage.totalTokens > 0 ? usage : msg.usage, durationMs: finalDurationMs }
                 : msg
-            )
-          );
+            );
+            if (targetChatId) {
+              try {
+                localStorage.setItem(`lyaxis_msgs_${targetChatId}`, JSON.stringify(next));
+                localStorage.setItem('lyaxis_current_chat_id', targetChatId);
+              } catch {}
+            }
+            return next;
+          });
           setServerErrorBanner(null);
           setLastFailedUserText(null);
           onConversationUpdated?.();
@@ -947,11 +977,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
     );
 
     // Finalize isStreaming flag
-    setMessages((prev) =>
-      prev.map((msg) =>
+    setMessages((prev) => {
+      const next = prev.map((msg) =>
         msg.id === assistantPlaceholderId ? { ...msg, isStreaming: false } : msg
-      )
-    );
+      );
+      if (targetChatId) {
+        try {
+          localStorage.setItem(`lyaxis_msgs_${targetChatId}`, JSON.stringify(next));
+          localStorage.setItem('lyaxis_current_chat_id', targetChatId);
+        } catch {}
+      }
+      return next;
+    });
   };
 
   const handleEditMessage = (msgIndex: number, newContent: string) => {
