@@ -30,13 +30,11 @@ import {
   LayoutDashboard,
   Info,
   Menu,
-  MoreVertical,
   Mic,
   MicOff,
   Wand2,
   Command,
   FileText,
-  Download,
   Sliders,
   FileCode,
   Bookmark,
@@ -144,7 +142,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showZenithNotice, setShowZenithNotice] = useState(false);
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isPromptVaultOpen, setIsPromptVaultOpen] = useState(false);
   const [splitCanvasData, setSplitCanvasData] = useState<{ code: string; language: string; title?: string } | null>(null);
   const [isAutoRouterActive, setIsAutoRouterActive] = useState<boolean>(() => {
@@ -313,12 +310,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
   const toolsMenuRef = useRef<HTMLDivElement | null>(null);
 
-  // Mobile Actions Dropdown state (3. HEADER COMPACTO Y LIMPIO EN MÓVIL)
-  const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
-  const mobileActionsRef = useRef<HTMLDivElement | null>(null);
-  const exportMenuRef = useRef<HTMLDivElement | null>(null);
-  const specialistsMenuRef = useRef<HTMLDivElement | null>(null);
-  const [isSpecialistsMenuOpen, setIsSpecialistsMenuOpen] = useState(false);
   const [showEmptySpecialists, setShowEmptySpecialists] = useState(false);
 
   // Focus state for bottom input box chromatic glow
@@ -497,15 +488,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
       }
       if (toolsMenuRef.current && !toolsMenuRef.current.contains(target)) {
         setIsToolsMenuOpen(false);
-      }
-      if (mobileActionsRef.current && !mobileActionsRef.current.contains(target)) {
-        setIsMobileActionsOpen(false);
-      }
-      if (exportMenuRef.current && !exportMenuRef.current.contains(target)) {
-        setIsExportMenuOpen(false);
-      }
-      if (specialistsMenuRef.current && !specialistsMenuRef.current.contains(target)) {
-        setIsSpecialistsMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
